@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+	<link rel="icon" type="image/png" href="logo_hyperset.png">
+    <title>Hyperset</title>
+    <style>
+        :root {
+            /* Material Design 3 — Light scheme */
+            --md-surface:         #f5f3f0;
+            --md-surface-cont:    #ffffff;
+            --md-surface-cont-hi: #eceae7;
+            --md-on-surface:      #1c1b1f;
+            --md-outline:         #cac5be;
+            --md-outline-var:     #ddd8d2;
+
+            /* Primary — cyan #20A7C9 */
+            --md-primary:         #20a7c9;
+            --md-primary-muted:   #4dbdd6;
+            --md-primary-cont:    #e0f4f8;
+            --md-on-primary-cont: #0c6a82;
+
+            /* Secondary — warm terracotta */
+            --md-secondary:       #c75b39;
+            --md-secondary-muted: #e8845f;
+            --md-secondary-cont:  #fbe9e7;
+            --md-on-sec-cont:     #7f2e14;
+
+            --radius-l: 16px;
+            --radius-m: 12px;
+            --ease-standard: cubic-bezier(.2, 0, 0, 1);
+            --ease-decel:    cubic-bezier(0, 0, 0, 1);
+        }
+
+        /* ── Dark theme (automatic) ─────────────────────────── */
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --md-surface:         #1a1a1e;
+                --md-surface-cont:    #242428;
+                --md-surface-cont-hi: #2e2e33;
+                --md-on-surface:      #e4e1e6;
+                --md-outline:         #49474e;
+                --md-outline-var:     #3a383f;
+
+                --md-primary:         #5cc8e4;
+                --md-primary-muted:   #3aafcc;
+                --md-primary-cont:    #0c3d4a;
+                --md-on-primary-cont: #a0e4f4;
+
+                --md-secondary:       #e8845f;
+                --md-secondary-muted: #c75b39;
+                --md-secondary-cont:  #4a2010;
+                --md-on-sec-cont:     #f4b8a0;
+            }
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            display: flex;
+            height: 100vh;
+            height: 100dvh;
+            font-family: system-ui, -apple-system, sans-serif;
+            overflow: hidden;
+            background: var(--md-surface);
+            color: var(--md-on-surface);
+        }
+
+        /* ── Container ───────────────────────────────────────── */
+        .container {
+            display: flex;
+            width: 100%;
+            height: 100%;
+            gap: 0;
+            background: var(--md-surface);
+            position: relative;
+        }
+
+        /* ── Panels ──────────────────────────────────────────── */
+        .panel {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            background: var(--md-surface-cont);
+            position: relative;
+            overflow: hidden;
+            transition: flex 0.4s var(--ease-standard),
+                        opacity 0.3s var(--ease-standard);
+            transform: translateZ(0);
+            will-change: flex;
+        }
+
+        #main-panel { flex: 70; min-width: 50px; }
+
+        /* Service panels — hidden when collapsed */
+        .service-panel {
+            flex: 0;
+            min-width: 0 !important;
+            opacity: 0;
+            pointer-events: none;
+            overflow: hidden;
+        }
+        .service-panel.expanded {
+            opacity: 1;
+            pointer-events: auto;
+            min-width: 50px;
+        }
+
+        iframe {
+            flex: 1;
+            border: none;
+            width: 100%;
+            height: 100%;
+            background: var(--md-surface-cont);
+            transform: translateZ(0);
+            will-change: width, height;
+        }
+
+        /* ── Resizer ─────────────────────────────────────────── */
+        .resizer {
+            width: 12px;
+            background: transparent;
+            cursor: col-resize;
+            flex-shrink: 0;
+            position: relative;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: width 0.25s var(--ease-standard),
+                        opacity 0.3s var(--ease-standard);
+        }
+
+        .resizer.hidden {
+            width: 0;
+            opacity: 0;
+            pointer-events: none;
+            overflow: hidden;
+        }
+
+        /* Kill transitions during active drag */
+        .resizing .panel,
+        .resizing .resizer {
+            transition: none !important;
+        }
+
+        /* Pill-shaped grab handle */
+        .resizer::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 3px;
+            height: 32px;
+            border-radius: 2px;
+            background: var(--md-outline-var);
+            transition: height 0.3s var(--ease-decel),
+                        background 0.2s ease,
+                        width 0.2s ease,
+                        opacity 0.2s ease;
+            opacity: 0.5;
+        }
+
+        .resizer:hover::before {
+            height: 56px;
+            width: 4px;
+            opacity: 1;
+        }
+
+        .resizer.resizer-primary:hover::before  { background: var(--md-primary-muted); }
+        .resizer.resizer-primary:active::before  { background: var(--md-primary); height: 72px; }
+        .resizer.resizer-secondary:hover::before { background: var(--md-secondary-muted); }
+        .resizer.resizer-secondary:active::before{ background: var(--md-secondary); height: 72px; }
+
+        /* ── Service Column (Power BI style) ─────────────────── */
+        .service-column {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 8px 0;
+            gap: 4px;
+            width: 48px;
+            min-width: 48px;
+            flex-shrink: 0;
+            background: var(--md-surface);
+            z-index: 20;
+            order: 99; /* always rightmost on desktop */
+            transition: width 0.3s var(--ease-standard);
+        }
+
+        .service-btn {
+            width: 40px;
+            height: 40px;
+            border: none;
+            border-radius: var(--radius-m);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            transition: background 0.2s var(--ease-standard),
+                        box-shadow 0.2s ease;
+        }
+
+        .service-btn svg {
+            width: 20px;
+            height: 20px;
+            transition: fill 0.2s ease, opacity 0.2s ease;
+        }
+
+        /* Inactive state */
+        .service-btn.svc-primary {
+            background: transparent;
+        }
+        .service-btn.svc-primary svg { fill: var(--md-on-primary-cont); opacity: 0.5; }
+        .service-btn.svc-primary:hover {
+            background: var(--md-primary-cont);
+        }
+        .service-btn.svc-primary:hover svg { opacity: 0.8; }
+
+        .service-btn.svc-secondary {
+            background: transparent;
+        }
+        .service-btn.svc-secondary svg { fill: var(--md-on-sec-cont); opacity: 0.5; }
+        .service-btn.svc-secondary:hover {
+            background: var(--md-secondary-cont);
+        }
+        .service-btn.svc-secondary:hover svg { opacity: 0.8; }
+
+        /* Active state — panel is open */
+        .service-btn.active.svc-primary {
+            background: var(--md-primary-cont);
+            box-shadow: 0 1px 4px rgba(0,0,0,.1), 0 2px 8px rgba(0,0,0,.06);
+        }
+        .service-btn.active.svc-primary svg { fill: var(--md-on-primary-cont); opacity: 1; }
+        .service-btn.active.svc-primary:hover {
+            background: var(--md-primary-muted);
+        }
+        .service-btn.active.svc-primary:hover svg { fill: #fff; }
+
+        .service-btn.active.svc-secondary {
+            background: var(--md-secondary-cont);
+            box-shadow: 0 1px 4px rgba(0,0,0,.1), 0 2px 8px rgba(0,0,0,.06);
+        }
+        .service-btn.active.svc-secondary svg { fill: var(--md-on-sec-cont); opacity: 1; }
+        .service-btn.active.svc-secondary:hover {
+            background: var(--md-secondary-muted);
+        }
+        .service-btn.active.svc-secondary:hover svg { fill: #fff; }
+
+        /* Active indicator bar */
+        .service-btn.active::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 8px;
+            bottom: 8px;
+            width: 3px;
+            border-radius: 0 2px 2px 0;
+        }
+        .service-btn.active.svc-primary::before {
+            background: var(--md-primary);
+        }
+        .service-btn.active.svc-secondary::before {
+            background: var(--md-secondary);
+        }
+
+        /* Tooltip on hover */
+        .service-btn[data-tooltip]:hover::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            right: calc(100% + 8px);
+            top: 50%;
+            transform: translateY(-50%);
+            background: var(--md-surface-cont-hi);
+            color: var(--md-on-surface);
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            white-space: nowrap;
+            pointer-events: none;
+            box-shadow: 0 2px 8px rgba(0,0,0,.12);
+            z-index: 999;
+        }
+
+        /* Separator line in service column */
+        .service-sep {
+            width: 24px;
+            height: 1px;
+            background: var(--md-outline-var);
+            margin: 4px 0;
+        }
+
+        /* ── Resize overlay ──────────────────────────────────── */
+        .resize-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            z-index: 50;
+            display: none;
+        }
+        .resize-overlay.active { display: block; }
+
+        /* ── Mobile (portrait) ──────────────────────────────── */
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+
+            #main-panel {
+                width: 100% !important; height: auto;
+                flex: 60; min-width: unset; min-height: 50px;
+            }
+
+            .resizer {
+                width: 100% !important;
+                height: 12px;
+                cursor: row-resize;
+            }
+            .resizer::before {
+                width: 32px; height: 3px;
+            }
+            .resizer:hover::before {
+                width: 56px; height: 4px;
+            }
+            .resizer:hover {
+                width: 100% !important;
+                height: 12px;
+            }
+            .resizer.hidden {
+                width: 100% !important;
+                height: 0;
+            }
+
+            .service-panel {
+                width: 100% !important; height: auto;
+                min-width: unset; min-height: 0;
+            }
+            .service-panel.expanded {
+                min-height: 50px;
+            }
+
+            /* Service column becomes horizontal bar at bottom */
+            .service-column {
+                flex-direction: row;
+                width: 100% !important;
+                min-width: unset;
+                height: 48px;
+                min-height: 48px;
+                padding: 0 8px;
+                justify-content: center;
+                order: 99;
+            }
+
+            .service-sep {
+                width: 1px;
+                height: 24px;
+                margin: 0 4px;
+            }
+
+            /* Tooltip goes above on mobile */
+            .service-btn[data-tooltip]:hover::after {
+                right: auto;
+                left: 50%;
+                transform: translateX(-50%);
+                bottom: calc(100% + 8px);
+                top: auto;
+            }
+
+            /* Active indicator on mobile is on top */
+            .service-btn.active::before {
+                left: 8px;
+                right: 8px;
+                top: 0;
+                bottom: auto;
+                width: auto;
+                height: 3px;
+                border-radius: 0 0 2px 2px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container" id="container">
+        <!-- Main panel (always visible) -->
+        <div class="panel" id="main-panel">
+            <iframe src="https://wikipedia.org" title="Superset Dashboard"></iframe>
+        </div>
+
+        <!-- Service Column — icon strip -->
+        <div class="service-column" id="serviceColumn">
+            <button class="service-btn svc-primary" data-tooltip="Chat" data-panel="chat">
+                <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
+            </button>
+            <button class="service-btn svc-secondary" data-tooltip="Input" data-panel="input">
+                <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+            </button>
+            <!-- Add more service buttons here in the future -->
+        </div>
+    </div>
+
+    <div class="resize-overlay" id="resizeOverlay"></div>
+
+    <script>
+        /* ══════════════════════════════════════════════════════
+           Hyperset — Dynamic Panel Manager
+           Panels are created/destroyed in DOM order based on
+           when they are opened. Easy to extend with new apps.
+           ══════════════════════════════════════════════════════ */
+
+        const container     = document.getElementById('container');
+        const mainPanel     = document.getElementById('main-panel');
+        const serviceColumn = document.getElementById('serviceColumn');
+        const resizeOverlay = document.getElementById('resizeOverlay');
+
+        const MIN_FLEX = 5;
+
+        /* ── App registry — add new apps here ── */
+        const apps = {
+            chat: {
+                url: 'https://wikipedia.org',
+                title: 'Chat',
+                resizerClass: 'resizer-primary',
+                defaultFlex: 30,
+            },
+            input: {
+                url: 'https://wikipedia.org',
+                title: 'Input',
+                resizerClass: 'resizer-secondary',
+                defaultFlex: 30,
+            },
+            /* ── Add more apps easily ──
+            myapp: {
+                url: 'https://myapp.example.com',
+                title: 'My App',
+                resizerClass: 'resizer-primary',  // or 'resizer-secondary'
+                defaultFlex: 30,
+            },
+            */
+        };
+
+        /* ── Active panels in open order ── */
+        let openPanels = []; // { key, flex, lastFlex, panelEl, resizerEl }
+        let mainFlex = 100;
+
+        /* ── Drag state ── */
+        let activeResizer = null;
+        let dragStartPos = 0;
+        let dragStartMainFlex = 0;
+        let dragStartPanelFlex = 0;
+        let dragContainerSize = 0;
+        let dragTotalFlex = 0;
+
+        function isMobile() { return window.innerWidth <= 768; }
+
+        function getPos(clientX, clientY) {
+            const r = container.getBoundingClientRect();
+            return isMobile() ? clientY - r.top : clientX - r.left;
+        }
+
+        function getContainerSize() {
+            const r = container.getBoundingClientRect();
+            return isMobile() ? r.height : r.width;
+        }
+
+        function clamp(val, min, max) { return Math.max(min, Math.min(max, val)); }
+
+        function disableIframes() {
+            document.querySelectorAll('iframe').forEach(f => f.style.pointerEvents = 'none');
+        }
+        function enableIframes() {
+            document.querySelectorAll('iframe').forEach(f => f.style.pointerEvents = '');
+        }
+
+        /* ── Create DOM elements for a panel ── */
+        function createPanelDOM(key) {
+            const app = apps[key];
+
+            const resizer = document.createElement('div');
+            resizer.className = `resizer ${app.resizerClass}`;
+
+            const panel = document.createElement('div');
+            panel.className = 'panel service-panel expanded';
+            panel.id = `panel-${key}`;
+
+            const iframe = document.createElement('iframe');
+            iframe.src = app.url;
+            iframe.title = app.title;
+            panel.appendChild(iframe);
+
+            // Insert before service column
+            container.insertBefore(resizer, serviceColumn);
+            container.insertBefore(panel, serviceColumn);
+
+            // Attach resizer drag events
+            const onMouseDown = (e) => {
+                const entry = openPanels.find(p => p.key === key);
+                if (!entry) return;
+                e.preventDefault();
+                startResize(entry, e.clientX, e.clientY);
+                document.body.style.cursor = isMobile() ? 'row-resize' : 'col-resize';
+            };
+            const onTouchStart = (e) => {
+                const entry = openPanels.find(p => p.key === key);
+                if (!entry) return;
+                e.preventDefault();
+                const t = e.touches[0];
+                startResize(entry, t.clientX, t.clientY);
+            };
+
+            resizer.addEventListener('mousedown', onMouseDown);
+            resizer.addEventListener('touchstart', onTouchStart, { passive: false });
+
+            return { panelEl: panel, resizerEl: resizer };
+        }
+
+        /* ── Remove DOM elements for a panel ── */
+        function removePanelDOM(entry) {
+            entry.resizerEl.remove();
+            entry.panelEl.remove();
+        }
+
+        /* ── Update all flex values ── */
+        function updateLayout() {
+            mainPanel.style.flex = mainFlex;
+            for (const p of openPanels) {
+                p.panelEl.style.flex = p.flex;
+            }
+        }
+
+        /* ── Toggle a panel by key ── */
+        function togglePanel(key) {
+            const idx = openPanels.findIndex(p => p.key === key);
+
+            if (idx !== -1) {
+                // Collapse: give flex back to main
+                const entry = openPanels[idx];
+                mainFlex += entry.flex;
+                entry.lastFlex = entry.flex;
+                // Store lastFlex for re-open
+                apps[key]._lastFlex = entry.lastFlex;
+                removePanelDOM(entry);
+                openPanels.splice(idx, 1);
+            } else {
+                // Expand: create and append at end (open order)
+                const app = apps[key];
+                const flex = app._lastFlex || app.defaultFlex;
+                const actualFlex = Math.min(flex, mainFlex - MIN_FLEX);
+
+                if (actualFlex <= 0) return; // no room
+
+                mainFlex -= actualFlex;
+                const { panelEl, resizerEl } = createPanelDOM(key);
+                openPanels.push({ key, flex: actualFlex, lastFlex: actualFlex, panelEl, resizerEl });
+            }
+
+            updateButtons();
+            updateLayout();
+        }
+
+        /* ── Update button active states ── */
+        function updateButtons() {
+            serviceColumn.querySelectorAll('.service-btn').forEach(btn => {
+                const key = btn.dataset.panel;
+                const isOpen = openPanels.some(p => p.key === key);
+                btn.classList.toggle('active', isOpen);
+            });
+        }
+
+        /* ── Resizer drag logic ── */
+        function startResize(panelEntry, clientX, clientY) {
+            activeResizer = panelEntry;
+            resizeOverlay.classList.add('active');
+            container.classList.add('resizing');
+            document.body.style.userSelect = 'none';
+            disableIframes();
+
+            dragStartPos = getPos(clientX, clientY);
+            dragStartMainFlex = mainFlex;
+            dragStartPanelFlex = panelEntry.flex;
+            dragContainerSize = getContainerSize();
+            dragTotalFlex = mainFlex + panelEntry.flex;
+        }
+
+        function handleResize(clientX, clientY) {
+            if (!activeResizer) return;
+            const pos = getPos(clientX, clientY);
+            const deltaPx = pos - dragStartPos;
+            const flexPerPx = dragTotalFlex / dragContainerSize;
+            const deltaFlex = deltaPx * flexPerPx;
+
+            const activeFlex = dragStartMainFlex + dragStartPanelFlex;
+            let newMain = clamp(dragStartMainFlex + deltaFlex, MIN_FLEX, activeFlex - MIN_FLEX);
+            let newPanel = activeFlex - newMain;
+
+            mainFlex = newMain;
+            activeResizer.flex = newPanel;
+            activeResizer.lastFlex = newPanel;
+            updateLayout();
+        }
+
+        function stopResize() {
+            if (!activeResizer) return;
+            resizeOverlay.classList.remove('active');
+            container.classList.remove('resizing');
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            enableIframes();
+            activeResizer = null;
+        }
+
+        /* ── Event listeners: service buttons ── */
+        serviceColumn.addEventListener('click', (e) => {
+            const btn = e.target.closest('.service-btn');
+            if (!btn) return;
+            const key = btn.dataset.panel;
+            if (key && apps[key]) togglePanel(key);
+        });
+
+        /* ── Global mouse/touch for resize ── */
+        document.addEventListener('mousemove', (e) => {
+            if (activeResizer) { e.preventDefault(); handleResize(e.clientX, e.clientY); }
+        });
+        document.addEventListener('mouseup', () => { if (activeResizer) stopResize(); });
+
+        document.addEventListener('touchmove', (e) => {
+            if (activeResizer) {
+                e.preventDefault();
+                const t = e.touches[0];
+                handleResize(t.clientX, t.clientY);
+            }
+        }, { passive: false });
+        document.addEventListener('touchend', () => { if (activeResizer) stopResize(); });
+        document.addEventListener('touchcancel', () => { if (activeResizer) stopResize(); });
+
+        /* ── Initialize ── */
+        updateLayout();
+    </script>
+</body>
+</html>
