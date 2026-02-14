@@ -1,0 +1,126 @@
+{
+    debug
+    order authenticate before respond
+    order authorize before respond
+
+    security {
+
+        # ── Local user store (for testing without any external IdP) ──
+        local identity store localdb {
+            realm local
+            path /data/users.json
+            user admin@HYPERSET.local {
+                name "Admin"
+                email admin@test.local
+                password "ChangeMeNow123!" overwrite
+                roles "authp/admin" "authp/user"
+            }
+        }
+
+        # ── Microsoft Entra ID ──
+        #oauth identity provider entra {
+        #    realm azure
+        #    driver azure
+        #    tenant_id {$ENTRA_TENANT_ID:common}
+        #    client_id {$OAUTH_CLIENT_ID:placeholder}
+        #    client_secret {$OAUTH_CLIENT_SECRET:placeholder}
+        #    scopes openid email profile
+        #}
+
+        # ── Google ──
+        #oauth identity provider google {
+        #    realm google
+        #    driver google
+        #    client_id {$OAUTH_CLIENT_ID:placeholder}
+        #    client_secret {$OAUTH_CLIENT_SECRET:placeholder}
+        #    scopes openid email profile
+        #}
+
+        # ── GitHub ──
+        #oauth identity provider github {
+        #    realm github
+        #    driver github
+        #    client_id {$OAUTH_CLIENT_ID:placeholder}
+        #    client_secret {$OAUTH_CLIENT_SECRET:placeholder}
+        #    scopes user
+        #}
+
+        # ── Generic OIDC (Keycloak, Authentik, etc.) ──
+        #oauth identity provider generic {
+        #    realm generic
+        #    driver generic
+        #    client_id {$OAUTH_CLIENT_ID:placeholder}
+        #    client_secret {$OAUTH_CLIENT_SECRET:placeholder}
+        #    metadata_url {$OIDC_METADATA_URL:https://localhost/.well-known/openid-configuration}
+        #    scopes openid email profile
+        #}
+
+        # ── Authentication portal ──
+        authentication portal myportal {
+            crypto default token lifetime 3600
+            crypto key sign-verify {$AUTH_CRYPTO_KEY}
+            cookie domain {$HYPERSET_DOMAIN}
+            cookie lifetime 86400
+            cookie insecure on
+
+            enable identity store localdb
+            # enable identity provider entra
+            # enable identity provider google
+            # enable identity provider github
+            # enable identity provider generic
+
+            transform user {
+                match origin local
+                action add role authp/user
+            }
+            transform user {
+                match realm azure
+                action add role authp/user
+            }
+            transform user {
+                match realm google
+                action add role authp/user
+            }
+            transform user {
+                match realm github
+                action add role authp/user
+            }
+            transform user {
+                match realm generic
+                action add role authp/user
+            }
+
+            ui {
+                links {
+                    "Dashboard" "/" icon "las la-columns"
+                    "My Identity" "/auth/whoami" icon "las la-user"
+                }
+            }
+        }
+
+        # ── Authorization policy ──
+        authorization policy mypolicy {
+            set auth url /auth/
+            crypto key verify {$AUTH_CRYPTO_KEY}
+            allow roles authp/admin authp/user
+            inject headers with claims
+        }
+    }
+}
+
+http://{$HYPERSET_DOMAIN} {
+
+    route /auth* {
+        authenticate with myportal
+    }
+
+    route /health {
+        respond "OK" 200
+    }
+
+    # Portal - uncomment when ready
+    route /* {
+        authorize with mypolicy
+        reverse_proxy apache-portal:80
+    }
+}

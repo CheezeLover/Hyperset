@@ -1,0 +1,25 @@
+services:
+  caddy:
+    image: hyperset-caddy:latest
+    container_name: hyperset-caddy
+    ports:
+      - "443:443"
+      - "80:80"
+    env_file:
+      - ../.env
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:Z
+      - ./users.json:/data/users.json:Z
+      - caddy_data:/data/caddy
+      - caddy_config:/config
+    networks:
+      - hyperset-net
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  hyperset-net:
+    external: true
