@@ -6,10 +6,10 @@ services:
       - "443:443"
       - "80:80"
     env_file:
-      - ../.env
+      - ./.env
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:Z
-      - ./users.json:/data/users.json:Z
+      - ./Caddy/Caddyfile:/etc/caddy/Caddyfile:Z
+      - ./Caddy/users.json:/data/users.json:Z
       - caddy_data:/data/caddy
       - caddy_config:/config
     networks:
