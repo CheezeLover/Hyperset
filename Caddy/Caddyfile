@@ -90,7 +90,7 @@ http://{$HYPERSET_DOMAIN} {
     # Portal - uncomment when ready
     route /* {
         authorize with mypolicy
-	root * /srv/portal
+	root * /Portal
         file_server
     }
 }
