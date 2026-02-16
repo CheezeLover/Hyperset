@@ -17,34 +17,6 @@
             }
         }
 
-        # ── Microsoft Entra ID ──
-        #oauth identity provider entra {
-        #    realm azure
-        #    driver azure
-        #    tenant_id {$ENTRA_TENANT_ID:common}
-        #    client_id {$OAUTH_CLIENT_ID:placeholder}
-        #    client_secret {$OAUTH_CLIENT_SECRET:placeholder}
-        #    scopes openid email profile
-        #}
-
-        # ── Google ──
-        #oauth identity provider google {
-        #    realm google
-        #    driver google
-        #    client_id {$OAUTH_CLIENT_ID:placeholder}
-        #    client_secret {$OAUTH_CLIENT_SECRET:placeholder}
-        #    scopes openid email profile
-        #}
-
-        # ── GitHub ──
-        #oauth identity provider github {
-        #    realm github
-        #    driver github
-        #    client_id {$OAUTH_CLIENT_ID:placeholder}
-        #    client_secret {$OAUTH_CLIENT_SECRET:placeholder}
-        #    scopes user
-        #}
-
         # ── Generic OIDC (Keycloak, Authentik, etc.) ──
         #oauth identity provider generic {
         #    realm generic
@@ -64,9 +36,6 @@
             cookie insecure on
 
             enable identity store localdb
-            # enable identity provider entra
-            # enable identity provider google
-            # enable identity provider github
             # enable identity provider generic
 
             transform user {
@@ -121,6 +90,7 @@ http://{$HYPERSET_DOMAIN} {
     # Portal - uncomment when ready
     route /* {
         authorize with mypolicy
-        reverse_proxy apache-portal:80
+	root * /srv/portal
+        file_server
     }
 }
