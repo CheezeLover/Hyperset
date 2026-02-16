@@ -6,5 +6,7 @@ apt install git
 git clone https://github.com/CheezeLover/Hyperset.git
 cd Hyperset
 chmod u+x setup_podman.sh
+```
+```bash
 ./setup_podman.sh
 ```
