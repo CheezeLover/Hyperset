@@ -1,5 +1,8 @@
 ⚠️⚠️⚠️ WIP DO NOT USE ⚠️⚠️⚠️⚠️
 ```bash
+apt install git
+```
+```bash
 git clone https://github.com/CheezeLover/Hyperset.git
 ```
 ```bash
