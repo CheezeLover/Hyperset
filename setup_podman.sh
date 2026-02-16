@@ -17,7 +17,7 @@ cd ~/Hyperset/Caddy
 podman build -t hyperset-caddy:latest .
 
 # Start Caddy
-cd ~/Hyperset/Caddy
+cd ~/Hyperset
 podman-compose up -d
 
 # Check logs
