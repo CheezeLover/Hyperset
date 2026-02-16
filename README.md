@@ -1,11 +1,11 @@
 ⚠️⚠️⚠️ WIP DO NOT USE ⚠️⚠️⚠️⚠️
-'''bash
+```bash
 git clone https://github.com/CheezeLover/Hyperset.git
-'''
-'''bash
+```
+```bash
 cd Hyperset
-'''
-'''bash
+```
+```bash
 chmod u+x setup_podman.sh
 ./setup_podman.sh
-'''
+```
