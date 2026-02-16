@@ -1,96 +1,48 @@
 {
-    debug
-    order authenticate before respond
-    order authorize before respond
+  order authenticate before respond
+  order authorize before reverse_proxy
 
-    security {
-
-        # ── Local user store (for testing without any external IdP) ──
-        local identity store localdb {
-            realm local
-            path /data/users.json
-            user admin@HYPERSET.local {
-                name "Admin"
-                email admin@test.local
-                password "ChangeMeNow123!" overwrite
-                roles "authp/admin" "authp/user"
-            }
-        }
-
-        # ── Generic OIDC (Keycloak, Authentik, etc.) ──
-        #oauth identity provider generic {
-        #    realm generic
-        #    driver generic
-        #    client_id {$OAUTH_CLIENT_ID:placeholder}
-        #    client_secret {$OAUTH_CLIENT_SECRET:placeholder}
-        #    metadata_url {$OIDC_METADATA_URL:https://localhost/.well-known/openid-configuration}
-        #    scopes openid email profile
-        #}
-
-        # ── Authentication portal ──
-        authentication portal myportal {
-            crypto default token lifetime 3600
-            crypto key sign-verify {$AUTH_CRYPTO_KEY}
-            cookie domain {$HYPERSET_DOMAIN}
-            cookie lifetime 86400
-            cookie insecure on
-
-            enable identity store localdb
-            # enable identity provider generic
-
-            transform user {
-                match origin local
-                action add role authp/user
-            }
-            transform user {
-                match realm azure
-                action add role authp/user
-            }
-            transform user {
-                match realm google
-                action add role authp/user
-            }
-            transform user {
-                match realm github
-                action add role authp/user
-            }
-            transform user {
-                match realm generic
-                action add role authp/user
-            }
-
-            ui {
-                links {
-                    "Dashboard" "/" icon "las la-columns"
-                    "My Identity" "/auth/whoami" icon "las la-user"
-                }
-            }
-        }
-
-        # ── Authorization policy ──
-        authorization policy mypolicy {
-            set auth url /auth/
-            crypto key verify {$AUTH_CRYPTO_KEY}
-            allow roles authp/admin authp/user
-            inject headers with claims
-        }
+  security {
+    local identity store localdb {
+      realm local
+      path /data/users.json
     }
+
+    authentication portal myportal {
+      crypto default token lifetime 3600
+      crypto key sign-verify {env.AUTH_CRYPTO_KEY}
+      enable identity store localdb
+      cookie domain {$GINAMAX_DOMAIN}
+      ui {
+        links {
+          "Dashboard" / icon "las la-tachometer-alt"
+        }
+      }
+    }
+
+    authorization policy mypolicy {
+      set auth url /auth/
+      crypto key verify {env.AUTH_CRYPTO_KEY}
+      allow roles authp/admin authp/user
+      inject headers with claims
+    }
+  }
 }
 
-http://{$HYPERSET_DOMAIN} {
+{$GINAMAX_DOMAIN} {
+  tls internal
 
-    route /auth* {
-        authenticate with myportal
-    }
+  route /health {
+    respond "OK" 200
+  }
 
-    route /health {
-        respond "OK" 200
-    }
+  route /auth* {
+    authenticate with myportal
+  }
 
-    # Portal - uncomment when ready
-    route /* {
-        authorize with mypolicy
-	root * /Portal
-        file_server
-    }
+  route /* {
+    authorize with mypolicy
+    root * /srv/portal
+    file_server
+  }
 }
