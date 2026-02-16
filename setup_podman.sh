@@ -13,11 +13,11 @@ echo "net.ipv4.ip_unprivileged_port_start=80" | sudo tee /etc/sysctl.d/99-unpriv
 podman network create hyperset-net
 
 # Build custom caddy image with caddy security
-cd ~/Caddy
+cd ~/Hyperset/Caddy
 podman build -t hyperset-caddy:latest .
 
 # Start Caddy
-cd ~/Caddy
+cd ~/Hyperset/Caddy
 podman-compose up -d
 
 # Check logs
