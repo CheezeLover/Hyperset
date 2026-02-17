@@ -10,6 +10,7 @@ services:
     volumes:
       - ./Caddy/Caddyfile:/etc/caddy/Caddyfile:Z
       - ./Caddy/users.json:/data/users.json:Z
+      - ./Portal:/Portal:Z
       - caddy_data:/data/caddy
       - caddy_config:/config
     networks:
