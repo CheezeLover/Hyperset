@@ -1,4 +1,7 @@
 ⚠️⚠️⚠️ WIP DO NOT USE ⚠️⚠️⚠️⚠️
+
+Start from clean install of Debian 13
+
 ```bash
 apt install git
 ```
