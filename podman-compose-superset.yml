@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  superset:
+    image: apache/superset:latest
+    container_name: superset
+    restart: unless-stopped
+    ports:
+      - "8088:8088"
+    environment:
+      # Database configuration (SQLite)
+      - SUPERSET_SECRET_KEY=${SUPERSET_SECRET_KEY:-your-secret-key-change-this-in-production}
+      
+      # SQLite configuration
+      - SQLALCHEMY_DATABASE_URI=sqlite:////app/superset_home/superset.db
+      
+      # Optional: Redis for caching (can be disabled for simple setups)
+      # - REDIS_HOST=redis
+      # - REDIS_PORT=6379
+      
+      # Superset configuration
+      - SUPERSET_LOAD_EXAMPLES=yes
+      - SUPERSET_PORT=8088
+      
+    volumes:
+      # Persist Superset data including SQLite database
+      - superset_home:/app/superset_home
+      
+      # Optional: Custom configuration file
+      # - ./superset_config.py:/app/pythonpath/superset_config.py
+      
+    command: >
+      bash -c "
+      superset db upgrade &&
+      superset fab create-admin \
+        --username admin \
+        --firstname Admin \
+        --lastname User \
+        --email admin@superset.com \
+        --password admin &&
+      superset init &&
+      gunicorn \
+        --bind 0.0.0.0:8088 \
+        --workers 4 \
+        --timeout 120 \
+        --limit-request-line 0 \
+        --limit-request-field_size 0 \
+        'superset.app:create_app()'
+      "
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Optional: Redis for caching (uncomment if needed for better performance)
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: superset-redis
+  #   restart: unless-stopped
+  #   volumes:
+  #     - redis_data:/data
+  #   healthcheck:
+  #     test: ["CMD", "redis-cli", "ping"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+
+volumes:
+  superset_home:
+    driver: local
+  # redis_data:
+  #   driver: local
+
+networks:
+  default:
+    name: superset-network
