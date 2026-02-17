@@ -1,4 +1,5 @@
-:80 {
+www.ginamax.fr {
+    tls internal
     root * /Portal
     file_server
 }
