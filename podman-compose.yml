@@ -10,8 +10,40 @@ services:
     volumes:
       - ./Caddy/Caddyfile:/etc/caddy/Caddyfile:Z
       - ./Caddy/users.json:/data/users.json:Z
+      - ./Portal:/Portal:Z
       - caddy_data:/data/caddy
       - caddy_config:/config
+    networks:
+      - hyperset-net
+    restart: unless-stopped
+
+  superset-db:
+    image: docker.io/library/postgres:16-alpine
+    container_name: hyperset-superset-db
+    env_file:
+      - ./.env
+    environment:
+      POSTGRES_DB: superset
+      POSTGRES_USER: superset
+      POSTGRES_PASSWORD: ${SUPERSET_DB_PASSWORD}
+    volumes:
+      - superset_db_data:/var/lib/postgresql/data
+    networks:
+      - hyperset-net
+    restart: unless-stopped
+
+  superset:
+    image: docker.io/apache/superset:latest
+    container_name: hyperset-superset
+    env_file:
+      - ./.env
+    environment:
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY}
+      SQLALCHEMY_DATABASE_URI: postgresql+psycopg2://superset:${SUPERSET_DB_PASSWORD}@superset-db:5432/superset
+    volumes:
+      - ./Superset/superset_config.py:/app/pythonpath/superset_config.py:Z
+    depends_on:
+      - superset-db
     networks:
       - hyperset-net
     restart: unless-stopped
@@ -19,6 +51,7 @@ services:
 volumes:
   caddy_data:
   caddy_config:
+  superset_db_data:
 
 networks:
   hyperset-net:
