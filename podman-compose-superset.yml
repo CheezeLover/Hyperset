@@ -1,5 +1,5 @@
 # docker-compose.yml (compatible with podman-compose)
-x-superset-image: &superset-image apache/superset:latest
+x-superset-image: &superset-image docker.io/apache/superset:latest
 x-superset-depends-on: &superset-depends-on
   - db
   - redis
