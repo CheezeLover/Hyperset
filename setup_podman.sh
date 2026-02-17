@@ -21,8 +21,8 @@ cd ~/Hyperset/Caddy
 podman build -t hyperset-caddy:latest .
 
 # Build custom image of Superset
-cd ~/Hyperset/Superset
-podman-compose build superset
+#cd ~/Hyperset/Superset
+#podman-compose build superset
 
 # Start Caddy
 cd ~/Hyperset
