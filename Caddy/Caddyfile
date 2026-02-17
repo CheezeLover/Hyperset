@@ -1,4 +1,4 @@
-www.ginamax.fr {
+{$HYPERSET_DOMAIN} {
     tls internal
     root * /Portal
     file_server
