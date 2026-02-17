@@ -1,87 +1,131 @@
-version: '3.8'
+# docker-compose.yml (compatible with podman-compose)
+x-superset-image: &superset-image apache/superset:latest
+x-superset-depends-on: &superset-depends-on
+  - db
+  - redis
+x-superset-volumes: &superset-volumes
+  - ./Superset/home:/app/superset_home
+  - ./Superset:/app/pythonpath
+
+x-common-env: &common-env
+  SUPERSET_ENV: production
+  SUPERSET_LOAD_EXAMPLES: "no"
+  DATABASE_DB: superset
+  DATABASE_HOST: db
+  DATABASE_PASSWORD: ${DB_PASSWORD:-superset}
+  DATABASE_USER: superset
+  DATABASE_PORT: 5432
+  DATABASE_DIALECT: postgresql
+  POSTGRES_DB: superset
+  POSTGRES_USER: superset
+  POSTGRES_PASSWORD: ${DB_PASSWORD:-superset}
+  REDIS_HOST: redis
+  REDIS_PORT: 6379
+  SUPERSET_SECRET_KEY: ${SECRET_KEY:-CHANGE_ME_TO_A_COMPLEX_RANDOM_SECRET}
+  SQLALCHEMY_DATABASE_URI: "postgresql+psycopg2://superset:${DB_PASSWORD:-superset}@db:5432/superset"
 
 services:
-  superset:
-    image: apache/superset:latest
-    container_name: superset
+  db:
+    image: docker.io/library/postgres:16-alpine
+    container_name: superset_db
     restart: unless-stopped
-    ports:
-      - "8088:8088"
-    env_file:
-      - .env
     environment:
-      # Database configuration (SQLite)
-      - SUPERSET_SECRET_KEY=${SUPERSET_SECRET_KEY:-your-secret-key-change-this-in-production}
-      
-      # SQLite configuration
-      - SQLALCHEMY_DATABASE_URI=sqlite:////app/superset_home/superset.db
-      
-      # Optional: Redis for caching (can be disabled for simple setups)
-      # - REDIS_HOST=redis
-      # - REDIS_PORT=6379
-      
-      # Superset configuration
-      - SUPERSET_LOAD_EXAMPLES=${SUPERSET_LOAD_EXAMPLES:-yes}
-      - SUPERSET_PORT=${SUPERSET_PORT:-8088}
-      
-      # Admin credentials (used during first initialization)
-      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
-      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@superset.com}
-      - ADMIN_FIRSTNAME=${ADMIN_FIRSTNAME:-Admin}
-      - ADMIN_LASTNAME=${ADMIN_LASTNAME:-User}
-      
+      <<: *common-env
     volumes:
-      # Persist Superset data including SQLite database
-      - superset_home:/app/superset_home
-      
-      # Custom configuration file (creates cache directory and custom settings)
-      - ./Superset/superset_config.py:/app/pythonpath/superset_config.py:ro
-      
-    command: >
-      bash -c "
-      superset db upgrade &&
-      superset fab create-admin \
-        --username $${ADMIN_USERNAME} \
-        --firstname $${ADMIN_FIRSTNAME} \
-        --lastname $${ADMIN_LASTNAME} \
-        --email $${ADMIN_EMAIL} \
-        --password $${ADMIN_PASSWORD} &&
-      superset init &&
-      gunicorn \
-        --bind 0.0.0.0:8088 \
-        --workers 4 \
-        --timeout 120 \
-        --limit-request-line 0 \
-        --limit-request-field_size 0 \
-        'superset.app:create_app()'
-      "
+      - db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8088/health"]
+      test: ["CMD-SHELL", "pg_isready -U superset"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: docker.io/library/redis:7-alpine
+    container_name: superset_redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  superset-init:
+    image: *superset-image
+    container_name: superset_init
+    command:
+      - /bin/sh
+      - -c
+      - |
+        superset db upgrade &&
+        superset fab create-admin \
+          --username admin \
+          --firstname Admin \
+          --lastname User \
+          --email admin@superset.local \
+          --password ${ADMIN_PASSWORD:-admin} &&
+        superset init
+    environment:
+      <<: *common-env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes: *superset-volumes
+
+  superset:
+    image: *superset-image
+    container_name: superset_app
+    restart: unless-stopped
+    command: >
+      gunicorn
+        --bind 0.0.0.0:8088
+        --workers 4
+        --worker-class gthread
+        --threads 4
+        --timeout 120
+        --limit-request-line 8190
+        "superset.app:create_app()"
+    environment:
+      <<: *common-env
+    ports:
+      - "${SUPERSET_PORT:-8088}:8088"
+    depends_on:
+      superset-init:
+        condition: service_completed_successfully
+    volumes: *superset-volumes
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8088/health || exit 1"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 60s
+      retries: 5
 
-  # Optional: Redis for caching (uncomment if needed for better performance)
-  # redis:
-  #   image: redis:7-alpine
-  #   container_name: superset-redis
-  #   restart: unless-stopped
-  #   volumes:
-  #     - redis_data:/data
-  #   healthcheck:
-  #     test: ["CMD", "redis-cli", "ping"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 5
+  superset-worker:
+    image: *superset-image
+    container_name: superset_worker
+    restart: unless-stopped
+    command: celery --app=superset.tasks.celery_app:app worker --pool=prefork --concurrency=4
+    environment:
+      <<: *common-env
+    depends_on:
+      superset-init:
+        condition: service_completed_successfully
+    volumes: *superset-volumes
+
+  superset-beat:
+    image: *superset-image
+    container_name: superset_beat
+    restart: unless-stopped
+    command: celery --app=superset.tasks.celery_app:app beat --pidfile /tmp/celerybeat.pid --schedule /tmp/celerybeat-schedule
+    environment:
+      <<: *common-env
+    depends_on:
+      superset-init:
+        condition: service_completed_successfully
+    volumes: *superset-volumes
 
 volumes:
-  superset_home:
-    driver: local
-  # redis_data:
-  #   driver: local
-
-networks:
-  default:
-    name: superset-network
+  db_data:
+  redis_data:

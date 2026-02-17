@@ -1,53 +1,39 @@
-# Superset specific config
+# docker/pythonpath/superset_config.py
 import os
-from cachelib.file import FileSystemCache
 
-# Set the authentication type
-# AUTH_TYPE = AUTH_DB
+SECRET_KEY = os.environ.get("SUPERSET_SECRET_KEY", "CHANGE_ME")
+SQLALCHEMY_DATABASE_URI = os.environ.get("SQLALCHEMY_DATABASE_URI")
 
-# SQLite Configuration
-SQLALCHEMY_DATABASE_URI = 'sqlite:////app/superset_home/superset.db'
-
-# Secret key for signing cookies
-SECRET_KEY = os.environ.get('SUPERSET_SECRET_KEY', 'your-secret-key-change-this')
-
-# Cache configuration (File-based for SQLite deployments)
+# Redis cache
 CACHE_CONFIG = {
-    'CACHE_TYPE': 'FileSystemCache',
-    'CACHE_DIR': '/app/superset_home/cache',
-    'CACHE_DEFAULT_TIMEOUT': 300,
-    'CACHE_KEY_PREFIX': 'superset_'
+    "CACHE_TYPE": "RedisCache",
+    "CACHE_DEFAULT_TIMEOUT": 300,
+    "CACHE_KEY_PREFIX": "superset_",
+    "CACHE_REDIS_HOST": os.environ.get("REDIS_HOST", "redis"),
+    "CACHE_REDIS_PORT": int(os.environ.get("REDIS_PORT", 6379)),
+    "CACHE_REDIS_DB": 1,
 }
 
-# Explore cache configuration
-DATA_CACHE_CONFIG = CACHE_CONFIG
+# Celery
+class CeleryConfig:
+    broker_url = f"redis://{os.environ.get('REDIS_HOST', 'redis')}:{os.environ.get('REDIS_PORT', 6379)}/0"
+    result_backend = f"redis://{os.environ.get('REDIS_HOST', 'redis')}:{os.environ.get('REDIS_PORT', 6379)}/0"
+    imports = ("superset.sql_lab",)
 
-# Feature flags
+CELERY_CONFIG = CeleryConfig
+
+# Optional: enable feature flags
 FEATURE_FLAGS = {
-    'ENABLE_TEMPLATE_PROCESSING': True,
-    'ALERT_REPORTS': False,  # Requires Celery
-    'DASHBOARD_NATIVE_FILTERS': True,
-    'DASHBOARD_CROSS_FILTERS': True,
-    'DASHBOARD_FILTERS_EXPERIMENTAL': True,
-    'EMBEDDABLE_CHARTS': True,
-    'SCHEDULED_QUERIES': False,  # Requires Celery
+    "DASHBOARD_NATIVE_FILTERS": True,
+    "ENABLE_TEMPLATE_PROCESSING": True,
 }
 
-# Webserver configuration
-ROW_LIMIT = 5000
-SUPERSET_WEBSERVER_PORT = 8088
-
-# CSV/Excel export size limits
-CSV_EXPORT = {
-    'encoding': 'utf-8',
+# Thumbnail cache for Celery
+THUMBNAIL_CACHE_CONFIG = {
+    "CACHE_TYPE": "RedisCache",
+    "CACHE_DEFAULT_TIMEOUT": 86400,
+    "CACHE_KEY_PREFIX": "thumbnail_",
+    "CACHE_REDIS_HOST": os.environ.get("REDIS_HOST", "redis"),
+    "CACHE_REDIS_PORT": int(os.environ.get("REDIS_PORT", 6379)),
+    "CACHE_REDIS_DB": 2,
 }
-
-# Set timeout for queries (in seconds)
-SQLLAB_TIMEOUT = 300
-SUPERSET_WEBSERVER_TIMEOUT = 300
-
-# Allow for iframe embedding (if needed)
-# HTTP_HEADERS = {'X-Frame-Options': 'ALLOWALL'}
-
-# Enable scheduled queries and alerts (requires Celery - disabled for SQLite)
-ALERT_REPORTS_NOTIFICATION_DRY_RUN = True
