@@ -1,11 +1,8 @@
-# docker-compose.yml (compatible with podman-compose)
+# podman-compose-superset.yml
 x-superset-image: &superset-image docker.io/apache/superset:latest
-x-superset-depends-on: &superset-depends-on
-  - db
-  - redis
 x-superset-volumes: &superset-volumes
-  - ./Superset/home:/app/superset_home
-  - ./Superset:/app/pythonpath
+  - ./superset_home:/app/superset_home
+  - ./docker/pythonpath:/app/pythonpath
 
 x-common-env: &common-env
   SUPERSET_ENV: production
@@ -33,11 +30,6 @@ services:
       <<: *common-env
     volumes:
       - db_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U superset"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   redis:
     image: docker.io/library/redis:7-alpine
@@ -45,85 +37,96 @@ services:
     restart: unless-stopped
     volumes:
       - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   superset-init:
     image: *superset-image
     container_name: superset_init
+    depends_on:
+      - db
+      - redis
     command:
       - /bin/sh
       - -c
       - |
+        echo "Waiting for DB..." &&
+        until python3 -c "import socket; s=socket.create_connection(('db',5432),2); s.close()" 2>/dev/null; do echo 'Waiting for DB...'; sleep 2; done &&
+        echo "DB ready. Running migrations..." &&
         superset db upgrade &&
         superset fab create-admin \
           --username admin \
           --firstname Admin \
           --lastname User \
           --email admin@superset.local \
-          --password ${ADMIN_PASSWORD:-admin} &&
-        superset init
+          --password ${ADMIN_PASSWORD:-admin} || true &&
+        superset init &&
+        echo "Init complete."
     environment:
       <<: *common-env
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
     volumes: *superset-volumes
 
   superset:
     image: *superset-image
     container_name: superset_app
     restart: unless-stopped
-    command: >
-      gunicorn
-        --bind 0.0.0.0:8088
-        --workers 4
-        --worker-class gthread
-        --threads 4
-        --timeout 120
-        --limit-request-line 8190
-        "superset.app:create_app()"
+    depends_on:
+      - db
+      - redis
+    command:
+      - /bin/sh
+      - -c
+      - |
+        echo "Waiting for DB..." &&
+        until python3 -c "import socket; s=socket.create_connection(('db',5432),2); s.close()" 2>/dev/null; do echo 'Waiting for DB...'; sleep 2; done &&
+        sleep 15 &&
+        echo "Starting Superset..." &&
+        gunicorn \
+          --bind 0.0.0.0:8088 \
+          --workers 4 \
+          --worker-class gthread \
+          --threads 4 \
+          --timeout 120 \
+          --limit-request-line 8190 \
+          "superset.app:create_app()"
     environment:
       <<: *common-env
     ports:
       - "${SUPERSET_PORT:-8088}:8088"
-    depends_on:
-      superset-init:
-        condition: service_completed_successfully
     volumes: *superset-volumes
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8088/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
 
   superset-worker:
     image: *superset-image
     container_name: superset_worker
     restart: unless-stopped
-    command: celery --app=superset.tasks.celery_app:app worker --pool=prefork --concurrency=4
+    depends_on:
+      - db
+      - redis
+    command:
+      - /bin/sh
+      - -c
+      - |
+        until python3 -c "import socket; s=socket.create_connection(('db',5432),2); s.close()" 2>/dev/null; do echo 'Waiting for DB...'; sleep 2; done &&
+        sleep 20 &&
+        celery --app=superset.tasks.celery_app:app worker --pool=prefork --concurrency=4
     environment:
       <<: *common-env
-    depends_on:
-      superset-init:
-        condition: service_completed_successfully
     volumes: *superset-volumes
 
   superset-beat:
     image: *superset-image
     container_name: superset_beat
     restart: unless-stopped
-    command: celery --app=superset.tasks.celery_app:app beat --pidfile /tmp/celerybeat.pid --schedule /tmp/celerybeat-schedule
+    depends_on:
+      - db
+      - redis
+    command:
+      - /bin/sh
+      - -c
+      - |
+        until python3 -c "import socket; s=socket.create_connection(('db',5432),2); s.close()" 2>/dev/null; do echo 'Waiting for DB...'; sleep 2; done &&
+        sleep 25 &&
+        celery --app=superset.tasks.celery_app:app beat --pidfile /tmp/celerybeat.pid --schedule /tmp/celerybeat-schedule
     environment:
       <<: *common-env
-    depends_on:
-      superset-init:
-        condition: service_completed_successfully
     volumes: *superset-volumes
 
 volumes:
