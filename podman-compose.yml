@@ -17,25 +17,9 @@ services:
     networks:
       - hyperset-net
     restart: unless-stopped
-
-  superset:
-    image: docker.io/apache/superset:latest
-    container_name: hyperset-superset
-    env_file:
-      - ./.env
-    environment:
-      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY}
-    volumes:
-      - ./Superset/superset_config.py:/app/pythonpath/superset_config.py:Z
-      - superset_home:/app/superset_home
-    networks:
-      - hyperset-net
-    restart: unless-stopped
-
 volumes:
   caddy_data:
   caddy_config:
-  superset_home:
 
 networks:
   hyperset-net:
