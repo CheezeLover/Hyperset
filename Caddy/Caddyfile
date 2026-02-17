@@ -1,5 +1,7 @@
 {$HYPERSET_DOMAIN} {
-    tls internal
+    tls internal {
+        on_demand
+    }
     root * /Portal
     file_server
 }
