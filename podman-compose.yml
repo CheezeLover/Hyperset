@@ -33,7 +33,7 @@ services:
     restart: unless-stopped
 
   superset:
-    image: docker.io/apache/superset:latest
+    build: ./Superset
     container_name: hyperset-superset
     env_file:
       - ./.env
