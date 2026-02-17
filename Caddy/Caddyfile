@@ -2,10 +2,6 @@
     tls internal {
         on_demand
     }
-    handle /superset* {
-        reverse_proxy superset:8088
-    }
-
     handle {
         root * /Portal
         file_server
