@@ -34,8 +34,8 @@ services:
       - ENABLE_LOGIN_FORM=false
       - WEBUI_AUTH_TRUSTED_GROUPS_HEADER=X-Auth-Request-Groups
       - OAUTH_ROLES_CLAIM=X-Auth-Request-Groups
-      - OAUTH_ADMIN_ROLES=authp/admin
-      - OAUTH_ALLOWED_ROLES=authp/user,authp/admin
+      - OAUTH_ADMIN_ROLES=hyperset/admin
+      - OAUTH_ALLOWED_ROLES=hyperset/user,hyperset/admin
     volumes:
       - ./Open-WebUI/open-webui-data:/app/backend/data:Z
       - ./Open-WebUI/Tools:/app/backend/data/tools
