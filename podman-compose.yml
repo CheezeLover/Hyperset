@@ -17,9 +17,22 @@ services:
     networks:
       - hyperset-net
     restart: unless-stopped
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:latest
+    container_name: hyperset-open-webui
+    ports:
+      - "3000:8080"
+    environment:
+      - WEBUI_SECRET_KEY=${WEBUI_SECRET_KEY:-secret-key-change-me-in-production}
+      - ENABLE_SIGNUP=${ENABLE_SIGNUP:-true}
+    volumes:
+      - ./Open-WebUI/open-webui-data:/app/backend/data:Z
+    restart: unless-stopped 
 volumes:
   caddy_data:
   caddy_config:
+  open-webui-data:
+    driver: local
 
 networks:
   hyperset-net:
