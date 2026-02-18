@@ -30,6 +30,7 @@ services:
       - ENABLE_SIGNUP=${ENABLE_SIGNUP:-true}
     volumes:
       - ./Open-WebUI/open-webui-data:/app/backend/data:Z
+      - ./Open-WebUI/Tools:/app/backend/data/tools
     networks:
       - hyperset-net
     restart: unless-stopped
