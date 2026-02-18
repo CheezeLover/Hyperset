@@ -1,3 +1,40 @@
+{
+    order authenticate before respond
+    order authorize before basicauth
+
+    security {
+        local identity store localdb {
+            realm local
+            path /data/users.json
+        }
+
+        authentication portal myportal {
+            crypto default token lifetime 3600
+            crypto key sign-verify {env.JWT_SECRET}
+            enable identity store localdb
+            cookie domain {$HYPERSET_DOMAIN}
+            ui {
+                links {
+                    "Portal" https://{$HYPERSET_DOMAIN}
+                    "OpenWebUI" https://openwebui.{$HYPERSET_DOMAIN}
+                }
+            }
+        }
+
+        authorization policy mypolicy {
+            set auth url https://auth.{$HYPERSET_DOMAIN}/
+            allow roles authp/admin authp/user
+        }
+    }
+}
+
+auth.{$HYPERSET_DOMAIN} {
+    tls internal {
+        on_demand
+    }
+    authenticate with myportal
+}
+
 {$HYPERSET_DOMAIN} {
     tls internal {
         on_demand
