@@ -12,6 +12,7 @@
             crypto default token lifetime 86400
             crypto key sign-verify {env.AUTH_CRYPTO_KEY}
             enable identity store localdb
+            cookie domain {$HYPERSET_DOMAIN}
             cookie samesite lax
             cookie insecure off
             transform user {
