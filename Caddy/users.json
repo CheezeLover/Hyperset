@@ -49,7 +49,7 @@
         {
           "purpose": "generic",
           "algorithm": "bcrypt",
-          "hash": "$2a$10$SMGU1X1naRIJ13WZ0jZFPeTPmKUe80dtMVUghKcJLd3e70Sq/u1xS",
+          "hash": "$2a$14$w8H2xnmtA0500XFy2cW5DOIsiuAIGWjtxcmI2I06NmXSKVYtd486a",
           "cost": 10,
           "expired_at": "0001-01-01T00:00:00Z",
           "created_at": "2026-02-13T08:43:39.556204065Z",

@@ -9,6 +9,7 @@ services:
     environment:
       - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
       - OPENWEBUI_SUBDOMAIN=${OPENWEBUI_SUBDOMAIN}
+      - JWT_SECRET=${AUTH_CRYPTO_KEY}
     env_file:
       - ./.env
     volumes:
