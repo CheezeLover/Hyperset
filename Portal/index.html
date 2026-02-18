@@ -418,10 +418,10 @@
         const MIN_FLEX = 5;
 
         /* ── App registry — add new apps here ── */
-		const DOMAIN = window.location.hostname;
-        const apps = {
+        const DOMAIN = window.location.hostname;
+		const apps = {
             chat: {
-                url: 'https://openwebui.${DOMAIN}',
+                url: `https://openwebui.${DOMAIN}`,
                 title: 'Chat',
                 resizerClass: 'resizer-primary',
                 defaultFlex: 30,
