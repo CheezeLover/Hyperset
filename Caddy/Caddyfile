@@ -12,19 +12,23 @@
             crypto default token lifetime 86400
             crypto key sign-verify {env.AUTH_CRYPTO_KEY}
             enable identity store localdb
-            cookie domain {$HYPERSET_DOMAIN}
+            cookie domain cluster.internal
             cookie samesite lax
             cookie insecure off
+
+            # --- SWAP THIS BLOCK WHEN CHANGING PROVIDERS ---
             transform user {
                 match realm local
                 match role authp/admin
-                action add role authp/admin
+                action add role hyperset/admin
             }
             transform user {
                 match realm local
                 match role authp/user
-                action add role authp/user
+                action add role hyperset/user
             }
+            # --- END SWAP BLOCK ---
+
             ui {
                 links {
                     "Portal" https://{$HYPERSET_DOMAIN}
@@ -38,7 +42,7 @@
             set token sources cookie header
             validate bearer header
             crypto key sign-verify {env.AUTH_CRYPTO_KEY}
-            allow roles authp/admin authp/user
+            allow roles hyperset/admin hyperset/user
             inject headers with claims
         }
     }
