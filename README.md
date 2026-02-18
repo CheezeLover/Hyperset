@@ -5,10 +5,9 @@ Start from clean install of Debian 13
 ##### Need a clean install of Apache Superset
 
 ```bash
-apt install git
+git clone https://github.com/CheezeLover/Hyperset.git
 ```
 ```bash
-git clone https://github.com/CheezeLover/Hyperset.git
 cd Hyperset
 chmod u+x setup_podman.sh
 ```
