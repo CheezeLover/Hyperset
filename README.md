@@ -2,7 +2,7 @@
 
 Start from clean install of Debian 13
 
-##### Need a clean install of Apache superset
+##### Need a clean install of Apache Superset
 
 ```bash
 apt install git
