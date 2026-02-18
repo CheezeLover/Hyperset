@@ -11,6 +11,7 @@ git clone https://github.com/CheezeLover/Hyperset.git
 cd Hyperset
 chmod u+x setup_podman.sh
 ```
+Update .env file with the right domain
 ```bash
 ./setup_podman.sh
 ```
