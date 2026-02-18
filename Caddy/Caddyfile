@@ -4,12 +4,11 @@
     }
     handle {
         root * /Portal
-		templates
         file_server
     }
 }
 
-{$OPENWEBUI_SUBDOMAIN}.{$HYPERSET_DOMAIN} {
+openwebui.{$HYPERSET_DOMAIN} {
     tls internal {
         on_demand
     }
