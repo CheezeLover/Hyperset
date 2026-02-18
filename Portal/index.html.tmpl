@@ -420,7 +420,7 @@
         /* ── App registry — add new apps here ── */
         const apps = {
             chat: {
-                url: 'https://wikipedia.org',
+                url: 'https://{{env "OPENWEBUI_SUBDOMAIN"}}.{{env "HYPERSET_DOMAIN"}}',
                 title: 'Chat',
                 resizerClass: 'resizer-primary',
                 defaultFlex: 30,

@@ -4,6 +4,7 @@
     }
     handle {
         root * /Portal
+		templates
         file_server
     }
 }
