@@ -29,6 +29,13 @@ services:
     environment:
       - WEBUI_SECRET_KEY=${WEBUI_SECRET_KEY:-secret-key-change-me-in-production}
       - ENABLE_SIGNUP=${ENABLE_SIGNUP:-true}
+      - WEBUI_AUTH_TRUSTED_EMAIL_HEADER=X-Auth-Request-Email
+      - WEBUI_AUTH_TRUSTED_NAME_HEADER=X-Auth-Request-User
+      - ENABLE_LOGIN_FORM=false
+      - WEBUI_AUTH_TRUSTED_GROUPS_HEADER=X-Auth-Request-Groups
+      - OAUTH_ROLES_CLAIM=X-Auth-Request-Groups
+      - OAUTH_ADMIN_ROLES=authp/admin
+      - OAUTH_ALLOWED_ROLES=authp/user,authp/admin
     volumes:
       - ./Open-WebUI/open-webui-data:/app/backend/data:Z
       - ./Open-WebUI/Tools:/app/backend/data/tools
