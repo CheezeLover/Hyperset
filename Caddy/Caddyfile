@@ -11,7 +11,9 @@
         authentication portal myportal {
             crypto key sign-verify {env.AUTH_CRYPTO_KEY}
             enable identity store localdb
-            cookie domain cluster.internal
+            cookie domain {$HYPERSET_DOMAIN}
+            cookie samesite lax
+            cookie insecure off
             ui {
                 links {
                     "Portal" https://{$HYPERSET_DOMAIN}
