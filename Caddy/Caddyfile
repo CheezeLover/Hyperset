@@ -39,6 +39,7 @@ auth.{$HYPERSET_DOMAIN} {
     tls internal {
         on_demand
     }
+    authorize with mypolicy
     handle {
         root * /Portal
         file_server
@@ -49,5 +50,6 @@ openwebui.{$HYPERSET_DOMAIN} {
     tls internal {
         on_demand
     }
+    authorize with mypolicy
     reverse_proxy hyperset-open-webui:8080
 }
