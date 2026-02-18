@@ -6,6 +6,9 @@ services:
     ports:
       - "443:443"
       - "80:80"
+    environment:
+      - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
+      - OPENWEBUI_SUBDOMAIN=${OPENWEBUI_SUBDOMAIN}
     env_file:
       - ./.env
     volumes:
@@ -20,8 +23,8 @@ services:
   open-webui:
     image: ghcr.io/open-webui/open-webui:latest
     container_name: hyperset-open-webui
-    ports:
-      - "3000:8080"
+    #ports:
+    #  - "3000:8080"
     environment:
       - WEBUI_SECRET_KEY=${WEBUI_SECRET_KEY:-secret-key-change-me-in-production}
       - ENABLE_SIGNUP=${ENABLE_SIGNUP:-true}

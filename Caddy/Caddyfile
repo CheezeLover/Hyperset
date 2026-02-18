@@ -7,3 +7,10 @@
         file_server
     }
 }
+
+{$OPENWEBUI_SUBDOMAIN}.{$HYPERSET_DOMAIN} {
+    tls internal {
+        on_demand
+    }
+    reverse_proxy hyperset-open-webui:8080
+}
