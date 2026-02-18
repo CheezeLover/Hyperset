@@ -2,8 +2,8 @@
 sudo apt update && sudo apt install -y podman podman-compose
 
 # Install python libs
-sudo apt install python3-pip
-pip3 install psycopg2-binary
+#sudo apt install python3-pip
+#pip3 install psycopg2-binary
 
 # Check install
 podman --version
