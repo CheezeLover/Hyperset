@@ -33,6 +33,7 @@
                 links {
                     "Portal" https://{$HYPERSET_DOMAIN}
                     "OpenWebUI" https://openwebui.{$HYPERSET_DOMAIN}
+                    "Pages" https://pages.{$HYPERSET_DOMAIN}
                 }
             }
         }
@@ -75,6 +76,17 @@ openwebui.{$HYPERSET_DOMAIN} {
         header_up X-Auth-Request-User {http.request.header.X-Token-User-Id}
         header_up X-Auth-Request-Email {http.request.header.X-Token-User-Email}
         header_up X-Auth-Request-Groups {http.request.header.X-Token-User-Roles}
+        header_down -X-Frame-Options
+        header_down -Content-Security-Policy
+    }
+}
+
+pages.{$HYPERSET_DOMAIN} {
+    tls internal {
+        on_demand
+    }
+    authorize with mypolicy
+    reverse_proxy hyperset-pages:8000 {
         header_down -X-Frame-Options
         header_down -Content-Security-Policy
     }

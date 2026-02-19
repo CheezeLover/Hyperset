@@ -21,6 +21,16 @@ services:
     networks:
       - hyperset-net
     restart: unless-stopped
+  pages:
+    build: ./Pages-Service
+    image: hyperset-pages:latest
+    container_name: hyperset-pages
+    volumes:
+      - ./Pages:/pages:Z
+    networks:
+      - hyperset-net
+    restart: unless-stopped
+
   open-webui:
     image: ghcr.io/open-webui/open-webui:latest
     container_name: hyperset-open-webui

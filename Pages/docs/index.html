@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Docs</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 0 24px;
+            line-height: 1.6;
+            color: #1c1b1f;
+        }
+        @media (prefers-color-scheme: dark) {
+            body { background: #1a1a1e; color: #e4e1e6; }
+            code { background: #2e2e33; }
+        }
+        h1 { color: #20a7c9; }
+        code {
+            background: #f0f0f0;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <h1>Hyperset Documentation</h1>
+    <p>This is a static documentation page — no backend needed.</p>
+    <p>Drop an <code>index.html</code> file in <code>Pages/docs/</code> and it will appear as a panel in the portal.</p>
+    <h2>Adding a new page</h2>
+    <ol>
+        <li>Create a subfolder under <code>Pages/</code>, e.g. <code>Pages/my-tool/</code></li>
+        <li>Add an <code>index.html</code> — this is the page shown in the iframe.</li>
+        <li>Optionally add a <code>backend.py</code> exposing a FastAPI <code>router = APIRouter()</code>.</li>
+        <li>The page appears automatically in the portal sidebar within seconds.</li>
+    </ol>
+    <h2>Calling the backend from your page</h2>
+    <p>Your <code>index.html</code> can call its backend at:</p>
+    <code>https://pages.{domain}/{page-name}/api/...</code>
+</body>
+</html>
