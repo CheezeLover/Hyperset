@@ -501,8 +501,8 @@
                 if (addedAny || dynamicPageButtons.children.length > 0) {
                     pagesSep.style.display = '';
                 }
-            } catch (_) {
-                // Pages service unreachable — silently skip
+            } catch (err) {
+                console.warn('[Hyperset] Could not reach pages service:', err);
             }
         }
 
