@@ -438,9 +438,7 @@
 
         /* ── App registry ── */
         const DOMAIN = window.location.hostname;
-        // Base domain for the pages service: strip the first label (e.g. "hyperset.internal")
-        const BASE_DOMAIN = DOMAIN.split('.').slice(1).join('.');
-        const PAGES_ORIGIN = `https://pages.${BASE_DOMAIN}`;
+        const PAGES_ORIGIN = `https://pages.${DOMAIN}`;
 
         const apps = {
             chat: {
