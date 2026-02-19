@@ -294,6 +294,24 @@
             margin: 4px 0;
         }
 
+        /* Dynamic page buttons use the secondary colour scheme */
+        .service-btn.svc-page {
+            background: transparent;
+        }
+        .service-btn.svc-page svg { fill: var(--md-on-sec-cont); opacity: 0.5; }
+        .service-btn.svc-page:hover {
+            background: var(--md-secondary-cont);
+        }
+        .service-btn.svc-page:hover svg { opacity: 0.8; }
+        .service-btn.active.svc-page {
+            background: var(--md-secondary-cont);
+            box-shadow: 0 1px 4px rgba(0,0,0,.1), 0 2px 8px rgba(0,0,0,.06);
+        }
+        .service-btn.active.svc-page svg { fill: var(--md-on-sec-cont); opacity: 1; }
+        .service-btn.active.svc-page:hover { background: var(--md-secondary-muted); }
+        .service-btn.active.svc-page:hover svg { fill: #fff; }
+        .service-btn.active.svc-page::before { background: var(--md-secondary); }
+
         /* ── Resize overlay ──────────────────────────────────── */
         .resize-overlay {
             position: fixed;
@@ -394,10 +412,9 @@
             <button class="service-btn svc-primary" data-tooltip="Chat" data-panel="chat">
                 <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
             </button>
-            <button class="service-btn svc-secondary" data-tooltip="Input" data-panel="input">
-                <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-            </button>
-            <!-- Add more service buttons here in the future -->
+            <!-- Dynamic page buttons are injected here -->
+            <div class="service-sep" id="pagesSep" style="display:none"></div>
+            <div id="dynamicPageButtons"></div>
         </div>
     </div>
 
@@ -410,37 +427,90 @@
            when they are opened. Easy to extend with new apps.
            ══════════════════════════════════════════════════════ */
 
-        const container     = document.getElementById('container');
-        const mainPanel     = document.getElementById('main-panel');
-        const serviceColumn = document.getElementById('serviceColumn');
-        const resizeOverlay = document.getElementById('resizeOverlay');
+        const container          = document.getElementById('container');
+        const mainPanel          = document.getElementById('main-panel');
+        const serviceColumn      = document.getElementById('serviceColumn');
+        const resizeOverlay      = document.getElementById('resizeOverlay');
+        const dynamicPageButtons = document.getElementById('dynamicPageButtons');
+        const pagesSep           = document.getElementById('pagesSep');
 
         const MIN_FLEX = 5;
 
-        /* ── App registry — add new apps here ── */
+        /* ── App registry ── */
         const DOMAIN = window.location.hostname;
-		const apps = {
+        // Base domain for the pages service: strip the first label (e.g. "hyperset.internal")
+        const BASE_DOMAIN = DOMAIN.split('.').slice(1).join('.');
+        const PAGES_ORIGIN = `https://pages.${BASE_DOMAIN}`;
+
+        const apps = {
             chat: {
                 url: `https://openwebui.${DOMAIN}`,
                 title: 'Chat',
                 resizerClass: 'resizer-primary',
                 defaultFlex: 30,
             },
-            input: {
-                url: 'https://wikipedia.org',
-                title: 'Input',
-                resizerClass: 'resizer-secondary',
-                defaultFlex: 30,
-            },
-            /* ── Add more apps easily ──
-            myapp: {
-                url: 'https://myapp.example.com',
-                title: 'My App',
-                resizerClass: 'resizer-primary',  // or 'resizer-secondary'
-                defaultFlex: 30,
-            },
-            */
         };
+
+        /* ── Dynamic page buttons ── */
+
+        // Generate a simple page icon SVG with the first letter of the page name
+        function pageIcon(name) {
+            const letter = name.charAt(0).toUpperCase();
+            return `<svg viewBox="0 0 24 24">
+                <rect x="3" y="3" width="18" height="18" rx="4" fill="currentColor" opacity="0.15"/>
+                <text x="12" y="16.5" text-anchor="middle" font-size="11"
+                      font-family="system-ui,sans-serif" font-weight="600"
+                      fill="currentColor" opacity="0.9">${letter}</text>
+            </svg>`;
+        }
+
+        function buildPageButton(page) {
+            const key = `page:${page.name}`;
+            const btn = document.createElement('button');
+            btn.className = 'service-btn svc-page';
+            btn.dataset.tooltip = page.name.charAt(0).toUpperCase() + page.name.slice(1);
+            btn.dataset.panel = key;
+            btn.innerHTML = pageIcon(page.name);
+            btn.addEventListener('click', () => {
+                if (apps[key]) togglePanel(key);
+            });
+            return btn;
+        }
+
+        async function loadDynamicPages() {
+            try {
+                const res = await fetch(`${PAGES_ORIGIN}/__pages__`);
+                if (!res.ok) return;
+                const { pages } = await res.json();
+
+                // Register new pages; skip already-known ones
+                let addedAny = false;
+                for (const page of pages) {
+                    const key = `page:${page.name}`;
+                    if (apps[key]) continue;
+
+                    apps[key] = {
+                        url: `${PAGES_ORIGIN}/${page.name}`,
+                        title: page.name.charAt(0).toUpperCase() + page.name.slice(1),
+                        resizerClass: 'resizer-secondary',
+                        defaultFlex: 30,
+                    };
+
+                    dynamicPageButtons.appendChild(buildPageButton(page));
+                    addedAny = true;
+                }
+
+                if (addedAny || dynamicPageButtons.children.length > 0) {
+                    pagesSep.style.display = '';
+                }
+            } catch (_) {
+                // Pages service unreachable — silently skip
+            }
+        }
+
+        // Poll every 10 s to pick up newly dropped pages without a hard refresh
+        loadDynamicPages();
+        setInterval(loadDynamicPages, 10_000);
 
         /* ── Active panels in open order ── */
         let openPanels = []; // { key, flex, lastFlex, panelEl, resizerEl }
@@ -617,7 +687,8 @@
             const btn = e.target.closest('.service-btn');
             if (!btn) return;
             const key = btn.dataset.panel;
-            if (key && apps[key]) togglePanel(key);
+            // Dynamic page buttons handle their own click; static buttons go here
+            if (key && apps[key] && !key.startsWith('page:')) togglePanel(key);
         });
 
         /* ── Global mouse/touch for resize ── */
