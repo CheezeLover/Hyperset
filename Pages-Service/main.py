@@ -16,6 +16,7 @@ from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
@@ -25,6 +26,15 @@ log = logging.getLogger("hyperset-pages")
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(name)s  %(message)s")
 
 app = FastAPI(title="Hyperset Pages", docs_url=None, redoc_url=None)
+
+# Allow the portal (same base domain, different subdomain) to call /__pages__
+# Caddy handles auth, so we trust same-domain origins freely.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=r"https://.*",  # any https origin — Caddy gate keeps it internal
+    allow_methods=["GET"],
+    allow_headers=["*"],
+)
 
 # Registry: { page_name: { "has_backend": bool } }
 _registry: dict[str, dict] = {}
