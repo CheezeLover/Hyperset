@@ -10,6 +10,7 @@ services:
       - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
       - OPENWEBUI_SUBDOMAIN=${OPENWEBUI_SUBDOMAIN}
       - AUTH_CRYPTO_KEY=${AUTH_CRYPTO_KEY}
+      - SUPERSET_URL=${SUPERSET_URL}
     env_file:
       - ./.env
     volumes:

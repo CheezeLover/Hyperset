@@ -52,6 +52,7 @@ Edit `.env` — the only line you *must* change is `HYPERSET_DOMAIN`:
 
 ```env
 HYPERSET_DOMAIN=hyperset.internal        # ← your domain or hostname here
+SUPERSET_URL=https://superset.example.com  # ← your Superset instance URL
 AUTH_CRYPTO_KEY=<generate with: openssl rand -hex 32>
 WEBUI_SECRET_KEY=<generate with: openssl rand -hex 32>
 ```

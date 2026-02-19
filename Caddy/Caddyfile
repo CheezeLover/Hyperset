@@ -61,6 +61,15 @@ auth.{$HYPERSET_DOMAIN} {
         on_demand
     }
     authorize with mypolicy
+
+    # Serve a dynamic config.js with env vars injected — loaded by the portal on startup
+    handle /config.js {
+        header Content-Type "application/javascript"
+        respond `window.HYPERSET_CONFIG = {
+  supersetUrl: "{env.SUPERSET_URL}"
+};`
+    }
+
     handle {
         root * /Portal
         file_server
