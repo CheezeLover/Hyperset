@@ -477,7 +477,7 @@
 
         async function loadDynamicPages() {
             try {
-                const res = await fetch(`${PAGES_ORIGIN}/__pages__`);
+                const res = await fetch(`${PAGES_ORIGIN}/__pages__`, { credentials: 'include' });
                 if (!res.ok) return;
                 const { pages } = await res.json();
 
