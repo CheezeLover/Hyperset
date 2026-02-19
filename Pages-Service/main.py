@@ -28,10 +28,12 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(name)s  %(messa
 app = FastAPI(title="Hyperset Pages", docs_url=None, redoc_url=None)
 
 # Allow the portal (same base domain, different subdomain) to call /__pages__
-# Caddy handles auth, so we trust same-domain origins freely.
+# credentials=True is required so the browser sends the Caddy auth cookie cross-origin.
+# allow_origin_regex accepts any https origin; Caddy's auth gate keeps this internal.
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"https://.*",  # any https origin — Caddy gate keeps it internal
+    allow_origin_regex=r"https://.*",
+    allow_credentials=True,
     allow_methods=["GET"],
     allow_headers=["*"],
 )
