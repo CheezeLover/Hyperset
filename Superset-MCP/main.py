@@ -7,19 +7,13 @@ from typing import (
     Callable,
     TypeVar,
     Awaitable,
-    Union,
 )
 import os
 import httpx
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from functools import wraps
-import inspect
-from threading import Thread
-import webbrowser
-import uvicorn
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
 from mcp.server.fastmcp import FastMCP, Context
 from dotenv import load_dotenv
 import json
@@ -56,11 +50,9 @@ Each tool follows a consistent naming convention: superset_<category>_<action>
 load_dotenv()
 
 # Constants
-SUPERSET_BASE_URL = os.getenv("SUPERSET_BASE_URL", "http://192.168.3.151:8088")
-SUPERSET_USERNAME = os.getenv("SUPERSET_USERNAME", "admin")
-SUPERSET_PASSWORD = os.getenv("SUPERSET_PASSWORD", "admin")
-# When set, authenticate via AUTH_REMOTE_USER (header-based SSO) instead of username/password.
-# Set this to the Hyperset service-account username injected by Caddy.
+SUPERSET_BASE_URL = os.getenv("SUPERSET_BASE_URL", "http://localhost:8088")
+# Service-account username for AUTH_REMOTE_USER mode (header-based SSO via Caddy).
+# Must match a Superset admin user; Superset must be configured with AUTH_TYPE = AUTH_REMOTE_USER.
 SUPERSET_REMOTE_USER = os.getenv("SUPERSET_REMOTE_USER", "")
 ACCESS_TOKEN_STORE_PATH = os.path.join(os.path.dirname(__file__), ".superset_token")
 
@@ -131,10 +123,10 @@ async def superset_lifespan(server: FastMCP) -> AsyncIterator[SupersetContext]:
             ctx.access_token = None
             client.headers.pop("Authorization", None)
 
-    # Auto-authenticate on startup if credentials are configured
+    # Auto-authenticate on startup via remote user (AUTH_REMOTE_USER mode)
     if not ctx.access_token:
         if SUPERSET_REMOTE_USER:
-            logger.info(f"Auto-authenticating via remote user header as '{SUPERSET_REMOTE_USER}'...")
+            logger.info(f"Auto-authenticating via remote user as '{SUPERSET_REMOTE_USER}'...")
             try:
                 response = await client.post(
                     "/api/v1/security/login",
@@ -153,26 +145,8 @@ async def superset_lifespan(server: FastMCP) -> AsyncIterator[SupersetContext]:
                     logger.warning(f"Remote user login failed: {response.status_code} - {response.text}")
             except Exception as e:
                 logger.warning(f"Remote user auto-authentication error: {e}")
-        elif SUPERSET_USERNAME and SUPERSET_PASSWORD:
-            logger.info(f"Auto-authenticating with username/password as '{SUPERSET_USERNAME}'...")
-            try:
-                response = await client.post(
-                    "/api/v1/security/login",
-                    json={"username": SUPERSET_USERNAME, "password": SUPERSET_PASSWORD, "provider": "db", "refresh": True},
-                )
-                if response.status_code == 200:
-                    token = response.json().get("access_token")
-                    if token:
-                        save_access_token(token)
-                        ctx.access_token = token
-                        client.headers.update({"Authorization": f"Bearer {token}"})
-                        logger.info("Username/password authentication successful")
-                    else:
-                        logger.warning("Login returned no token")
-                else:
-                    logger.warning(f"Login failed: {response.status_code} - {response.text}")
-            except Exception as e:
-                logger.warning(f"Auto-authentication error: {e}")
+        else:
+            logger.warning("SUPERSET_REMOTE_USER is not set — authentication will be deferred to tool call")
 
     try:
         yield ctx
@@ -457,37 +431,26 @@ async def superset_auth_refresh_token(ctx: Context) -> Dict[str, Any]:
 
 @mcp.tool()
 @handle_api_errors
-async def superset_auth_authenticate_user(
-    ctx: Context,
-    username: Optional[str] = None,
-    password: Optional[str] = None,
-    refresh: bool = True,
-) -> Dict[str, Any]:
+async def superset_auth_authenticate_user(ctx: Context) -> Dict[str, Any]:
     """
-    Authenticate with Superset and get access token.
+    Authenticate with Superset using remote-user (header-based SSO) and get an access token.
 
-    Two authentication modes are supported, chosen automatically based on configuration:
+    Uses the SUPERSET_REMOTE_USER environment variable as the trusted username and calls
+    /api/v1/security/login with provider="remote_user". Superset must be configured with
+    AUTH_TYPE = AUTH_REMOTE_USER for this to work.
 
-    1. Remote-user (header-based SSO): used when SUPERSET_REMOTE_USER env var is set.
-       Superset must be configured with AUTH_TYPE = AUTH_REMOTE_USER.
-       No password required — the username is trusted by the server.
-
-    2. Username/password: classic database login via /api/v1/security/login.
-
-    If there is an existing valid token, it is reused. If invalid, a refresh is
-    attempted before falling back to full re-authentication.
-
-    Args:
-        username: Override username (falls back to SUPERSET_REMOTE_USER or SUPERSET_USERNAME env var)
-        password: Password for username/password auth (ignored in remote-user mode)
-        refresh: Whether to attempt token refresh before re-authenticating (default: True)
+    If a valid token is already cached it is returned immediately. If the token is expired,
+    a refresh is attempted first; only if that fails is a full re-login performed.
 
     Returns:
         A dictionary with authentication status and access token or error information
     """
     superset_ctx: SupersetContext = ctx.request_context.lifespan_context
 
-    # If we already have a token, check if it's valid
+    if not SUPERSET_REMOTE_USER:
+        return {"error": "SUPERSET_REMOTE_USER is not configured. Set it to the service-account username."}
+
+    # Return existing token if still valid
     if superset_ctx.access_token:
         validity = await superset_auth_check_token_validity(ctx)
         if validity.get("valid"):
@@ -495,65 +458,31 @@ async def superset_auth_authenticate_user(
                 "message": "Already authenticated with valid token",
                 "access_token": superset_ctx.access_token,
             }
-        if refresh:
-            refresh_result = await superset_auth_refresh_token(ctx)
-            if not refresh_result.get("error"):
-                return refresh_result
+        # Try a lightweight refresh before doing a full re-login
+        refresh_result = await superset_auth_refresh_token(ctx)
+        if not refresh_result.get("error"):
+            return refresh_result
 
-    # Determine auth mode: remote user takes priority
-    remote_user = username or SUPERSET_REMOTE_USER
-    if remote_user and not password:
-        # AUTH_REMOTE_USER mode — no password, provider="remote_user"
-        try:
-            response = await superset_ctx.client.post(
-                "/api/v1/security/login",
-                json={"username": remote_user, "provider": "remote_user", "refresh": refresh},
-            )
-            if response.status_code != 200:
-                return {"error": f"Remote user login failed: {response.status_code} - {response.text}"}
-
-            access_token = response.json().get("access_token")
-            if not access_token:
-                return {"error": "No access token returned from remote user login"}
-
-            save_access_token(access_token)
-            superset_ctx.access_token = access_token
-            superset_ctx.client.headers.update({"Authorization": f"Bearer {access_token}"})
-            await get_csrf_token(ctx)
-            return {"message": f"Authenticated via remote user as '{remote_user}'", "access_token": access_token}
-        except Exception as e:
-            return {"error": f"Remote user authentication error: {str(e)}"}
-
-    # Username/password mode
-    username = username or SUPERSET_USERNAME
-    password = password or SUPERSET_PASSWORD
-
-    if not username or not password:
-        return {
-            "error": "No credentials available. Set SUPERSET_REMOTE_USER for SSO mode, "
-                     "or SUPERSET_USERNAME + SUPERSET_PASSWORD for password mode."
-        }
-
+    # Full remote-user login
     try:
         response = await superset_ctx.client.post(
             "/api/v1/security/login",
-            json={"username": username, "password": password, "provider": "db", "refresh": refresh},
+            json={"username": SUPERSET_REMOTE_USER, "provider": "remote_user", "refresh": True},
         )
         if response.status_code != 200:
-            return {"error": f"Failed to get access token: {response.status_code} - {response.text}"}
+            return {"error": f"Remote user login failed: {response.status_code} - {response.text}"}
 
         access_token = response.json().get("access_token")
         if not access_token:
-            return {"error": "No access token returned"}
+            return {"error": "No access token returned from remote user login"}
 
         save_access_token(access_token)
         superset_ctx.access_token = access_token
         superset_ctx.client.headers.update({"Authorization": f"Bearer {access_token}"})
         await get_csrf_token(ctx)
-        return {"message": "Successfully authenticated with Superset", "access_token": access_token}
-
+        return {"message": f"Authenticated via remote user as '{SUPERSET_REMOTE_USER}'", "access_token": access_token}
     except Exception as e:
-        return {"error": f"Authentication error: {str(e)}"}
+        return {"error": f"Remote user authentication error: {str(e)}"}
 
 
 # ===== Dashboard Tools =====
