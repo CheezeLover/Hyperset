@@ -12,6 +12,7 @@ It runs entirely in containers (Podman), requires no cloud services, and is desi
 |-----------|------|
 | **Caddy** | Reverse proxy + authentication gateway. Handles HTTPS, login, and routes traffic to the right service. |
 | **Portal** | The main page you land on. A resizable multi-panel layout where each tool opens as a side panel. |
+| **Superset** | Data exploration and dashboarding — shown as the main panel. Runs anywhere; Caddy proxies to it and injects auth headers. |
 | **Open-WebUI** | AI chat interface, reachable as a panel inside the portal. |
 | **Pages service** | A lightweight FastAPI server that auto-discovers custom pages you drop into the `Pages/` folder. |
 
@@ -23,12 +24,13 @@ It runs entirely in containers (Podman), requires no cloud services, and is desi
 Browser
   └─► Caddy (HTTPS + auth)
         ├─► hyperset.{domain}          → Portal (static HTML)
+        ├─► superset.{domain}          → Superset (anywhere — same network or external)
         ├─► openwebui.{domain}         → Open-WebUI container
         ├─► pages.{domain}             → Pages service (FastAPI)
         └─► auth.{domain}              → Login portal
 ```
 
-Everything sits on an internal Podman network (`hyperset-net`). Caddy is the only container that exposes ports to the outside world.
+Everything sits on an internal Podman network (`hyperset-net`). Caddy is the only container that exposes ports to the outside world. Superset can live on the same machine, on a different server, or anywhere reachable by Caddy.
 
 ---
 
@@ -51,8 +53,8 @@ cd Hyperset
 Edit `.env` — the only line you *must* change is `HYPERSET_DOMAIN`:
 
 ```env
-HYPERSET_DOMAIN=hyperset.internal        # ← your domain or hostname here
-SUPERSET_URL=https://superset.example.com  # ← your Superset instance URL
+HYPERSET_DOMAIN=hyperset.internal           # ← your domain or hostname here
+SUPERSET_UPSTREAM=http://my-server:8088     # ← how Caddy reaches your Superset instance
 AUTH_CRYPTO_KEY=<generate with: openssl rand -hex 32>
 WEBUI_SECRET_KEY=<generate with: openssl rand -hex 32>
 ```
@@ -70,6 +72,7 @@ On every machine that will access the portal, add these lines to the hosts file 
 <server-ip>  hyperset.internal
 <server-ip>  auth.hyperset.internal
 <server-ip>  openwebui.hyperset.internal
+<server-ip>  superset.hyperset.internal
 <server-ip>  pages.hyperset.internal
 ```
 
@@ -91,6 +94,61 @@ Navigate to `https://auth.{HYPERSET_DOMAIN}` and register an account. The first 
 ### 5. Open the portal
 
 Go to `https://{HYPERSET_DOMAIN}` — you'll be redirected to login, then land on the portal. The **Chat** button in the sidebar opens Open-WebUI. Any custom pages you've added appear below it.
+
+---
+
+## Connecting Superset
+
+Hyperset proxies `superset.{HYPERSET_DOMAIN}` to your existing Superset instance and injects the logged-in user's identity as HTTP headers. Superset reads those headers to log the user in automatically — no separate login required.
+
+### Where Superset runs
+
+Set `SUPERSET_UPSTREAM` in `.env` to whatever address **Caddy** can reach:
+
+| Scenario | Example value |
+|----------|---------------|
+| Same Podman network | `http://hyperset-superset:8088` |
+| Different machine on the same LAN | `http://192.168.1.50:8088` |
+| External HTTPS server | `https://superset.mycompany.com` |
+
+### Configuring Superset for header-based auth
+
+Superset needs to be told to trust the `X-Webauth-User` header that Caddy injects. Add (or merge) the following into your Superset `superset_config.py`:
+
+```python
+from flask_appbuilder.security.manager import AUTH_REMOTE_USER
+
+# Trust the header injected by Caddy
+AUTH_TYPE = AUTH_REMOTE_USER
+REMOTE_USER_ENV_VAR = "HTTP_X_WEBAUTH_USER"
+
+# Auto-register users on first login
+AUTH_USER_REGISTRATION = True
+AUTH_USER_REGISTRATION_ROLE = "Gamma"   # default role for new users
+
+# Optional: map Hyperset admin role to Superset Admin
+AUTH_ROLES_MAPPING = {
+    "hyperset/admin": ["Admin"],
+    "hyperset/user":  ["Gamma"],
+}
+AUTH_ROLES_SYNC_AT_LOGIN = True
+```
+
+> **Note:** `AUTH_REMOTE_USER` trusts whoever sets the header, so it is only safe when Superset is **not** directly reachable from the internet — it must only accept connections from Caddy. Bind Superset to `127.0.0.1` or an internal network interface, or use a firewall rule to block external access to its port.
+
+### Restart Superset
+
+After updating `superset_config.py`, restart Superset:
+
+```bash
+# If running with docker-compose / podman-compose
+podman-compose restart superset
+
+# If running standalone
+superset run  # or however you start it
+```
+
+From that point on, any user authenticated by Hyperset will be logged into Superset automatically when they open the main panel.
 
 ---
 
