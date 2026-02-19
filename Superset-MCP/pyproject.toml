@@ -1,0 +1,38 @@
+[project]
+name = "superset-mcp"
+version = "0.1.0"
+description = "Model Control Protocol (MCP) server for Apache Superset integration with AI assistants"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Superset MCP Team"}
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+]
+dependencies = [
+    "fastapi>=0.115.0",
+    "httpx>=0.28.0",
+    "mcp[cli]>=1.4.0",
+    "uvicorn>=0.34.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/superset-mcp"
+Issues = "https://github.com/yourusername/superset-mcp/issues"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.black]
+line-length = 88
+target-version = ["py310"]
+
+[tool.isort]
+profile = "black"
