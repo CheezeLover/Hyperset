@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 	<link rel="icon" type="image/png" href="logo_hyperset.png">
     <title>Hyperset</title>
+    <!-- Runtime config injected by Caddy — sets window.HYPERSET_CONFIG -->
+    <script src="/config.js"></script>
     <style>
         :root {
             /* Material Design 3 — Light scheme */
@@ -404,7 +406,7 @@
     <div class="container" id="container">
         <!-- Main panel (always visible) -->
         <div class="panel" id="main-panel">
-            <iframe src="https://wikipedia.org" title="Superset Dashboard"></iframe>
+            <iframe id="main-iframe" title="Superset Dashboard"></iframe>
         </div>
 
         <!-- Service Column — icon strip -->
@@ -706,6 +708,12 @@
         document.addEventListener('touchcancel', () => { if (activeResizer) stopResize(); });
 
         /* ── Initialize ── */
+        // Set main panel URL from runtime config (injected by Caddy via /config.js)
+        const mainIframe = document.getElementById('main-iframe');
+        mainIframe.src = (window.HYPERSET_CONFIG && window.HYPERSET_CONFIG.supersetUrl)
+            ? window.HYPERSET_CONFIG.supersetUrl
+            : 'about:blank';
+
         updateLayout();
     </script>
 </body>
