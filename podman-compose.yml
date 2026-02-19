@@ -32,6 +32,22 @@ services:
       - hyperset-net
     restart: unless-stopped
 
+  superset-mcp:
+    build: ./Superset-MCP
+    image: hyperset-superset-mcp:latest
+    container_name: hyperset-superset-mcp
+    environment:
+      # Internal address Caddy reaches Superset at — reused so the MCP talks to the same instance
+      - SUPERSET_BASE_URL=${SUPERSET_UPSTREAM}
+      # Service account for AUTH_REMOTE_USER mode — set to a Superset admin username
+      - SUPERSET_REMOTE_USER=${SUPERSET_MCP_USER}
+      # Fallback: classic username/password (used if SUPERSET_REMOTE_USER is empty)
+      - SUPERSET_USERNAME=${SUPERSET_MCP_USER}
+      - SUPERSET_PASSWORD=${SUPERSET_MCP_PASSWORD}
+    networks:
+      - hyperset-net
+    restart: unless-stopped
+
   open-webui:
     image: ghcr.io/open-webui/open-webui:latest
     container_name: hyperset-open-webui
