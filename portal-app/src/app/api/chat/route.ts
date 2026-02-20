@@ -50,6 +50,13 @@ function jsonSchemaToParameters(schema: Record<string, unknown>): Parameter[] {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyAction = any;
 
+// CopilotKit's <CopilotChat> widget makes a GET request on mount to verify
+// the endpoint is reachable. Without a GET handler Next.js returns 405,
+// which causes the widget to disable itself (greyed-out input).
+export const GET = async (_req: NextRequest) => {
+  return NextResponse.json({ ok: true });
+};
+
 export const POST = async (req: NextRequest) => {
   try {
     const user = getUserFromRequest(req);
