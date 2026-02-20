@@ -63,6 +63,12 @@ SUPERSET_MCP_PASSWORD = os.getenv("SUPERSET_MCP_PASSWORD", "")
 # Initialize FastAPI app for handling additional web endpoints if needed
 app = FastAPI(title="Superset MCP Server")
 
+# Shared HTTP client and context — created once at startup, reused across all requests.
+# stateless_http=True means FastMCP creates a new lifespan context per request, so we
+# keep the real state here at module level to avoid re-authenticating every time.
+_shared_client: Optional[httpx.AsyncClient] = None
+_shared_ctx: Optional["SupersetContext"] = None
+
 
 @dataclass
 class SupersetContext:
@@ -100,32 +106,40 @@ async def _login(client: httpx.AsyncClient) -> Optional[str]:
 
 @asynccontextmanager
 async def superset_lifespan(server: FastMCP) -> AsyncIterator[SupersetContext]:
-    """Manage application lifecycle for Superset integration"""
-    logger.info(f"Initializing Superset context (base URL: {SUPERSET_BASE_URL})...")
+    """Manage application lifecycle for Superset integration.
 
-    client = httpx.AsyncClient(base_url=SUPERSET_BASE_URL, timeout=30.0)
-    ctx = SupersetContext(client=client, base_url=SUPERSET_BASE_URL, app=app)
+    With stateless_http=True this is called per request. We reuse the shared client
+    and context so authentication only happens once at first request.
+    """
+    global _shared_client, _shared_ctx
 
-    token = await _login(client)
-    if token:
-        ctx.access_token = token
-        client.headers.update({"Authorization": f"Bearer {token}"})
+    if _shared_ctx is None:
+        logger.info(f"Initializing Superset context (base URL: {SUPERSET_BASE_URL})...")
+        client = httpx.AsyncClient(base_url=SUPERSET_BASE_URL, timeout=30.0)
+        ctx = SupersetContext(client=client, base_url=SUPERSET_BASE_URL, app=app)
+        token = await _login(client)
+        if token:
+            ctx.access_token = token
+            client.headers.update({"Authorization": f"Bearer {token}"})
+        _shared_client = client
+        _shared_ctx = ctx
 
-    try:
-        yield ctx
-    finally:
-        logger.info("Shutting down Superset context...")
-        await client.aclose()
+    yield _shared_ctx
+    # Do not close the shared client — it lives for the duration of the process.
 
 
 # Initialize FastMCP server with lifespan and dependencies.
-# DNS rebinding protection is disabled so that requests arriving with an internal
-# container hostname in the Host header (e.g. hyperset-superset-mcp:8000) are accepted
-# instead of being rejected with 421 Misdirected Request.
+# - stateless_http=True: serve every request independently (no persistent SSE GET stream).
+#   The portal only does request/response tool calls, so stateful SSE is not needed, and
+#   stateless mode avoids the GET /mcp → 406 handshake that the TypeScript SDK triggers.
+# - DNS rebinding protection is disabled so that requests arriving with an internal
+#   container hostname in the Host header (e.g. hyperset-superset-mcp:8000) are accepted
+#   instead of being rejected with 421 Misdirected Request.
 mcp = FastMCP(
     "superset",
     lifespan=superset_lifespan,
     dependencies=["fastapi", "uvicorn", "python-dotenv", "httpx"],
+    stateless_http=True,
     transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
 )
 
