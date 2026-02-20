@@ -1,4 +1,4 @@
-FROM docker.io/library/caddy:2.9.1-builder AS builder
+FROM docker.io/library/caddy:2.10.2-builder AS builder
 
 # Build Caddy v2.9.1 with caddy-security and replace-response plugins.
 # The RUN command includes a timestamp comment so podman never caches this layer —
