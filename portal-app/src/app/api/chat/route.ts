@@ -170,6 +170,7 @@ async function buildActions(): Promise<AnyAction[]> {
 }
 
 export const POST = async (req: NextRequest) => {
+  const reqStart = Date.now();
   try {
     // --- Peek at the body to detect the CopilotKit info/handshake request ---
     // CopilotKit sends { method: "info" } to discover available agents.
@@ -180,26 +181,36 @@ export const POST = async (req: NextRequest) => {
     // for the subsequent handleRequest call.
     const bodyClone = req.clone();
     let bodyMethod: string | undefined;
+    let rawBody: unknown;
     try {
-      const body = await bodyClone.json();
-      bodyMethod = typeof body?.method === "string" ? body.method : undefined;
+      rawBody = await bodyClone.json();
+      bodyMethod = typeof (rawBody as Record<string,unknown>)?.method === "string"
+        ? (rawBody as Record<string,unknown>).method as string
+        : undefined;
     } catch {
       // Non-JSON body (unlikely for info requests) — ignore
     }
 
     const isInfoRequest = bodyMethod === "info";
+    console.log(`[chat] POST method=${bodyMethod ?? "(none)"} isInfo=${isInfoRequest}`);
 
     // --- Resolve LLM settings (always, including info requests) ---
-    // Info requests still need real credentials because CopilotKit calls the
-    // LLM even during the info/handshake round-trip to resolve its capabilities.
     const user = getUserFromRequest(req);
+    console.log(`[chat] user=${user.email} isAdmin=${user.isAdmin}`);
 
     const dummyRes = new Response();
-    const session = await getIronSession<SessionData>(
-      req.clone() as NextRequest,
-      dummyRes as never,
-      sessionOptions
-    );
+    let session;
+    try {
+      session = await getIronSession<SessionData>(
+        req.clone() as NextRequest,
+        dummyRes as never,
+        sessionOptions
+      );
+      console.log(`[chat] session resolved adminSettings=${!!session.adminSettings} chatSettings=${!!session.chatSettings}`);
+    } catch (sessionErr) {
+      console.error(`[chat] Failed to read session:`, sessionErr);
+      session = {} as SessionData;
+    }
 
     let apiUrl: string;
     let apiKey: string;
@@ -226,11 +237,7 @@ export const POST = async (req: NextRequest) => {
         session.chatSettings?.model ?? process.env.CHAT_MODEL ?? "gpt-4o";
     }
 
-    if (!isInfoRequest) {
-      console.log(
-        `[chat] user=${user.email} isAdmin=${user.isAdmin} model=${model} url=${apiUrl}`
-      );
-    }
+    console.log(`[chat] apiUrl=${apiUrl} model=${model} hasKey=${!!apiKey}`);
 
     if (!apiKey) {
       missingKeyError =
@@ -238,12 +245,24 @@ export const POST = async (req: NextRequest) => {
         (user.isAdmin
           ? "Open Admin Settings (gear icon) to configure one."
           : "Ask an admin to configure the chat API key.");
+      console.warn(`[chat] missingKeyError: ${missingKeyError}`);
+    }
+
+    // For non-info requests, reject immediately if no key
+    if (!isInfoRequest && missingKeyError) {
+      console.error("[chat] Rejecting non-info request: no API key");
+      return NextResponse.json(
+        { error: "No API key configured", detail: missingKeyError },
+        { status: 503 }
+      );
     }
 
     // --- Build CopilotKit runtime ---
     const effectiveKey = apiKey || "placeholder-for-info-request";
+    console.log(`[chat] building OpenAI adapter effectiveKey=${effectiveKey.slice(0,8)}...`);
     const openai = new OpenAI({ apiKey: effectiveKey, baseURL: apiUrl });
     const actions = isInfoRequest ? [] : await buildActions();
+    console.log(`[chat] actions built count=${actions.length}`);
 
     const serviceAdapter = new OpenAIAdapter({ openai, model });
     const runtime = new CopilotRuntime({ actions });
@@ -254,23 +273,16 @@ export const POST = async (req: NextRequest) => {
       endpoint: "/api/chat",
     });
 
-    // For actual chat runs (not info), reject before forwarding if no key.
-    // We still build the runtime above so that handleRequest can be called
-    // for the info case.
-    if (!isInfoRequest && missingKeyError) {
-      console.error("[chat] No API key configured");
-      return NextResponse.json(
-        { error: "No API key configured", detail: missingKeyError },
-        { status: 503 }
-      );
-    }
-
-    return handleRequest(req);
+    console.log(`[chat] calling handleRequest (elapsed ${Date.now() - reqStart}ms)`);
+    const response = await handleRequest(req);
+    console.log(`[chat] handleRequest returned status=${response.status} (elapsed ${Date.now() - reqStart}ms)`);
+    return response;
   } catch (err: unknown) {
     // Detect LLM API errors (OpenAI SDK wraps them with a .status field)
     const status = (err as { status?: number }).status;
     const msg = err instanceof Error ? err.message : String(err);
-    console.error(`[chat] Error (HTTP ${status ?? "?"}):`, msg);
+    console.error(`[chat] UNHANDLED ERROR (HTTP ${status ?? "?"}) after ${Date.now() - reqStart}ms:`, msg);
+    if (err instanceof Error) console.error(err.stack);
 
     const userFacing =
       status === 401

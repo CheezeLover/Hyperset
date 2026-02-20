@@ -173,6 +173,80 @@ function McpWarningBanner({ message, onDismiss }: { message: string; onDismiss: 
   );
 }
 
+// ── "Chat not ready" diagnostic banner ──────────────────────────
+function ChatNotReadyBanner({
+  isAdmin,
+  onOpenSettings,
+  onDismiss,
+}: {
+  isAdmin: boolean;
+  onOpenSettings: () => void;
+  onDismiss: () => void;
+}) {
+  return (
+    <div
+      style={{
+        margin: "8px 10px 0",
+        padding: "10px 12px",
+        borderRadius: 10,
+        background: "rgba(245,158,11,0.10)",
+        border: "1px solid rgba(245,158,11,0.30)",
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+        fontSize: 12,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+        <span style={{ color: "#f59e0b", fontWeight: 700, flexShrink: 0, fontSize: 14 }}>⏳</span>
+        <span style={{ flex: 1, color: "var(--md-on-surface)", lineHeight: 1.5 }}>
+          Chat is not ready yet. The widget is still waiting for the server handshake.
+          {isAdmin
+            ? " Check server logs for [chat] POST lines to see what's failing."
+            : " Ask an admin to check the server logs."}
+        </span>
+        <button
+          onClick={onDismiss}
+          title="Dismiss"
+          style={{ border: "none", background: "none", cursor: "pointer", color: "var(--md-on-surface)", opacity: 0.4, fontSize: 15, flexShrink: 0, padding: "0 2px", lineHeight: 1 }}
+        >×</button>
+      </div>
+      {isAdmin && (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          <button
+            onClick={onOpenSettings}
+            style={{
+              background: "none",
+              border: "1px solid rgba(245,158,11,0.40)",
+              borderRadius: 6,
+              color: "#f59e0b",
+              fontSize: 11,
+              padding: "3px 8px",
+              cursor: "pointer",
+            }}
+          >
+            Open LLM Settings
+          </button>
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              background: "none",
+              border: "1px solid rgba(245,158,11,0.40)",
+              borderRadius: 6,
+              color: "#f59e0b",
+              fontSize: 11,
+              padding: "3px 8px",
+              cursor: "pointer",
+            }}
+          >
+            Retry (reload)
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main panel ──────────────────────────────────────────────────
 export function ChatPanel({
   isAdmin,
@@ -184,6 +258,7 @@ export function ChatPanel({
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [chatError, setChatError] = useState<{ error: string; detail?: string } | null>(null);
   const [mcpWarning, setMcpWarning] = useState<string | null>(null);
+  const [chatNotReady, setChatNotReady] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
 
   // Probe the chat endpoint on mount to surface config errors and MCP status
@@ -204,6 +279,19 @@ export function ChatPanel({
       .catch(() => {
         // Network error — widget will show its own state
       });
+  }, []);
+
+  // After 8 seconds, check if the CopilotKit textarea is still disabled.
+  // If so, show a diagnostic banner — the info handshake likely failed.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const textarea = chatRef.current?.querySelector("textarea");
+      if (textarea && textarea.disabled) {
+        console.warn("[ChatPanel] Textarea still disabled after 8s — info handshake may have failed");
+        setChatNotReady(true);
+      }
+    }, 8000);
+    return () => clearTimeout(timer);
   }, []);
 
   // Inject message from Superset bridge into CopilotKit textarea
@@ -272,6 +360,15 @@ export function ChatPanel({
       {/* MCP warning banner (non-blocking — chat still works without MCP) */}
       {mcpWarning && !chatError && (
         <McpWarningBanner message={mcpWarning} onDismiss={() => setMcpWarning(null)} />
+      )}
+
+      {/* "Not ready" banner — shown when CopilotKit textarea stays greyed */}
+      {chatNotReady && !chatError && (
+        <ChatNotReadyBanner
+          isAdmin={isAdmin}
+          onOpenSettings={() => setShowAdminModal(true)}
+          onDismiss={() => setChatNotReady(false)}
+        />
       )}
 
       {/* CopilotKit chat widget */}
