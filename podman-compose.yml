@@ -44,6 +44,11 @@ services:
       # Fallback: classic username/password (used if SUPERSET_REMOTE_USER is empty)
       - SUPERSET_USERNAME=${SUPERSET_MCP_USER}
       - SUPERSET_PASSWORD=${SUPERSET_MCP_PASSWORD}
+      # Allow uvicorn to accept requests with any Host header (e.g. container name).
+      # Without this the server returns 421 Misdirected Request when the portal
+      # connects using the internal Docker/Podman hostname as the Host header.
+      - UVICORN_FORWARDED_ALLOW_IPS=*
+      - UVICORN_PROXY_HEADERS=1
     networks:
       - hyperset-net
     restart: unless-stopped
@@ -60,6 +65,7 @@ services:
       - "3000:3000"
     environment:
       - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
+      # Use explicit vars from .env — compose doesn't expand nested ${} in values
       - SUPERSET_PUBLIC_URL=${SUPERSET_PUBLIC_URL}
       - PAGES_PUBLIC_URL=${PAGES_PUBLIC_URL}
       - SUPERSET_MCP_URL=http://hyperset-superset-mcp:8000/mcp
