@@ -56,6 +56,8 @@ services:
       shm_size: "256m"
     image: hyperset-portal:latest
     container_name: hyperset-portal
+    ports:
+      - "3000:3000"
     environment:
       - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
       - SUPERSET_PUBLIC_URL=https://superset.${HYPERSET_DOMAIN}
