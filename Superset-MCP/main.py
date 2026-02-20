@@ -1728,13 +1728,20 @@ if __name__ == "__main__":
     # Support both stdio (default, for Claude Desktop etc.) and streamable-http (for portal integration)
     transport = os.getenv("MCP_TRANSPORT", "streamable-http")
     if transport == "streamable-http":
+        import uvicorn
+
         host = os.getenv("MCP_HOST", "0.0.0.0")
         port = int(os.getenv("MCP_PORT", "8000"))
         logger.info(f"Starting Superset MCP server on {host}:{port} (streamable-http)...")
-        # MCP 1.6+ passes host/port via settings, not as run() kwargs
-        mcp.settings.host = host
-        mcp.settings.port = port
-        mcp.run(transport="streamable-http")
+        # Use uvicorn directly so we can set forwarded_allow_ips="*", which prevents uvicorn
+        # from rejecting requests whose Host header contains the internal container hostname
+        # (e.g. hyperset-superset-mcp:8000) with 421 Misdirected Request.
+        uvicorn.run(
+            mcp.streamable_http_app(),
+            host=host,
+            port=port,
+            forwarded_allow_ips="*",
+        )
     else:
         logger.info("Starting Superset MCP server (stdio)...")
         mcp.run()
