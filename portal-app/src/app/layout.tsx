@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { getCurrentUser } from "@/lib/auth";
-// CopilotKit UI CSS not needed — we use a fully custom chat UI (no <CopilotChat>)
+import "@copilotkit/react-ui/styles.css";
 
 export const metadata: Metadata = {
   title: "Hyperset",

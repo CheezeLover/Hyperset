@@ -68,6 +68,9 @@ auth.{$HYPERSET_DOMAIN} {
         header_up X-Token-User-Id {http.request.header.X-Token-User-Id}
         header_up X-Token-User-Email {http.request.header.X-Token-User-Email}
         header_up X-Token-User-Roles {http.request.header.X-Token-User-Roles}
+        # Disable response buffering so SSE/streaming from CopilotKit flows
+        # through immediately instead of being held until the response ends.
+        flush_interval -1
     }
 }
 
