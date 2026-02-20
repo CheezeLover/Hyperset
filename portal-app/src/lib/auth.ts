@@ -26,8 +26,10 @@ function parseRoles(rolesHeader: string | null): {
     // No Caddy auth headers → direct access / dev mode → grant admin
     return { roles: [], isAdmin: true };
   }
+  // caddy-security injects roles separated by spaces (not commas).
+  // Split on any whitespace or comma to be safe.
   const roles = rolesHeader
-    .split(",")
+    .split(/[\s,]+/)
     .map((r) => r.trim())
     .filter(Boolean);
   const isAdmin =
