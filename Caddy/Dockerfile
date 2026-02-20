@@ -12,8 +12,8 @@ RUN xcaddy build ${CADDY_VERSION} \
     --with github.com/caddyserver/replace-response
 
 # Verify both plugins compiled in — fail the build immediately if either is missing
-RUN /usr/bin/caddy list-modules 2>/dev/null | grep -q "http.handlers.replace_response" || \
-      (echo "FATAL: replace_response module missing from caddy binary" && exit 1)
+RUN /usr/bin/caddy list-modules 2>/dev/null | grep -q "http.handlers.replace" || \
+      (echo "FATAL: replace module missing from caddy binary" && exit 1)
 RUN /usr/bin/caddy list-modules 2>/dev/null | grep -q "security" || \
       (echo "FATAL: security module missing from caddy binary" && exit 1)
 RUN echo "✓ Caddy plugins verified: replace_response + security"

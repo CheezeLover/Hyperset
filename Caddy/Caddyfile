@@ -1,7 +1,7 @@
 {
     order authenticate before respond
     order authorize before basicauth
-    order replace_resp_body after reverse_proxy
+    order replace after reverse_proxy
 
     security {
         local identity store localdb {
@@ -109,6 +109,6 @@ superset.{$HYPERSET_DOMAIN} {
         }
 
         # Inject bridge script before </body> using replace-response module
-        replace_resp_body </body> "<script src=\"/bridge.js\"></script></body>"
+        replace </body> "<script src=\"/bridge.js\"></script></body>"
     }
 }
