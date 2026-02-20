@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { useChat } from "@copilotkit/react-core";
-import { useCopilotAction } from "@copilotkit/react-core";
+import { useCopilotChat, useCopilotAction } from "@copilotkit/react-core";
+import { TextMessage, MessageRole } from "@copilotkit/runtime-client-gql";
 import type { Message } from "@copilotkit/runtime-client-gql";
 import { AdminModal } from "./AdminModal";
 
@@ -114,10 +114,7 @@ export function ChatPanel({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const { visibleMessages, append, isLoading } = useChat({
-    id: "hyperset-chat",
-    initialMessages: [],
-  });
+  const { visibleMessages, appendMessage, isLoading } = useCopilotChat();
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -136,8 +133,10 @@ export function ChatPanel({
     const text = input.trim();
     if (!text || isLoading) return;
     setInput("");
-    await append({ role: "user", content: text, id: crypto.randomUUID() });
-  }, [input, isLoading, append]);
+    await appendMessage(
+      new TextMessage({ role: MessageRole.User, content: text })
+    );
+  }, [input, isLoading, appendMessage]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
