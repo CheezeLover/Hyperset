@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from functools import wraps
 from fastapi import FastAPI, HTTPException
 from mcp.server.fastmcp import FastMCP, Context
+from mcp.server.transport_security import TransportSecuritySettings
 from dotenv import load_dotenv
 import json
 import logging
@@ -117,11 +118,15 @@ async def superset_lifespan(server: FastMCP) -> AsyncIterator[SupersetContext]:
         await client.aclose()
 
 
-# Initialize FastMCP server with lifespan and dependencies
+# Initialize FastMCP server with lifespan and dependencies.
+# DNS rebinding protection is disabled so that requests arriving with an internal
+# container hostname in the Host header (e.g. hyperset-superset-mcp:8000) are accepted
+# instead of being rejected with 421 Misdirected Request.
 mcp = FastMCP(
     "superset",
     lifespan=superset_lifespan,
     dependencies=["fastapi", "uvicorn", "python-dotenv", "httpx"],
+    transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
 )
 
 # Type variables for generic function annotations
@@ -1728,20 +1733,12 @@ if __name__ == "__main__":
     # Support both stdio (default, for Claude Desktop etc.) and streamable-http (for portal integration)
     transport = os.getenv("MCP_TRANSPORT", "streamable-http")
     if transport == "streamable-http":
-        import uvicorn
-
         host = os.getenv("MCP_HOST", "0.0.0.0")
         port = int(os.getenv("MCP_PORT", "8000"))
         logger.info(f"Starting Superset MCP server on {host}:{port} (streamable-http)...")
-        # Use uvicorn directly so we can set forwarded_allow_ips="*", which prevents uvicorn
-        # from rejecting requests whose Host header contains the internal container hostname
-        # (e.g. hyperset-superset-mcp:8000) with 421 Misdirected Request.
-        uvicorn.run(
-            mcp.streamable_http_app(),
-            host=host,
-            port=port,
-            forwarded_allow_ips="*",
-        )
+        mcp.settings.host = host
+        mcp.settings.port = port
+        mcp.run(transport="streamable-http")
     else:
         logger.info("Starting Superset MCP server (stdio)...")
         mcp.run()
