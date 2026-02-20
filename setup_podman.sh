@@ -35,3 +35,4 @@ echo "  3. Open the portal at:"
 echo "       https://\${HYPERSET_DOMAIN:-hyperset.internal}"
 echo ""
 echo "  Run 'podman-compose logs -f' to watch live logs."
+podman-compose logs -f
