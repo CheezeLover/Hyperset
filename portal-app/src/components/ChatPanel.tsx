@@ -34,7 +34,7 @@ function NavigationHandler({
       supersetIframeRef.current?.contentWindow?.postMessage(
         { type: "navigate_dashboard", dashboardId }, supersetOrigin
       );
-      return `Navigating Superset to dashboard ${dashboardId}`;
+      return `Navigated to dashboard ${dashboardId}`;
     },
     render: ({ status, result }) => (
       <div className="tool-step" style={{ display: "block" }}>
@@ -56,7 +56,7 @@ function NavigationHandler({
       supersetIframeRef.current?.contentWindow?.postMessage(
         { type: "navigate_chart", chartId }, supersetOrigin
       );
-      return `Navigating Superset to chart ${chartId}`;
+      return `Opened chart ${chartId} in Explore`;
     },
     render: ({ status, result }) => (
       <div className="tool-step" style={{ display: "block" }}>
@@ -225,6 +225,32 @@ export function ChatPanel({
     onInjectionConsumed();
   }, [injectedMessage, onInjectionConsumed]);
 
+  const handleSend = useCallback(async () => {
+    const text = input.trim();
+    if (!text || isLoading) return;
+    setInput("");
+    await appendMessage(
+      new TextMessage({ role: MessageRole.User, content: text })
+    );
+  }, [input, isLoading, appendMessage]);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  // Auto-resize textarea
+  const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value);
+    const el = e.target;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 120) + "px";
+  };
+
+  const isEmpty = visibleMessages.length === 0;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--md-surface-cont)" }}>
 
@@ -240,6 +266,7 @@ export function ChatPanel({
 
         {isAdmin && (
           <button
+            className="hs-chat-icon-btn"
             onClick={() => setShowAdminModal(true)}
             title="LLM settings"
             style={{
@@ -289,6 +316,16 @@ When users ask to navigate to a dashboard or chart, use navigate_superset_dashbo
             initial: "Hello! I can help you explore your data, run queries, create dashboards and charts. What would you like to do?",
           }}
         />
+        <button
+          className="hs-chat-send-btn"
+          onClick={handleSend}
+          disabled={!input.trim() || isLoading}
+          aria-label="Send"
+        >
+          <svg viewBox="0 0 24 24" width={16} height={16} fill="currentColor">
+            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+          </svg>
+        </button>
       </div>
 
       {showAdminModal && (
