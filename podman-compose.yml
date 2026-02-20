@@ -18,9 +18,6 @@ services:
       - ./Caddy/bridge.js:/Caddy/bridge.js:Z
       - caddy_data:/data/caddy
       - caddy_config:/config
-    depends_on:
-      portal:
-        condition: service_healthy
     networks:
       - hyperset-net
     restart: unless-stopped
