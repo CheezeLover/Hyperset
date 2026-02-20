@@ -1824,14 +1824,16 @@ async def superset_advanced_data_type_list(ctx: Context) -> Dict[str, Any]:
 
 
 if __name__ == "__main__":
-    import sys
     # Support both stdio (default, for Claude Desktop etc.) and streamable-http (for portal integration)
     transport = os.getenv("MCP_TRANSPORT", "streamable-http")
     if transport == "streamable-http":
         host = os.getenv("MCP_HOST", "0.0.0.0")
         port = int(os.getenv("MCP_PORT", "8000"))
         logger.info(f"Starting Superset MCP server on {host}:{port} (streamable-http)...")
-        mcp.run(transport="streamable-http", host=host, port=port)
+        # MCP 1.6+ passes host/port via settings, not as run() kwargs
+        mcp.settings.host = host
+        mcp.settings.port = port
+        mcp.run(transport="streamable-http")
     else:
         logger.info("Starting Superset MCP server (stdio)...")
         mcp.run()
