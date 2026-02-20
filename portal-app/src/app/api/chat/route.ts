@@ -189,59 +189,58 @@ export const POST = async (req: NextRequest) => {
 
     const isInfoRequest = bodyMethod === "info";
 
-    // --- Resolve LLM settings (skipped for info requests) ---
-    let apiUrl =
-      process.env.ADMIN_API_URL ?? "https://api.openai.com/v1";
-    let apiKey = process.env.ADMIN_API_KEY ?? "";
-    let model = process.env.ADMIN_MODEL ?? "gpt-4o";
+    // --- Resolve LLM settings (always, including info requests) ---
+    // Info requests still need real credentials because CopilotKit calls the
+    // LLM even during the info/handshake round-trip to resolve its capabilities.
+    const user = getUserFromRequest(req);
+
+    const dummyRes = new Response();
+    const session = await getIronSession<SessionData>(
+      req.clone() as NextRequest,
+      dummyRes as never,
+      sessionOptions
+    );
+
+    let apiUrl: string;
+    let apiKey: string;
+    let model: string;
     let missingKeyError: string | undefined;
 
+    if (user.isAdmin) {
+      apiUrl =
+        session.adminSettings?.apiUrl ??
+        process.env.ADMIN_API_URL ??
+        "https://api.openai.com/v1";
+      apiKey =
+        session.adminSettings?.apiKey ?? process.env.ADMIN_API_KEY ?? "";
+      model =
+        session.adminSettings?.model ?? process.env.ADMIN_MODEL ?? "gpt-4o";
+    } else {
+      apiUrl =
+        session.chatSettings?.apiUrl ??
+        process.env.CHAT_API_URL ??
+        "https://api.openai.com/v1";
+      apiKey =
+        session.chatSettings?.apiKey ?? process.env.CHAT_API_KEY ?? "";
+      model =
+        session.chatSettings?.model ?? process.env.CHAT_MODEL ?? "gpt-4o";
+    }
+
     if (!isInfoRequest) {
-      const user = getUserFromRequest(req);
-
-      const dummyRes = new Response();
-      const session = await getIronSession<SessionData>(
-        req.clone() as NextRequest,
-        dummyRes as never,
-        sessionOptions
-      );
-
-      if (user.isAdmin) {
-        apiUrl =
-          session.adminSettings?.apiUrl ??
-          process.env.ADMIN_API_URL ??
-          "https://api.openai.com/v1";
-        apiKey =
-          session.adminSettings?.apiKey ?? process.env.ADMIN_API_KEY ?? "";
-        model =
-          session.adminSettings?.model ?? process.env.ADMIN_MODEL ?? "gpt-4o";
-      } else {
-        apiUrl =
-          session.chatSettings?.apiUrl ??
-          process.env.CHAT_API_URL ??
-          "https://api.openai.com/v1";
-        apiKey =
-          session.chatSettings?.apiKey ?? process.env.CHAT_API_KEY ?? "";
-        model =
-          session.chatSettings?.model ?? process.env.CHAT_MODEL ?? "gpt-4o";
-      }
-
       console.log(
         `[chat] user=${user.email} isAdmin=${user.isAdmin} model=${model} url=${apiUrl}`
       );
+    }
 
-      if (!apiKey) {
-        missingKeyError =
-          "No LLM API key is set. " +
-          (user.isAdmin
-            ? "Open Admin Settings (gear icon) to configure one."
-            : "Ask an admin to configure the chat API key.");
-      }
+    if (!apiKey) {
+      missingKeyError =
+        "No LLM API key is set. " +
+        (user.isAdmin
+          ? "Open Admin Settings (gear icon) to configure one."
+          : "Ask an admin to configure the chat API key.");
     }
 
     // --- Build CopilotKit runtime ---
-    // For info requests, use a placeholder key (the key is never used for
-    // actual LLM calls during an info round-trip).
     const effectiveKey = apiKey || "placeholder-for-info-request";
     const openai = new OpenAI({ apiKey: effectiveKey, baseURL: apiUrl });
     const actions = isInfoRequest ? [] : await buildActions();
