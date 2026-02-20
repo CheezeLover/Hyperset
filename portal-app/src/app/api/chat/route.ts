@@ -83,7 +83,14 @@ export const POST = async (req: NextRequest) => {
     baseURL: apiUrl,
   });
 
-  const mcpTools = await listMcpTools();
+  // MCP may be unavailable (e.g. superset-mcp container not yet started).
+  // Catch errors here so the chat route stays functional without MCP tools.
+  let mcpTools: Awaited<ReturnType<typeof listMcpTools>> = [];
+  try {
+    mcpTools = await listMcpTools();
+  } catch {
+    // MCP unavailable — continue with built-in actions only
+  }
   const actions: AnyAction[] = mcpTools.map((tool) => ({
     name: tool.name,
     description: tool.description,
