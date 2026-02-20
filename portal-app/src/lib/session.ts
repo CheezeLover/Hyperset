@@ -2,17 +2,14 @@ import { getIronSession, IronSession } from "iron-session";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 
-export interface LlmSettings {
+export interface AdminLlmSettings {
   apiUrl?: string;
   apiKey?: string;
   model?: string;
 }
 
 export interface SessionData {
-  /** Runtime override for the admin LLM API */
-  adminSettings?: LlmSettings;
-  /** Runtime override for the user (chat) LLM API */
-  chatSettings?: LlmSettings;
+  adminSettings?: AdminLlmSettings;
 }
 
 const sessionOptions = {
