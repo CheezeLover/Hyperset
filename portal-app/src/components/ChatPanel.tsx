@@ -148,6 +148,31 @@ function ChatErrorBanner({
   );
 }
 
+// ── MCP warning banner (non-blocking, amber) ────────────────────
+function McpWarningBanner({ message, onDismiss }: { message: string; onDismiss: () => void }) {
+  return (
+    <div style={{
+      margin: "6px 10px 0",
+      padding: "7px 12px",
+      borderRadius: 8,
+      background: "rgba(245,158,11,0.10)",
+      border: "1px solid rgba(245,158,11,0.30)",
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      fontSize: 11,
+    }}>
+      <span style={{ color: "#f59e0b", fontWeight: 700, flexShrink: 0 }}>⚡</span>
+      <span style={{ flex: 1, color: "var(--md-on-surface)", opacity: 0.75, lineHeight: 1.4 }}>{message}</span>
+      <button
+        onClick={onDismiss}
+        title="Dismiss"
+        style={{ border: "none", background: "none", cursor: "pointer", color: "var(--md-on-surface)", opacity: 0.4, fontSize: 14, flexShrink: 0, padding: "0 2px", lineHeight: 1 }}
+      >×</button>
+    </div>
+  );
+}
+
 // ── Main panel ──────────────────────────────────────────────────
 export function ChatPanel({
   isAdmin,
@@ -158,19 +183,22 @@ export function ChatPanel({
 }: ChatPanelProps) {
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [chatError, setChatError] = useState<{ error: string; detail?: string } | null>(null);
+  const [mcpWarning, setMcpWarning] = useState<string | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
 
-  // Probe the chat endpoint on mount to surface config errors immediately
+  // Probe the chat endpoint on mount to surface config errors and MCP status
   useEffect(() => {
     fetch("/api/chat")
       .then(async (res) => {
-        if (!res.ok) {
-          try {
-            const body = await res.json();
+        try {
+          const body = await res.json();
+          if (!res.ok) {
             setChatError({ error: body.error ?? "Chat API error", detail: body.detail });
-          } catch {
-            setChatError({ error: `Chat API returned HTTP ${res.status}` });
+          } else if (body.mcpWarning) {
+            setMcpWarning(body.mcpWarning);
           }
+        } catch {
+          if (!res.ok) setChatError({ error: `Chat API returned HTTP ${res.status}` });
         }
       })
       .catch(() => {
@@ -230,7 +258,7 @@ export function ChatPanel({
         )}
       </div>
 
-      {/* Error banner (shown when /api/chat probe fails) */}
+      {/* Error banner (shown when /api/chat probe fails — blocks chat) */}
       {chatError && (
         <ChatErrorBanner
           error={chatError.error}
@@ -241,16 +269,21 @@ export function ChatPanel({
         />
       )}
 
+      {/* MCP warning banner (non-blocking — chat still works without MCP) */}
+      {mcpWarning && !chatError && (
+        <McpWarningBanner message={mcpWarning} onDismiss={() => setMcpWarning(null)} />
+      )}
+
       {/* CopilotKit chat widget */}
       <div ref={chatRef} style={{ flex: 1, overflow: "hidden", position: "relative" }}>
         <NavigationHandler supersetIframeRef={supersetIframeRef} supersetUrl={supersetUrl} />
         <CopilotChat
           className="copilotKitChat"
           instructions={`You are Hyperset, an intelligent assistant for Apache Superset analytics.
-You have access to the full Superset MCP API (dashboards, charts, SQL execution, datasets, databases).
-When users ask to navigate to a dashboard or chart, use navigate_superset_dashboard or navigate_superset_chart.
-Always present SQL query results clearly with key insights.
-When creating charts or dashboards, confirm what was created and offer to open it.`}
+${mcpWarning
+  ? "The Superset MCP data tools are currently unavailable. You can still have a conversation and answer general questions, but you cannot query data, list dashboards, or run SQL right now."
+  : "You have access to the full Superset MCP API (dashboards, charts, SQL execution, datasets, databases). When users ask to navigate to a dashboard or chart, use navigate_superset_dashboard or navigate_superset_chart. Always present SQL query results clearly with key insights. When creating charts or dashboards, confirm what was created and offer to open it."}
+When users ask to navigate to a dashboard or chart, use navigate_superset_dashboard or navigate_superset_chart.`}
           labels={{
             title: "Hyperset Assistant",
             initial: "Hello! I can help you explore your data, run queries, create dashboards and charts. What would you like to do?",

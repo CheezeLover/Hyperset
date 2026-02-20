@@ -89,7 +89,26 @@ export const GET = async (req: NextRequest) => {
     );
   }
 
-  return NextResponse.json({ ok: true });
+  // Check MCP availability (non-blocking — a missing MCP is a warning, not an error)
+  let mcpWarning: string | undefined;
+  try {
+    const mcpUrl = process.env.SUPERSET_MCP_URL ?? "http://hyperset-superset-mcp:8000/mcp";
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 2000);
+    try {
+      const res = await fetch(mcpUrl, { method: "GET", signal: controller.signal });
+      // 405 Method Not Allowed is fine (server is up, just doesn't allow GET on /mcp)
+      if (res.status !== 200 && res.status !== 405) {
+        mcpWarning = `Superset MCP unavailable (HTTP ${res.status}) — data tools disabled.`;
+      }
+    } finally {
+      clearTimeout(timeout);
+    }
+  } catch {
+    mcpWarning = "Superset MCP unreachable — data tools disabled. Chat still works.";
+  }
+
+  return NextResponse.json({ ok: true, ...(mcpWarning ? { mcpWarning } : {}) });
 };
 
 // Build the static set of actions (navigation helpers + MCP tools).
