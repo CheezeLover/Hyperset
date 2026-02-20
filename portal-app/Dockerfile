@@ -5,6 +5,9 @@ COPY package*.json ./
 RUN npm ci
 
 COPY . .
+# Limit Node heap during build to avoid OOM SIGKILL in memory-constrained envs.
+# Webpack/SWC compilation is the culprit; 1.5 GB is usually sufficient for Next.js.
+ENV NODE_OPTIONS="--max-old-space-size=1536"
 RUN npm run build
 
 # ── Runtime stage ──────────────────────────────────────────────
