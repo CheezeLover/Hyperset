@@ -1,7 +1,7 @@
 services:
   caddy:
     build: ./Caddy
-    image: hyperset-caddy:latest
+    image: localhost/hyperset-caddy:latest
     container_name: hyperset-caddy
     ports:
       - "443:443"
@@ -24,7 +24,7 @@ services:
 
   pages:
     build: ./Pages-Service
-    image: hyperset-pages:latest
+    image: localhost/hyperset-pages:latest
     container_name: hyperset-pages
     volumes:
       - ./Pages:/pages:Z
@@ -34,7 +34,7 @@ services:
 
   superset-mcp:
     build: ./Superset-MCP
-    image: hyperset-superset-mcp:latest
+    image: localhost/hyperset-superset-mcp:latest
     container_name: hyperset-superset-mcp
     environment:
       # Internal address Caddy reaches Superset at — reused so the MCP talks to the same instance
@@ -54,7 +54,7 @@ services:
       # Next.js webpack compilation is memory-hungry; shm_size gives it enough
       # shared memory and the NODE_OPTIONS env is set in the Dockerfile.
       shm_size: "256m"
-    image: hyperset-portal:latest
+    image: localhost/hyperset-portal:latest
     container_name: hyperset-portal
     ports:
       - "3000:3000"
