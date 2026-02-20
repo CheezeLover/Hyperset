@@ -8,7 +8,6 @@ services:
       - "80:80"
     environment:
       - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
-      - OPENWEBUI_SUBDOMAIN=${OPENWEBUI_SUBDOMAIN}
       - AUTH_CRYPTO_KEY=${AUTH_CRYPTO_KEY}
       - SUPERSET_UPSTREAM=${SUPERSET_UPSTREAM}
     env_file:
@@ -16,12 +15,13 @@ services:
     volumes:
       - ./Caddy/Caddyfile:/etc/caddy/Caddyfile:Z
       - ./Caddy/users.json:/data/users.json:Z
-      - ./Portal:/Portal:Z
+      - ./Caddy/bridge.js:/Caddy/bridge.js:Z
       - caddy_data:/data/caddy
       - caddy_config:/config
     networks:
       - hyperset-net
     restart: unless-stopped
+
   pages:
     build: ./Pages-Service
     image: hyperset-pages:latest
@@ -48,24 +48,38 @@ services:
       - hyperset-net
     restart: unless-stopped
 
-  open-webui:
-    image: ghcr.io/open-webui/open-webui:latest
-    container_name: hyperset-open-webui
-    #ports:
-    #  - "3000:8080"
+  portal:
+    build:
+      context: ./portal-app
+      # Next.js webpack compilation is memory-hungry; shm_size gives it enough
+      # shared memory and the NODE_OPTIONS env is set in the Dockerfile.
+      shm_size: "256m"
+    image: hyperset-portal:latest
+    container_name: hyperset-portal
+    ports:
+      - "3000:3000"
     environment:
-      - WEBUI_SECRET_KEY=${WEBUI_SECRET_KEY:-secret-key-change-me-in-production}
-      - ENABLE_SIGNUP=${ENABLE_SIGNUP:-true}
-      - WEBUI_AUTH_TRUSTED_EMAIL_HEADER=X-Auth-Request-Email
-      - WEBUI_AUTH_TRUSTED_NAME_HEADER=X-Auth-Request-User
-      - ENABLE_LOGIN_FORM=false
-      - WEBUI_AUTH_TRUSTED_GROUPS_HEADER=X-Auth-Request-Groups
-      - OAUTH_ROLES_CLAIM=X-Auth-Request-Groups
-      - OAUTH_ADMIN_ROLES=hyperset/admin
-      - OAUTH_ALLOWED_ROLES=hyperset/user,hyperset/admin
-    volumes:
-      - ./Open-WebUI/open-webui-data:/app/backend/data:Z
-      - ./Open-WebUI/Tools:/app/backend/data/tools
+      - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
+      - SUPERSET_PUBLIC_URL=https://superset.${HYPERSET_DOMAIN}
+      - PAGES_PUBLIC_URL=https://pages.${HYPERSET_DOMAIN}
+      - SUPERSET_MCP_URL=http://hyperset-superset-mcp:8000/mcp
+      # User LLM API
+      - CHAT_API_URL=${CHAT_API_URL:-https://api.openai.com/v1}
+      - CHAT_API_KEY=${CHAT_API_KEY}
+      - CHAT_MODEL=${CHAT_MODEL:-gpt-4o}
+      # Admin LLM API (default; overridable at runtime via Admin Settings UI)
+      - ADMIN_API_URL=${ADMIN_API_URL:-https://api.openai.com/v1}
+      - ADMIN_API_KEY=${ADMIN_API_KEY}
+      - ADMIN_MODEL=${ADMIN_MODEL:-gpt-4o}
+      # Session encryption key for admin settings storage
+      - SESSION_SECRET=${SESSION_SECRET}
+      - NODE_ENV=production
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/config"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     networks:
       - hyperset-net
     restart: unless-stopped
@@ -73,8 +87,6 @@ services:
 volumes:
   caddy_data:
   caddy_config:
-  open-webui-data:
-    driver: local
 
 networks:
   hyperset-net:

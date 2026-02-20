@@ -1,0 +1,155 @@
+/* ── Material Design 3 — Light scheme ───────────────────── */
+:root {
+  --md-surface:         #f5f3f0;
+  --md-surface-cont:    #ffffff;
+  --md-surface-cont-hi: #eceae7;
+  --md-on-surface:      #1c1b1f;
+  --md-outline:         #cac5be;
+  --md-outline-var:     #ddd8d2;
+
+  /* Primary — cyan #20A7C9 */
+  --md-primary:         #20a7c9;
+  --md-primary-muted:   #4dbdd6;
+  --md-primary-cont:    #e0f4f8;
+  --md-on-primary-cont: #0c6a82;
+
+  /* Secondary — warm terracotta */
+  --md-secondary:       #c75b39;
+  --md-secondary-muted: #e8845f;
+  --md-secondary-cont:  #fbe9e7;
+  --md-on-sec-cont:     #7f2e14;
+
+  --radius-l: 16px;
+  --radius-m: 12px;
+  --ease-standard: cubic-bezier(.2, 0, 0, 1);
+  --ease-decel:    cubic-bezier(0, 0, 0, 1);
+}
+
+/* ── Dark theme (automatic) ─────────────────────────────── */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --md-surface:         #1a1a1e;
+    --md-surface-cont:    #242428;
+    --md-surface-cont-hi: #2e2e33;
+    --md-on-surface:      #e4e1e6;
+    --md-outline:         #49474e;
+    --md-outline-var:     #3a383f;
+
+    --md-primary:         #5cc8e4;
+    --md-primary-muted:   #3aafcc;
+    --md-primary-cont:    #0c3d4a;
+    --md-on-primary-cont: #a0e4f4;
+
+    --md-secondary:       #e8845f;
+    --md-secondary-muted: #c75b39;
+    --md-secondary-cont:  #4a2010;
+    --md-on-sec-cont:     #f4b8a0;
+  }
+  html { color-scheme: dark; }
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  display: flex;
+  height: 100vh;
+  height: 100dvh;
+  font-family: system-ui, -apple-system, sans-serif;
+  overflow: hidden;
+  background: var(--md-surface);
+  color: var(--md-on-surface);
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: inherit; text-decoration: none; }
+
+/* ── CopilotKit theme overrides ─────────────────────────── */
+.copilotKitChat {
+  --copilot-kit-primary-color: var(--md-primary) !important;
+  --copilot-kit-secondary-color: var(--md-primary-cont) !important;
+  --copilot-kit-background-color: var(--md-surface-cont) !important;
+  --copilot-kit-text-color: var(--md-on-surface) !important;
+  --copilot-kit-border-color: var(--md-outline-var) !important;
+  font-family: system-ui, -apple-system, sans-serif !important;
+  height: 100% !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Hide thumbs up/down feedback buttons — target by aria-label and svg content */
+.copilotKitChat [class*="feedback"],
+.copilotKitChat [class*="Feedback"],
+.copilotKitChat [class*="thumbs"],
+.copilotKitChat [class*="Thumbs"],
+.copilotKitChat [class*="reaction"],
+.copilotKitChat [class*="Reaction"],
+.copilotKitChat [aria-label*="thumb" i],
+.copilotKitChat [aria-label*="like" i],
+.copilotKitChat [aria-label*="dislike" i],
+.copilotKitChat [aria-label*="good" i],
+.copilotKitChat [aria-label*="bad" i],
+.copilotKitChat [title*="thumb" i] {
+  display: none !important;
+}
+
+/* "Powered by CopilotKit" footer — keep it but make it very subtle */
+.copilotKitChat [class*="poweredBy"],
+.copilotKitChat [class*="PoweredBy"],
+.copilotKitChat [class*="powered"],
+.copilotKitChat [class*="branding"],
+.copilotKitChat [class*="Branding"],
+.copilotKitChat [class*="footer"] a[href*="copilotkit"],
+.copilotKitChat a[href*="copilotkit.ai"],
+.copilotKitChat a[href*="copilotkit"] {
+  opacity: 0.2 !important;
+  font-size: 9px !important;
+  filter: grayscale(1) !important;
+  pointer-events: none !important;
+}
+
+/* Tool call step styling */
+.tool-step {
+  border: 1px solid var(--md-outline-var);
+  border-radius: var(--radius-m);
+  margin: 4px 0;
+  overflow: hidden;
+  background: var(--md-surface);
+}
+
+.tool-step summary {
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--md-on-primary-cont);
+  background: var(--md-primary-cont);
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
+}
+
+.tool-step summary::before {
+  content: '▶';
+  font-size: 9px;
+  transition: transform 0.2s;
+}
+
+.tool-step[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.tool-step pre {
+  padding: 8px 12px;
+  font-size: 11px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--md-on-surface);
+  opacity: 0.85;
+}
