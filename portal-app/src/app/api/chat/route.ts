@@ -97,8 +97,9 @@ export const GET = async (req: NextRequest) => {
     const timeout = setTimeout(() => controller.abort(), 2000);
     try {
       const res = await fetch(mcpUrl, { method: "GET", signal: controller.signal });
-      // 405 Method Not Allowed is fine (server is up, just doesn't allow GET on /mcp)
-      if (res.status !== 200 && res.status !== 405) {
+      // 405 Method Not Allowed and 406 Not Acceptable both mean the server is up
+      // (stateless_http mode returns 406 on GET; stateful mode returns 405 or 200)
+      if (res.status !== 200 && res.status !== 405 && res.status !== 406) {
         mcpWarning = `Superset MCP unavailable (HTTP ${res.status}) — data tools disabled.`;
       }
     } finally {
