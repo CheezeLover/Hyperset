@@ -5,7 +5,7 @@ import {
 } from "@copilotkit/runtime";
 import type { Parameter } from "@copilotkit/shared";
 import OpenAI from "openai";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/auth";
 import { listMcpTools, callMcpTool } from "@/lib/mcp-client";
 import { getIronSession } from "iron-session";
@@ -51,97 +51,110 @@ function jsonSchemaToParameters(schema: Record<string, unknown>): Parameter[] {
 type AnyAction = any;
 
 export const POST = async (req: NextRequest) => {
-  const user = getUserFromRequest(req);
-
-  let apiUrl: string;
-  let apiKey: string;
-  let model: string;
-
-  if (user.isAdmin) {
-    const dummyRes = new Response();
-    const session = await getIronSession<SessionData>(
-      req.clone() as NextRequest,
-      dummyRes as never,
-      sessionOptions
-    );
-    apiUrl =
-      session.adminSettings?.apiUrl ??
-      process.env.ADMIN_API_URL ??
-      "https://api.openai.com/v1";
-    apiKey =
-      session.adminSettings?.apiKey ?? process.env.ADMIN_API_KEY ?? "";
-    model =
-      session.adminSettings?.model ?? process.env.ADMIN_MODEL ?? "gpt-4o";
-  } else {
-    apiUrl = process.env.CHAT_API_URL ?? "https://api.openai.com/v1";
-    apiKey = process.env.CHAT_API_KEY ?? "";
-    model = process.env.CHAT_MODEL ?? "gpt-4o";
-  }
-
-  const openai = new OpenAI({
-    apiKey: apiKey || "placeholder",
-    baseURL: apiUrl,
-  });
-
-  // MCP may be unavailable (e.g. superset-mcp container not yet started).
-  // Catch errors here so the chat route stays functional without MCP tools.
-  let mcpTools: Awaited<ReturnType<typeof listMcpTools>> = [];
   try {
-    mcpTools = await listMcpTools();
-  } catch {
-    // MCP unavailable — continue with built-in actions only
+    const user = getUserFromRequest(req);
+
+    let apiUrl: string;
+    let apiKey: string;
+    let model: string;
+
+    if (user.isAdmin) {
+      const dummyRes = new Response();
+      const session = await getIronSession<SessionData>(
+        req.clone() as NextRequest,
+        dummyRes as never,
+        sessionOptions
+      );
+      apiUrl =
+        session.adminSettings?.apiUrl ??
+        process.env.ADMIN_API_URL ??
+        "https://api.openai.com/v1";
+      apiKey =
+        session.adminSettings?.apiKey ?? process.env.ADMIN_API_KEY ?? "";
+      model =
+        session.adminSettings?.model ?? process.env.ADMIN_MODEL ?? "gpt-4o";
+    } else {
+      apiUrl = process.env.CHAT_API_URL ?? "https://api.openai.com/v1";
+      apiKey = process.env.CHAT_API_KEY ?? "";
+      model = process.env.CHAT_MODEL ?? "gpt-4o";
+    }
+
+    console.log(
+      `[chat] user=${user.email} isAdmin=${user.isAdmin} model=${model} url=${apiUrl}`
+    );
+
+    const openai = new OpenAI({
+      apiKey: apiKey || "placeholder",
+      baseURL: apiUrl,
+    });
+
+    // MCP may be unavailable (e.g. superset-mcp container not yet started).
+    // Catch errors here so the chat route stays functional without MCP tools.
+    let mcpTools: Awaited<ReturnType<typeof listMcpTools>> = [];
+    try {
+      mcpTools = await listMcpTools();
+    } catch (mcpErr) {
+      console.warn("[chat] MCP unavailable, continuing without tools:", mcpErr);
+    }
+
+    const actions: AnyAction[] = mcpTools.map((tool) => ({
+      name: tool.name,
+      description: tool.description,
+      parameters: jsonSchemaToParameters(tool.inputSchema),
+      handler: async (args: Record<string, unknown>) => {
+        return await callMcpTool(tool.name, args);
+      },
+    }));
+
+    actions.push({
+      name: "navigate_superset_dashboard",
+      description:
+        "Navigate the Superset panel to show a specific dashboard. Use when user asks to open or navigate to a dashboard.",
+      parameters: [
+        {
+          name: "dashboardId",
+          type: "string",
+          description: "The dashboard ID or slug to navigate to",
+          required: true,
+        },
+      ] satisfies Parameter[],
+      handler: async (args: Record<string, unknown>) => {
+        return `Navigating Superset to dashboard ${args.dashboardId}`;
+      },
+    });
+
+    actions.push({
+      name: "navigate_superset_chart",
+      description:
+        "Navigate the Superset panel to show a specific chart in Explore view.",
+      parameters: [
+        {
+          name: "chartId",
+          type: "string",
+          description: "The chart ID to navigate to",
+          required: true,
+        },
+      ] satisfies Parameter[],
+      handler: async (args: Record<string, unknown>) => {
+        return `Opening chart ${args.chartId} in Superset Explore`;
+      },
+    });
+
+    const serviceAdapter = new OpenAIAdapter({ openai, model });
+    const runtime = new CopilotRuntime({ actions });
+
+    const { handleRequest } = copilotRuntimeNextJSAppRouterEndpoint({
+      runtime,
+      serviceAdapter,
+      endpoint: "/api/chat",
+    });
+
+    return handleRequest(req);
+  } catch (err) {
+    console.error("[chat] Unhandled error in POST /api/chat:", err);
+    return NextResponse.json(
+      { error: "Internal server error", detail: String(err) },
+      { status: 500 }
+    );
   }
-  const actions: AnyAction[] = mcpTools.map((tool) => ({
-    name: tool.name,
-    description: tool.description,
-    parameters: jsonSchemaToParameters(tool.inputSchema),
-    handler: async (args: Record<string, unknown>) => {
-      return await callMcpTool(tool.name, args);
-    },
-  }));
-
-  actions.push({
-    name: "navigate_superset_dashboard",
-    description:
-      "Navigate the Superset panel to show a specific dashboard. Use when user asks to open or navigate to a dashboard.",
-    parameters: [
-      {
-        name: "dashboardId",
-        type: "string",
-        description: "The dashboard ID or slug to navigate to",
-        required: true,
-      },
-    ] satisfies Parameter[],
-    handler: async (args: Record<string, unknown>) => {
-      return `Navigating Superset to dashboard ${args.dashboardId}`;
-    },
-  });
-
-  actions.push({
-    name: "navigate_superset_chart",
-    description:
-      "Navigate the Superset panel to show a specific chart in Explore view.",
-    parameters: [
-      {
-        name: "chartId",
-        type: "string",
-        description: "The chart ID to navigate to",
-        required: true,
-      },
-    ] satisfies Parameter[],
-    handler: async (args: Record<string, unknown>) => {
-      return `Opening chart ${args.chartId} in Superset Explore`;
-    },
-  });
-
-  const serviceAdapter = new OpenAIAdapter({ openai, model });
-  const runtime = new CopilotRuntime({ actions });
-
-  const { handleRequest } = copilotRuntimeNextJSAppRouterEndpoint({
-    runtime,
-    serviceAdapter,
-    endpoint: "/api/chat",
-  });
-
-  return handleRequest(req);
 };
