@@ -37,18 +37,11 @@ services:
     image: localhost/hyperset-superset-mcp:latest
     container_name: hyperset-superset-mcp
     environment:
-      # Internal address Caddy reaches Superset at — reused so the MCP talks to the same instance
-      - SUPERSET_BASE_URL=${SUPERSET_UPSTREAM}
-      # Service account for AUTH_REMOTE_USER mode — set to a Superset admin username
-      - SUPERSET_REMOTE_USER=${SUPERSET_MCP_USER}
-      # Fallback: classic username/password (used if SUPERSET_REMOTE_USER is empty)
-      - SUPERSET_USERNAME=${SUPERSET_MCP_USER}
-      - SUPERSET_PASSWORD=${SUPERSET_MCP_PASSWORD}
-      # Allow uvicorn to accept requests with any Host header (e.g. container name).
-      # Without this the server returns 421 Misdirected Request when the portal
-      # connects using the internal Docker/Podman hostname as the Host header.
-      - UVICORN_FORWARDED_ALLOW_IPS=*
-      - UVICORN_PROXY_HEADERS=1
+      # Internal address of the Superset instance
+      - SUPERSET_UPSTREAM=${SUPERSET_UPSTREAM}
+      # Service-account credentials for Superset DB auth
+      - SUPERSET_MCP_USER=${SUPERSET_MCP_USER}
+      - SUPERSET_MCP_PASSWORD=${SUPERSET_MCP_PASSWORD}
     networks:
       - hyperset-net
     restart: unless-stopped
