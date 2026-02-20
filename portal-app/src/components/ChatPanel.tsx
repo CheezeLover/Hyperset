@@ -199,8 +199,6 @@ export function ChatPanel({
         />
         <CopilotChat
           className="copilotKitChat"
-          showFeedback={false}
-          showResponseButton={false}
           instructions={`You are Hyperset, an intelligent assistant for Apache Superset analytics.
 You have access to the full Superset MCP API (dashboards, charts, SQL execution, datasets, databases).
 When users ask to navigate to a dashboard or chart, use navigate_superset_dashboard or navigate_superset_chart.
