@@ -60,8 +60,8 @@ services:
       - "3000:3000"
     environment:
       - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
-      - SUPERSET_PUBLIC_URL=https://superset.${HYPERSET_DOMAIN}
-      - PAGES_PUBLIC_URL=https://pages.${HYPERSET_DOMAIN}
+      - SUPERSET_PUBLIC_URL=${SUPERSET_PUBLIC_URL}
+      - PAGES_PUBLIC_URL=${PAGES_PUBLIC_URL}
       - SUPERSET_MCP_URL=http://hyperset-superset-mcp:8000/mcp
       # User LLM API
       - CHAT_API_URL=${CHAT_API_URL:-https://api.openai.com/v1}
