@@ -18,6 +18,9 @@ services:
       - ./Caddy/bridge.js:/Caddy/bridge.js:Z
       - caddy_data:/data/caddy
       - caddy_config:/config
+    depends_on:
+      portal:
+        condition: service_healthy
     networks:
       - hyperset-net
     restart: unless-stopped
@@ -68,6 +71,12 @@ services:
       # Session encryption key for admin settings storage
       - SESSION_SECRET=${SESSION_SECRET}
       - NODE_ENV=production
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/config"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     networks:
       - hyperset-net
     restart: unless-stopped
