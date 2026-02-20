@@ -1,6 +1,7 @@
 {
     order authenticate before respond
     order authorize before basicauth
+    order replace_resp_body after reverse_proxy
 
     security {
         local identity store localdb {
@@ -32,7 +33,6 @@
             ui {
                 links {
                     "Portal" https://{$HYPERSET_DOMAIN}
-                    "OpenWebUI" https://openwebui.{$HYPERSET_DOMAIN}
                     "Superset" https://superset.{$HYPERSET_DOMAIN}
                     "Pages" https://pages.{$HYPERSET_DOMAIN}
                 }
@@ -57,40 +57,21 @@ auth.{$HYPERSET_DOMAIN} {
     authenticate with myportal
 }
 
+# ── Main portal (Next.js) ──────────────────────────────────────
 {$HYPERSET_DOMAIN} {
     tls internal {
         on_demand
     }
     authorize with mypolicy
 
-    # Serve a dynamic config.js with env vars injected — loaded by the portal on startup
-    handle /config.js {
-        header Content-Type "application/javascript"
-        respond `window.HYPERSET_CONFIG = {
-  supersetUrl: "https://superset.{env.HYPERSET_DOMAIN}"
-};`
-    }
-
-    handle {
-        root * /Portal
-        file_server
+    reverse_proxy hyperset-portal:3000 {
+        header_up X-Token-User-Id {http.request.header.X-Token-User-Id}
+        header_up X-Token-User-Email {http.request.header.X-Token-User-Email}
+        header_up X-Token-User-Roles {http.request.header.X-Token-User-Roles}
     }
 }
 
-openwebui.{$HYPERSET_DOMAIN} {
-    tls internal {
-        on_demand
-    }
-    authorize with mypolicy
-    reverse_proxy hyperset-open-webui:8080 {
-        header_up X-Auth-Request-User {http.request.header.X-Token-User-Id}
-        header_up X-Auth-Request-Email {http.request.header.X-Token-User-Email}
-        header_up X-Auth-Request-Groups {http.request.header.X-Token-User-Roles}
-        header_down -X-Frame-Options
-        header_down -Content-Security-Policy
-    }
-}
-
+# ── Pages service (unchanged) ──────────────────────────────────
 pages.{$HYPERSET_DOMAIN} {
     tls internal {
         on_demand
@@ -102,16 +83,32 @@ pages.{$HYPERSET_DOMAIN} {
     }
 }
 
+# ── Superset with bridge.js injection ─────────────────────────
 superset.{$HYPERSET_DOMAIN} {
     tls internal {
         on_demand
     }
     authorize with mypolicy
-    reverse_proxy {env.SUPERSET_UPSTREAM} {
-        header_up X-Webauth-User {http.request.header.X-Token-User-Id}
-        header_up X-Webauth-Email {http.request.header.X-Token-User-Email}
-        header_up X-Webauth-Groups {http.request.header.X-Token-User-Roles}
-        header_down -X-Frame-Options
-        header_down -Content-Security-Policy
+
+    # Serve the bridge script directly from Caddy
+    handle /bridge.js {
+        header Content-Type "application/javascript"
+        header Cache-Control "no-cache"
+        root * /Caddy
+        file_server
+    }
+
+    # Proxy everything else to Superset, injecting bridge.js into HTML responses
+    handle {
+        reverse_proxy {env.SUPERSET_UPSTREAM} {
+            header_up X-Webauth-User {http.request.header.X-Token-User-Id}
+            header_up X-Webauth-Email {http.request.header.X-Token-User-Email}
+            header_up X-Webauth-Groups {http.request.header.X-Token-User-Roles}
+            header_down -X-Frame-Options
+            header_down -Content-Security-Policy
+        }
+
+        # Inject bridge script before </body> using replace-response module
+        replace_resp_body </body> "<script src=\"/bridge.js\"></script></body>"
     }
 }
