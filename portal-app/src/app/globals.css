@@ -81,6 +81,29 @@ a { color: inherit; text-decoration: none; }
   box-shadow: none !important;
 }
 
+/* Hide thumbs up/down feedback buttons */
+.copilotKitChat [class*="feedback"],
+.copilotKitChat [class*="Feedback"],
+.copilotKitChat [aria-label="thumbs up"],
+.copilotKitChat [aria-label="thumbs down"],
+.copilotKitChat [aria-label="Thumbs up"],
+.copilotKitChat [aria-label="Thumbs down"],
+.copilotKitChat button[title*="thumb"],
+.copilotKitChat button[title*="Thumb"] {
+  display: none !important;
+}
+
+/* "Powered by CopilotKit" footer — keep it but make it very subtle */
+.copilotKitChat [class*="poweredBy"],
+.copilotKitChat [class*="PoweredBy"],
+.copilotKitChat [class*="powered-by"],
+.copilotKitChat [class*="branding"],
+.copilotKitChat [class*="Branding"] {
+  opacity: 0.25 !important;
+  font-size: 9px !important;
+  filter: grayscale(1) !important;
+}
+
 /* Tool call step styling */
 .tool-step {
   border: 1px solid var(--md-outline-var);
