@@ -65,13 +65,15 @@ export const POST = async (req: NextRequest) => {
     let apiKey: string;
     let model: string;
 
+    const dummyRes = new Response();
+    const session = await getIronSession<SessionData>(
+      req.clone() as NextRequest,
+      dummyRes as never,
+      sessionOptions
+    );
+
     if (user.isAdmin) {
-      const dummyRes = new Response();
-      const session = await getIronSession<SessionData>(
-        req.clone() as NextRequest,
-        dummyRes as never,
-        sessionOptions
-      );
+      // Admin uses adminSettings, falling back to env ADMIN_* vars
       apiUrl =
         session.adminSettings?.apiUrl ??
         process.env.ADMIN_API_URL ??
@@ -81,22 +83,39 @@ export const POST = async (req: NextRequest) => {
       model =
         session.adminSettings?.model ?? process.env.ADMIN_MODEL ?? "gpt-4o";
     } else {
-      apiUrl = process.env.CHAT_API_URL ?? "https://api.openai.com/v1";
-      apiKey = process.env.CHAT_API_KEY ?? "";
-      model = process.env.CHAT_MODEL ?? "gpt-4o";
+      // Regular users use chatSettings, falling back to env CHAT_* vars
+      apiUrl =
+        session.chatSettings?.apiUrl ??
+        process.env.CHAT_API_URL ??
+        "https://api.openai.com/v1";
+      apiKey =
+        session.chatSettings?.apiKey ?? process.env.CHAT_API_KEY ?? "";
+      model =
+        session.chatSettings?.model ?? process.env.CHAT_MODEL ?? "gpt-4o";
     }
 
     console.log(
       `[chat] user=${user.email} isAdmin=${user.isAdmin} model=${model} url=${apiUrl}`
     );
 
-    const openai = new OpenAI({
-      apiKey: apiKey || "placeholder",
-      baseURL: apiUrl,
-    });
+    if (!apiKey) {
+      console.error("[chat] No API key configured");
+      return NextResponse.json(
+        {
+          error: "No API key configured",
+          detail:
+            "No LLM API key is set. " +
+            (user.isAdmin
+              ? "Open Admin Settings (gear icon) to configure one."
+              : "Ask an admin to configure the chat API key."),
+        },
+        { status: 503 }
+      );
+    }
+
+    const openai = new OpenAI({ apiKey, baseURL: apiUrl });
 
     // MCP may be unavailable (e.g. superset-mcp container not yet started).
-    // Catch errors here so the chat route stays functional without MCP tools.
     let mcpTools: Awaited<ReturnType<typeof listMcpTools>> = [];
     try {
       mcpTools = await listMcpTools();
@@ -157,11 +176,28 @@ export const POST = async (req: NextRequest) => {
     });
 
     return handleRequest(req);
-  } catch (err) {
-    console.error("[chat] Unhandled error in POST /api/chat:", err);
+  } catch (err: unknown) {
+    // Detect LLM API errors (OpenAI SDK wraps them with a .status field)
+    const status = (err as { status?: number }).status;
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[chat] Error (HTTP ${status ?? "?"}):`, msg);
+
+    const userFacing =
+      status === 401
+        ? "Authentication failed — the API key is invalid or expired."
+        : status === 403
+        ? "Access denied — the API key does not have permission for this model."
+        : status === 429
+        ? "Rate limit reached — too many requests or quota exceeded."
+        : status === 404
+        ? `Model not found: "${msg}". Check the model name in settings.`
+        : status === 503 || status === 502
+        ? "The LLM service is unavailable. Try again in a moment."
+        : `LLM API error${status ? ` (HTTP ${status})` : ""}: ${msg}`;
+
     return NextResponse.json(
-      { error: "Internal server error", detail: String(err) },
-      { status: 500 }
+      { error: userFacing, detail: msg, status },
+      { status: 502 }
     );
   }
 };
