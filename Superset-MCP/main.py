@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from functools import wraps
 from fastapi import FastAPI, HTTPException
 from mcp.server.fastmcp import FastMCP, Context
+from mcp.server.transport_security import TransportSecuritySettings
 from dotenv import load_dotenv
 import json
 import logging
@@ -49,15 +50,24 @@ Each tool follows a consistent naming convention: superset_<category>_<action>
 # Load environment variables from .env file
 load_dotenv()
 
-# Constants
-SUPERSET_BASE_URL = os.getenv("SUPERSET_BASE_URL", "http://localhost:8088")
-# Service-account username for AUTH_REMOTE_USER mode (header-based SSO via Caddy).
-# Must match a Superset admin user; Superset must be configured with AUTH_TYPE = AUTH_REMOTE_USER.
-SUPERSET_REMOTE_USER = os.getenv("SUPERSET_REMOTE_USER", "")
-ACCESS_TOKEN_STORE_PATH = os.path.join(os.path.dirname(__file__), ".superset_token")
+# Constants — use SUPERSET_UPSTREAM as the canonical URL (falls back to SUPERSET_BASE_URL for
+# local dev, then to localhost).
+SUPERSET_BASE_URL = (
+    os.getenv("SUPERSET_UPSTREAM")
+    or os.getenv("SUPERSET_BASE_URL")
+    or "http://localhost:8088"
+)
+SUPERSET_MCP_USER = os.getenv("SUPERSET_MCP_USER", "")
+SUPERSET_MCP_PASSWORD = os.getenv("SUPERSET_MCP_PASSWORD", "")
 
 # Initialize FastAPI app for handling additional web endpoints if needed
 app = FastAPI(title="Superset MCP Server")
+
+# Shared HTTP client and context — created once at startup, reused across all requests.
+# stateless_http=True means FastMCP creates a new lifespan context per request, so we
+# keep the real state here at module level to avoid re-authenticating every time.
+_shared_client: Optional[httpx.AsyncClient] = None
+_shared_ctx: Optional["SupersetContext"] = None
 
 
 @dataclass
@@ -71,96 +81,66 @@ class SupersetContext:
     app: FastAPI = None
 
 
-def load_stored_token() -> Optional[str]:
-    """Load stored access token if it exists"""
-    try:
-        if os.path.exists(ACCESS_TOKEN_STORE_PATH):
-            with open(ACCESS_TOKEN_STORE_PATH, "r") as f:
-                return f.read().strip()
-    except Exception:
+async def _login(client: httpx.AsyncClient) -> Optional[str]:
+    """Login to Superset with username/password and return the access token."""
+    if not SUPERSET_MCP_USER or not SUPERSET_MCP_PASSWORD:
+        logger.warning("SUPERSET_MCP_USER or SUPERSET_MCP_PASSWORD not set — cannot authenticate")
         return None
-    return None
-
-
-def save_access_token(token: str):
-    """Save access token to file"""
     try:
-        with open(ACCESS_TOKEN_STORE_PATH, "w") as f:
-            f.write(token)
+        response = await client.post(
+            "/api/v1/security/login",
+            json={"username": SUPERSET_MCP_USER, "password": SUPERSET_MCP_PASSWORD, "provider": "db", "refresh": True},
+        )
+        if response.status_code == 200:
+            token = response.json().get("access_token")
+            if token:
+                logger.info(f"Authenticated as '{SUPERSET_MCP_USER}'")
+                return token
+            logger.warning("Login succeeded but no access_token in response")
+        else:
+            logger.warning(f"Login failed: {response.status_code} — {response.text}")
     except Exception as e:
-        logger.warning(f"Warning: Could not save access token: {e}")
+        logger.warning(f"Login error: {e}")
+    return None
 
 
 @asynccontextmanager
 async def superset_lifespan(server: FastMCP) -> AsyncIterator[SupersetContext]:
-    """Manage application lifecycle for Superset integration"""
-    logger.info("Initializing Superset context...")
+    """Manage application lifecycle for Superset integration.
 
-    # Create HTTP client
-    client = httpx.AsyncClient(base_url=SUPERSET_BASE_URL, timeout=30.0)
+    With stateless_http=True this is called per request. We reuse the shared client
+    and context so authentication only happens once at first request.
+    """
+    global _shared_client, _shared_ctx
 
-    # Create context
-    ctx = SupersetContext(client=client, base_url=SUPERSET_BASE_URL, app=app)
+    if _shared_ctx is None:
+        logger.info(f"Initializing Superset context (base URL: {SUPERSET_BASE_URL})...")
+        client = httpx.AsyncClient(base_url=SUPERSET_BASE_URL, timeout=30.0)
+        ctx = SupersetContext(client=client, base_url=SUPERSET_BASE_URL, app=app)
+        token = await _login(client)
+        if token:
+            ctx.access_token = token
+            client.headers.update({"Authorization": f"Bearer {token}"})
+        _shared_client = client
+        _shared_ctx = ctx
 
-    # Try to load existing token
-    stored_token = load_stored_token()
-    if stored_token:
-        ctx.access_token = stored_token
-        client.headers.update({"Authorization": f"Bearer {stored_token}"})
-        logger.info("Using stored access token")
-
-        # Verify token validity
-        try:
-            response = await client.get("/api/v1/me/")
-            if response.status_code != 200:
-                logger.info(
-                    f"Stored token is invalid (status {response.status_code}). Will need to re-authenticate."
-                )
-                ctx.access_token = None
-                client.headers.pop("Authorization", None)
-        except Exception as e:
-            logger.info(f"Error verifying stored token: {e}")
-            ctx.access_token = None
-            client.headers.pop("Authorization", None)
-
-    # Auto-authenticate on startup via remote user (AUTH_REMOTE_USER mode)
-    if not ctx.access_token:
-        if SUPERSET_REMOTE_USER:
-            logger.info(f"Auto-authenticating via remote user as '{SUPERSET_REMOTE_USER}'...")
-            try:
-                response = await client.post(
-                    "/api/v1/security/login",
-                    json={"username": SUPERSET_REMOTE_USER, "provider": "remote_user", "refresh": True},
-                )
-                if response.status_code == 200:
-                    token = response.json().get("access_token")
-                    if token:
-                        save_access_token(token)
-                        ctx.access_token = token
-                        client.headers.update({"Authorization": f"Bearer {token}"})
-                        logger.info("Remote user authentication successful")
-                    else:
-                        logger.warning("Remote user login returned no token")
-                else:
-                    logger.warning(f"Remote user login failed: {response.status_code} - {response.text}")
-            except Exception as e:
-                logger.warning(f"Remote user auto-authentication error: {e}")
-        else:
-            logger.warning("SUPERSET_REMOTE_USER is not set — authentication will be deferred to tool call")
-
-    try:
-        yield ctx
-    finally:
-        # Cleanup on shutdown
-        logger.info("Shutting down Superset context...")
-        await client.aclose()
+    yield _shared_ctx
+    # Do not close the shared client — it lives for the duration of the process.
 
 
-# Initialize FastMCP server with lifespan and dependencies
+# Initialize FastMCP server with lifespan and dependencies.
+# - stateless_http=True: serve every request independently (no persistent SSE GET stream).
+#   The portal only does request/response tool calls, so stateful SSE is not needed, and
+#   stateless mode avoids the GET /mcp → 406 handshake that the TypeScript SDK triggers.
+# - DNS rebinding protection is disabled so that requests arriving with an internal
+#   container hostname in the Host header (e.g. hyperset-superset-mcp:8000) are accepted
+#   instead of being rejected with 421 Misdirected Request.
 mcp = FastMCP(
     "superset",
     lifespan=superset_lifespan,
     dependencies=["fastapi", "uvicorn", "python-dotenv", "httpx"],
+    stateless_http=True,
+    transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
 )
 
 # Type variables for generic function annotations
@@ -239,20 +219,13 @@ async def with_auto_refresh(
         # For other errors, just raise
         raise e
 
-    # If we got a 401, try to refresh the token
-    logger.info("Received 401 Unauthorized. Attempting to refresh token...")
-    refresh_result = await superset_auth_refresh_token(ctx)
-
-    if refresh_result.get("error"):
-        # If refresh failed, try to re-authenticate
-        logger.info(
-            f"Token refresh failed: {refresh_result.get('error')}. Attempting re-authentication..."
-        )
-        auth_result = await superset_auth_authenticate_user(ctx)
-
-        if auth_result.get("error"):
-            # If re-authentication failed, raise an exception
-            raise HTTPException(status_code=401, detail="Authentication failed")
+    # If we got a 401, try to re-authenticate
+    logger.info("Received 401 Unauthorized. Attempting to re-authenticate...")
+    token = await _login(superset_ctx.client)
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication failed")
+    superset_ctx.access_token = token
+    superset_ctx.client.headers.update({"Authorization": f"Bearer {token}"})
 
     # Retry the API call with the new token
     return await api_call()
@@ -388,101 +361,48 @@ async def superset_auth_check_token_validity(ctx: Context) -> Dict[str, Any]:
 @handle_api_errors
 async def superset_auth_refresh_token(ctx: Context) -> Dict[str, Any]:
     """
-    Refresh the access token using the refresh endpoint
-
-    Makes a request to the /api/v1/security/refresh endpoint to get a new access token
-    without requiring re-authentication with username/password.
+    Re-authenticate with Superset using the configured credentials.
 
     Returns:
         A dictionary with the new access token or error information
     """
     superset_ctx: SupersetContext = ctx.request_context.lifespan_context
 
-    if not superset_ctx.access_token:
-        return {"error": "No access token to refresh. Please authenticate first."}
+    token = await _login(superset_ctx.client)
+    if not token:
+        return {"error": "Re-authentication failed. Check SUPERSET_MCP_USER / SUPERSET_MCP_PASSWORD."}
 
-    try:
-        # Use the refresh endpoint to get a new token
-        response = await superset_ctx.client.post("/api/v1/security/refresh")
-
-        if response.status_code != 200:
-            return {
-                "error": f"Failed to refresh token: {response.status_code} - {response.text}"
-            }
-
-        data = response.json()
-        access_token = data.get("access_token")
-
-        if not access_token:
-            return {"error": "No access token returned from refresh"}
-
-        # Save and set the new access token
-        save_access_token(access_token)
-        superset_ctx.access_token = access_token
-        superset_ctx.client.headers.update({"Authorization": f"Bearer {access_token}"})
-
-        return {
-            "message": "Successfully refreshed access token",
-            "access_token": access_token,
-        }
-    except Exception as e:
-        return {"error": f"Error refreshing token: {str(e)}"}
+    superset_ctx.access_token = token
+    superset_ctx.client.headers.update({"Authorization": f"Bearer {token}"})
+    return {"message": "Successfully re-authenticated", "access_token": token}
 
 
 @mcp.tool()
 @handle_api_errors
 async def superset_auth_authenticate_user(ctx: Context) -> Dict[str, Any]:
     """
-    Authenticate with Superset using remote-user (header-based SSO) and get an access token.
+    Authenticate with Superset using SUPERSET_MCP_USER / SUPERSET_MCP_PASSWORD.
 
-    Uses the SUPERSET_REMOTE_USER environment variable as the trusted username and calls
-    /api/v1/security/login with provider="remote_user". Superset must be configured with
-    AUTH_TYPE = AUTH_REMOTE_USER for this to work.
-
-    If a valid token is already cached it is returned immediately. If the token is expired,
-    a refresh is attempted first; only if that fails is a full re-login performed.
+    If a valid token is already cached it is returned immediately.
 
     Returns:
         A dictionary with authentication status and access token or error information
     """
     superset_ctx: SupersetContext = ctx.request_context.lifespan_context
 
-    if not SUPERSET_REMOTE_USER:
-        return {"error": "SUPERSET_REMOTE_USER is not configured. Set it to the service-account username."}
-
-    # Return existing token if still valid
     if superset_ctx.access_token:
         validity = await superset_auth_check_token_validity(ctx)
         if validity.get("valid"):
-            return {
-                "message": "Already authenticated with valid token",
-                "access_token": superset_ctx.access_token,
-            }
-        # Try a lightweight refresh before doing a full re-login
-        refresh_result = await superset_auth_refresh_token(ctx)
-        if not refresh_result.get("error"):
-            return refresh_result
+            return {"message": "Already authenticated with valid token", "access_token": superset_ctx.access_token}
 
-    # Full remote-user login
-    try:
-        response = await superset_ctx.client.post(
-            "/api/v1/security/login",
-            json={"username": SUPERSET_REMOTE_USER, "provider": "remote_user", "refresh": True},
-        )
-        if response.status_code != 200:
-            return {"error": f"Remote user login failed: {response.status_code} - {response.text}"}
+    token = await _login(superset_ctx.client)
+    if not token:
+        return {"error": "Authentication failed. Check SUPERSET_MCP_USER / SUPERSET_MCP_PASSWORD."}
 
-        access_token = response.json().get("access_token")
-        if not access_token:
-            return {"error": "No access token returned from remote user login"}
-
-        save_access_token(access_token)
-        superset_ctx.access_token = access_token
-        superset_ctx.client.headers.update({"Authorization": f"Bearer {access_token}"})
-        await get_csrf_token(ctx)
-        return {"message": f"Authenticated via remote user as '{SUPERSET_REMOTE_USER}'", "access_token": access_token}
-    except Exception as e:
-        return {"error": f"Remote user authentication error: {str(e)}"}
+    superset_ctx.access_token = token
+    superset_ctx.client.headers.update({"Authorization": f"Bearer {token}"})
+    await get_csrf_token(ctx)
+    return {"message": f"Authenticated as '{SUPERSET_MCP_USER}'", "access_token": token}
 
 
 # ===== Dashboard Tools =====
@@ -1830,7 +1750,6 @@ if __name__ == "__main__":
         host = os.getenv("MCP_HOST", "0.0.0.0")
         port = int(os.getenv("MCP_PORT", "8000"))
         logger.info(f"Starting Superset MCP server on {host}:{port} (streamable-http)...")
-        # MCP 1.6+ passes host/port via settings, not as run() kwargs
         mcp.settings.host = host
         mcp.settings.port = port
         mcp.run(transport="streamable-http")
