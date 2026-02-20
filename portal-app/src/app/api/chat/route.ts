@@ -83,7 +83,14 @@ export const POST = async (req: NextRequest) => {
     baseURL: apiUrl,
   });
 
-  const mcpTools = await listMcpTools();
+  // MCP may be unreachable (e.g. superset-mcp not started, or direct port-3000 testing).
+  // Degrade gracefully — chat still works, just without MCP tools.
+  let mcpTools: Awaited<ReturnType<typeof listMcpTools>> = [];
+  try {
+    mcpTools = await listMcpTools();
+  } catch {
+    // MCP unavailable — continue without tools
+  }
   const actions: AnyAction[] = mcpTools.map((tool) => ({
     name: tool.name,
     description: tool.description,
