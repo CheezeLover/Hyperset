@@ -1,9 +1,34 @@
+// Set Mistral compatibility environment variables early
+if (process.env.CHAT_API_URL?.includes("mistral") || process.env.ADMIN_API_URL?.includes("mistral")) {
+  const mistralApiKey = process.env.CHAT_API_URL?.includes("mistral") 
+    ? process.env.CHAT_API_KEY 
+    : process.env.ADMIN_API_KEY;
+  if (mistralApiKey) {
+    process.env.OPENAI_API_KEY = mistralApiKey.startsWith("sk-") ? mistralApiKey : `sk-${mistralApiKey}`;
+  }
+}
+
 import {
   CopilotRuntime,
   OpenAIAdapter,
   copilotRuntimeNextJSAppRouterEndpoint,
 } from "@copilotkit/runtime";
 import OpenAI from "openai";
+
+// Monkey-patch the OpenAIAdapter to force Mistral compatibility
+const originalOpenAIAdapter = OpenAIAdapter;
+class MistralCompatibleAdapter extends originalOpenAIAdapter {
+  constructor(config: any) {
+    // Intercept the configuration to force Mistral endpoints
+    if (config.openai?.baseURL?.includes("mistral")) {
+      // Force the baseURL to use Mistral's endpoint
+      config.openai.baseURL = config.openai.baseURL;
+      // Override any OpenAI-specific endpoint construction
+      (config.openai as any).DEFAULT_ENDPOINT = config.openai.baseURL;
+    }
+    super(config);
+  }
+}
 import type { Parameter } from "@copilotkit/shared";
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/auth";
@@ -265,40 +290,36 @@ export const POST = async (req: NextRequest) => {
     // --- Build CopilotKit runtime ---
     console.log(`[chat] building OpenAI adapter effectiveKey=${apiKey.slice(0,8)}...`);
     
-    // Handle Mistral AI compatibility
-    let openai, serviceAdapter, runtime;
-    if (apiUrl.includes("mistral.ai") || apiUrl.includes("mistral")) {
-      // For Mistral, we need to format the API key as OpenAI expects it
-      // Mistral keys are typically in format "xJpyaRhN...BHsA"
-      // OpenAI expects keys starting with "sk-"
-      const formattedApiKey = apiKey.startsWith("sk-") ? apiKey : `sk-${apiKey}`;
-      
-      process.env.OPENAI_API_KEY = formattedApiKey;
-      
-      openai = new OpenAI({
-        apiKey: formattedApiKey,
-        baseURL: apiUrl,
+    // Ensure OPENAI_API_KEY is set for the current request
+    const formattedApiKey = apiUrl.includes("mistral.ai") || apiUrl.includes("mistral")
+      ? (apiKey.startsWith("sk-") ? apiKey : `sk-${apiKey}`)
+      : apiKey;
+    process.env.OPENAI_API_KEY = formattedApiKey;
+    
+    // Create OpenAI client with Mistral compatibility
+    const openai = new OpenAI({
+      apiKey: formattedApiKey,
+      baseURL: apiUrl,
+      ...(apiUrl.includes("mistral.ai") || apiUrl.includes("mistral") ? {
         defaultHeaders: {
           "Authorization": `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
-      });
-      
-      // Force the baseURL to Mistral's endpoint
+      } : {}),
+    });
+    
+    // Force baseURL for Mistral
+    if (apiUrl.includes("mistral.ai") || apiUrl.includes("mistral")) {
       (openai as any).baseURL = apiUrl;
-      
-      serviceAdapter = new OpenAIAdapter({ openai, model });
-    } else {
-      // Standard OpenAI configuration
-      process.env.OPENAI_API_KEY = apiKey;
-      openai = new OpenAI({ apiKey, baseURL: apiUrl });
-      serviceAdapter = new OpenAIAdapter({ openai, model });
     }
     
     const actions = await buildActions();
     console.log(`[chat] actions built count=${actions.length}`);
 
-    runtime = new CopilotRuntime({ actions });
+    const serviceAdapter = apiUrl.includes("mistral.ai") || apiUrl.includes("mistral")
+      ? new MistralCompatibleAdapter({ openai, model })
+      : new OpenAIAdapter({ openai, model });
+    const runtime = new CopilotRuntime({ actions });
 
     const { handleRequest } = copilotRuntimeNextJSAppRouterEndpoint({
       runtime,
