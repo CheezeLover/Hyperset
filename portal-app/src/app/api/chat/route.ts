@@ -389,7 +389,14 @@ export const POST = async (req: NextRequest) => {
       console.log(`[chat] actions built count=${actions.length}`);
 
       // Create our custom service adapter that works with any OpenAI-compatible API
-      const serviceAdapter = new OpenAILikeServiceAdapter(apiKey, apiUrl, model);
+      // Format the model name to include provider prefix for CopilotKit compatibility
+      const formattedModel = apiUrl.includes("mistral.ai") 
+        ? `openai/${model}` 
+        : apiUrl.includes("openai.com") 
+        ? model 
+        : `openai/${model}`; // Default to openai provider for other compatible APIs
+      
+      const serviceAdapter = new OpenAILikeServiceAdapter(apiKey, apiUrl, formattedModel);
       
       // Create the runtime
       const runtime = new CopilotRuntime({ actions });
