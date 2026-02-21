@@ -3,9 +3,8 @@ import {
   OpenAIAdapter,
   copilotRuntimeNextJSAppRouterEndpoint,
 } from "@copilotkit/runtime";
-import { OpenAI } from "openai";
-import type { Parameter } from "@copilotkit/shared";
 import OpenAI from "openai";
+import type { Parameter } from "@copilotkit/shared";
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/auth";
 import { listMcpTools, callMcpTool } from "@/lib/mcp-client";
