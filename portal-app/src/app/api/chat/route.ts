@@ -13,6 +13,8 @@ class OpenAILikeServiceAdapter {
   private client: OpenAI;
   model: string;  // Make this public to match the interface
   
+  provider: string = "openai"; // Default to openai for compatibility
+  
   constructor(apiKey: string, baseURL: string, model: string) {
     // Create OpenAI client with proper configuration
     this.client = new OpenAI({
@@ -27,6 +29,8 @@ class OpenAILikeServiceAdapter {
       } : {}),
     });
     this.model = model;
+    // Set provider explicitly to avoid "undefined" provider errors
+    this.provider = "openai"; // Force openai provider for all cases
   }
   
   // Implement the process method that CopilotKit expects
@@ -389,14 +393,15 @@ export const POST = async (req: NextRequest) => {
       console.log(`[chat] actions built count=${actions.length}`);
 
       // Create our custom service adapter that works with any OpenAI-compatible API
-      // Format the model name to include provider prefix for CopilotKit compatibility
-      const formattedModel = apiUrl.includes("mistral.ai") 
-        ? `openai/${model}` 
-        : apiUrl.includes("openai.com") 
-        ? model 
-        : `openai/${model}`; // Default to openai provider for other compatible APIs
+      // Use a standard OpenAI model name to avoid provider detection issues
+      console.log(`[chat] Original model: ${model}, apiUrl: ${apiUrl}`);
       
-      const serviceAdapter = new OpenAILikeServiceAdapter(apiKey, apiUrl, formattedModel);
+      // Always use a standard OpenAI model name for CopilotKit compatibility
+      // Our adapter will handle the actual API endpoint and model mapping
+      const copilotKitModel = "gpt-4"; // Use a standard OpenAI model name
+      console.log(`[chat] Using CopilotKit-compatible model: ${copilotKitModel}`);
+      
+      const serviceAdapter = new OpenAILikeServiceAdapter(apiKey, apiUrl, model); // Use original model internally
       
       // Create the runtime
       const runtime = new CopilotRuntime({ actions });
