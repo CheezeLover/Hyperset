@@ -273,6 +273,14 @@ export const POST = async (req: NextRequest) => {
       // Build an OpenAI-compatible client pointing at the configured endpoint
       // (works for Mistral, Ollama, vLLM, Together AI, or vanilla OpenAI).
       console.log(`[chat] model: ${model}, apiUrl: ${apiUrl}`);
+
+      // CopilotKit's OpenAIAdapter wraps the Vercel AI SDK, which re-initialises
+      // its own OpenAI provider from environment variables (OPENAI_API_KEY /
+      // OPENAI_BASE_URL) rather than using the OpenAI client instance we pass in.
+      // Setting them here ensures the Vercel AI SDK hits the correct endpoint.
+      process.env.OPENAI_API_KEY = apiKey;
+      process.env.OPENAI_BASE_URL = apiUrl;
+
       const openaiClient = new OpenAI({ apiKey, baseURL: apiUrl });
       const serviceAdapter = new OpenAIAdapter({ openai: openaiClient, model });
 
