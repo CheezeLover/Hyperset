@@ -377,23 +377,56 @@ export const POST = async (req: NextRequest) => {
     // --- Build CopilotKit runtime ---
     console.log(`[chat] building service adapter for ${apiUrl}...`);
     
-    const actions = await buildActions();
-    console.log(`[chat] actions built count=${actions.length}`);
+    // Try the CopilotKit approach first
+    try {
+      const actions = await buildActions();
+      console.log(`[chat] actions built count=${actions.length}`);
 
-    // Create our custom service adapter that works with any OpenAI-compatible API
-    const serviceAdapter = new OpenAILikeServiceAdapter(apiKey, apiUrl, model);
-    const runtime = new CopilotRuntime({ actions });
+      // Create our custom service adapter that works with any OpenAI-compatible API
+      const serviceAdapter = new OpenAILikeServiceAdapter(apiKey, apiUrl, model);
+      
+      // Create the runtime
+      const runtime = new CopilotRuntime({ actions });
 
-    const { handleRequest } = copilotRuntimeNextJSAppRouterEndpoint({
-      runtime,
-      serviceAdapter,
-      endpoint: "/api/chat",
-    });
+      // Create the endpoint handler with our custom adapter
+      const { handleRequest } = copilotRuntimeNextJSAppRouterEndpoint({
+        runtime,
+        serviceAdapter,
+        endpoint: "/api/chat",
+      });
 
-    console.log(`[chat] calling handleRequest (elapsed ${Date.now() - reqStart}ms)`);
-    const response = await handleRequest(req);
-    console.log(`[chat] handleRequest returned status=${response.status} (elapsed ${Date.now() - reqStart}ms)`);
-    return response;
+      console.log(`[chat] calling handleRequest (elapsed ${Date.now() - reqStart}ms)`);
+      const response = await handleRequest(req);
+      console.log(`[chat] handleRequest returned status=${response.status} (elapsed ${Date.now() - reqStart}ms)`);
+      return response;
+    } catch (error) {
+      console.error(`[chat] CopilotKit approach failed, trying direct approach:`, error);
+      
+      // Fallback: Handle the request directly if CopilotKit fails
+      try {
+        const body = await req.json();
+        const serviceAdapter = new OpenAILikeServiceAdapter(apiKey, apiUrl, model);
+        
+        if (body.messages) {
+          const result = await serviceAdapter.process({
+            messages: body.messages,
+            options: body.options,
+            functions: body.functions,
+            stream: body.stream,
+          });
+          
+          return NextResponse.json(result);
+        } else {
+          return NextResponse.json({ error: "Invalid request format" }, { status: 400 });
+        }
+      } catch (directError) {
+        console.error(`[chat] Direct approach also failed:`, directError);
+        return NextResponse.json(
+          { error: "Failed to process request with both approaches", detail: String(directError) },
+          { status: 500 }
+        );
+      }
+    }
   } catch (err: unknown) {
     // Detect LLM API errors (OpenAI SDK wraps them with a .status field)
     const status = (err as { status?: number }).status;
