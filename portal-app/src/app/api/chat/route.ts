@@ -3,6 +3,7 @@ import {
   OpenAIAdapter,
   copilotRuntimeNextJSAppRouterEndpoint,
 } from "@copilotkit/runtime";
+import { OpenAI } from "openai";
 import type { Parameter } from "@copilotkit/shared";
 import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
@@ -265,31 +266,40 @@ export const POST = async (req: NextRequest) => {
     // --- Build CopilotKit runtime ---
     console.log(`[chat] building OpenAI adapter effectiveKey=${apiKey.slice(0,8)}...`);
     
-    // Handle Mistral AI compatibility by setting the environment variable
-    // that the OpenAIAdapter expects
+    // Handle Mistral AI compatibility
+    let openai, serviceAdapter, runtime;
     if (apiUrl.includes("mistral.ai") || apiUrl.includes("mistral")) {
-      // Set the environment variable that OpenAIAdapter looks for
-      process.env.OPENAI_API_KEY = apiKey;
-      console.log(`[chat] Set OPENAI_API_KEY env var for Mistral compatibility`);
-    }
-    
-    // Create OpenAI client with proper configuration
-    const openai = new OpenAI({
-      apiKey: apiUrl.includes("mistral.ai") || apiUrl.includes("mistral") ? apiKey : apiKey,
-      baseURL: apiUrl,
-      ...(apiUrl.includes("mistral.ai") || apiUrl.includes("mistral") ? {
+      // For Mistral, we need to format the API key as OpenAI expects it
+      // Mistral keys are typically in format "xJpyaRhN...BHsA"
+      // OpenAI expects keys starting with "sk-"
+      const formattedApiKey = apiKey.startsWith("sk-") ? apiKey : `sk-${apiKey}`;
+      
+      process.env.OPENAI_API_KEY = formattedApiKey;
+      
+      openai = new OpenAI({
+        apiKey: formattedApiKey,
+        baseURL: apiUrl,
         defaultHeaders: {
           "Authorization": `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
-      } : {}),
-    });
+      });
+      
+      // Force the baseURL to Mistral's endpoint
+      (openai as any).baseURL = apiUrl;
+      
+      serviceAdapter = new OpenAIAdapter({ openai, model });
+    } else {
+      // Standard OpenAI configuration
+      process.env.OPENAI_API_KEY = apiKey;
+      openai = new OpenAI({ apiKey, baseURL: apiUrl });
+      serviceAdapter = new OpenAIAdapter({ openai, model });
+    }
     
     const actions = await buildActions();
     console.log(`[chat] actions built count=${actions.length}`);
 
-    const serviceAdapter = new OpenAIAdapter({ openai, model });
-    const runtime = new CopilotRuntime({ actions });
+    runtime = new CopilotRuntime({ actions });
 
     const { handleRequest } = copilotRuntimeNextJSAppRouterEndpoint({
       runtime,
