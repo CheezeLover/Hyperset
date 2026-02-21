@@ -84,14 +84,27 @@ class OpenAILikeServiceAdapter {
           threadId: params.options?.threadId || `thread_${Date.now()}`,
         };
       } else {
-        // For non-streaming responses
+        // For non-streaming responses - type as ChatCompletion
+        const chatCompletion = response as {
+          id: string;
+          object: string;
+          created: number;
+          model: string;
+          choices: any[];
+          usage: any;
+        };
+        
         return {
-          id: response.id,
-          object: response.object,
-          created: response.created,
-          model: response.model,
-          choices: response.choices,
-          usage: response.usage,
+          id: chatCompletion.id,
+          object: chatCompletion.object,
+          created: chatCompletion.created,
+          model: chatCompletion.model,
+          choices: chatCompletion.choices.map((choice: any) => ({
+            index: choice.index,
+            message: choice.message,
+            finish_reason: choice.finish_reason,
+          })),
+          usage: chatCompletion.usage,
           threadId: params.options?.threadId || `thread_${Date.now()}`,
         };
       }
