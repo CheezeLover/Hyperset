@@ -48,39 +48,48 @@ class OpenAILikeServiceAdapter {
       
       // Transform the response to match CopilotKit's expected format
       if (stream) {
-        // For streaming responses, we need to transform each chunk
-        const transformedStream = new TransformStream<any, any>();
-        const writer = transformedStream.writable.getWriter();
-        
-        (async () => {
-          try {
-            for await (const chunk of response) {
-              // Transform each chunk to CopilotKit format
-              const transformedChunk = {
-                id: chunk.id,
-                object: chunk.object,
-                created: chunk.created,
-                model: chunk.model,
-                choices: chunk.choices?.map(choice => ({
-                  index: choice.index,
-                  delta: choice.delta,
-                  finish_reason: choice.finish_reason,
-                })) || [],
-                usage: chunk.usage,
-                threadId: params.options?.threadId || `thread_${Date.now()}`,
-              };
-              await writer.write(transformedChunk);
+        // For streaming responses with OpenAI SDK v4+
+        if (typeof response === 'object' && response && 'stream' in response) {
+          // Handle the async iterable response from OpenAI SDK
+          const transformedStream = new TransformStream<any, any>();
+          const writer = transformedStream.writable.getWriter();
+          
+          (async () => {
+            try {
+              for await (const chunk of response) {
+                // Transform each chunk to CopilotKit format
+                const transformedChunk = {
+                  id: chunk.id,
+                  object: chunk.object,
+                  created: chunk.created,
+                  model: chunk.model,
+                  choices: chunk.choices?.map(choice => ({
+                    index: choice.index,
+                    delta: choice.delta,
+                    finish_reason: choice.finish_reason,
+                  })) || [],
+                  usage: chunk.usage,
+                  threadId: params.options?.threadId || `thread_${Date.now()}`,
+                };
+                await writer.write(transformedChunk);
+              }
+              await writer.close();
+            } catch (error) {
+              await writer.abort(error);
             }
-            await writer.close();
-          } catch (error) {
-            await writer.abort(error);
-          }
-        })();
-        
-        return {
-          stream: transformedStream.readable,
-          threadId: params.options?.threadId || `thread_${Date.now()}`,
-        };
+          })();
+          
+          return {
+            stream: transformedStream.readable,
+            threadId: params.options?.threadId || `thread_${Date.now()}`,
+          };
+        } else {
+          // Handle older OpenAI SDK versions or unexpected response format
+          return {
+            stream: response,
+            threadId: params.options?.threadId || `thread_${Date.now()}`,
+          };
+        }
       } else {
         // For non-streaming responses
         return {
