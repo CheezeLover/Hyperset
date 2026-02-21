@@ -1,11 +1,11 @@
-// Set Mistral compatibility environment variables early
-if (process.env.CHAT_API_URL?.includes("mistral") || process.env.ADMIN_API_URL?.includes("mistral")) {
-  const mistralApiKey = process.env.CHAT_API_URL?.includes("mistral") 
-    ? process.env.CHAT_API_KEY 
-    : process.env.ADMIN_API_KEY;
-  if (mistralApiKey) {
-    process.env.OPENAI_API_KEY = mistralApiKey.startsWith("sk-") ? mistralApiKey : `sk-${mistralApiKey}`;
-  }
+// Set environment variable for OpenAI compatibility layer
+// This needs to be set before importing OpenAI SDK
+const apiUrl = process.env.CHAT_API_URL || process.env.ADMIN_API_URL;
+const apiKey = process.env.CHAT_API_KEY || process.env.ADMIN_API_KEY;
+
+if (apiUrl && apiKey && !apiUrl.includes("openai.com")) {
+  // For non-OpenAI providers, format the key to OpenAI format if needed
+  process.env.OPENAI_API_KEY = apiKey.startsWith("sk-") ? apiKey : `sk-${apiKey}`;
 }
 
 import {
@@ -14,22 +14,26 @@ import {
   copilotRuntimeNextJSAppRouterEndpoint,
 } from "@copilotkit/runtime";
 import OpenAI from "openai";
+import type { Parameter } from "@copilotkit/shared";
 
-// Monkey-patch the OpenAIAdapter to force Mistral compatibility
-const originalOpenAIAdapter = OpenAIAdapter;
-class MistralCompatibleAdapter extends originalOpenAIAdapter {
+// Create a generic OpenAI-compatible adapter that works with any provider
+class GenericOpenAIAdapter extends OpenAIAdapter {
   constructor(config: any) {
-    // Intercept the configuration to force Mistral endpoints
-    if (config.openai?.baseURL?.includes("mistral")) {
-      // Force the baseURL to use Mistral's endpoint
+    // Ensure the baseURL is properly set for non-OpenAI providers
+    if (config.openai?.baseURL && !config.openai.baseURL.includes("openai.com")) {
+      // Force the client to use the specified baseURL
       config.openai.baseURL = config.openai.baseURL;
-      // Override any OpenAI-specific endpoint construction
-      (config.openai as any).DEFAULT_ENDPOINT = config.openai.baseURL;
+      
+      // Set default headers for non-OpenAI providers
+      if (!config.openai.defaultHeaders) {
+        config.openai.defaultHeaders = {};
+      }
+      config.openai.defaultHeaders["Authorization"] = `Bearer ${config.openai.apiKey}`;
+      config.openai.defaultHeaders["Content-Type"] = "application/json";
     }
     super(config);
   }
 }
-import type { Parameter } from "@copilotkit/shared";
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/auth";
 import { listMcpTools, callMcpTool } from "@/lib/mcp-client";
@@ -256,20 +260,20 @@ export const POST = async (req: NextRequest) => {
       apiUrl =
         session.adminSettings?.apiUrl ??
         process.env.ADMIN_API_URL ??
-        "https://api.mistral.ai/v1";
+        "https://api.openai.com/v1";
       apiKey =
         session.adminSettings?.apiKey ?? process.env.ADMIN_API_KEY ?? "";
       model =
-        session.adminSettings?.model ?? process.env.ADMIN_MODEL ?? "ministral-3b-2512";
+        session.adminSettings?.model ?? process.env.ADMIN_MODEL ?? "gpt-4o";
     } else {
       apiUrl =
         session.chatSettings?.apiUrl ??
         process.env.CHAT_API_URL ??
-        "https://api.mistral.ai/v1";
+        "https://api.openai.com/v1";
       apiKey =
         session.chatSettings?.apiKey ?? process.env.CHAT_API_KEY ?? "";
       model =
-        session.chatSettings?.model ?? process.env.CHAT_MODEL ?? "ministral-3b-2512";
+        session.chatSettings?.model ?? process.env.CHAT_MODEL ?? "gpt-4o";
     }
 
     console.log(`[chat] apiUrl=${apiUrl} model=${model} hasKey=${!!apiKey}`);
@@ -291,16 +295,17 @@ export const POST = async (req: NextRequest) => {
     console.log(`[chat] building OpenAI adapter effectiveKey=${apiKey.slice(0,8)}...`);
     
     // Ensure OPENAI_API_KEY is set for the current request
-    const formattedApiKey = apiUrl.includes("mistral.ai") || apiUrl.includes("mistral")
-      ? (apiKey.startsWith("sk-") ? apiKey : `sk-${apiKey}`)
+    // Format non-OpenAI keys to OpenAI format if needed
+    const formattedApiKey = !apiUrl.includes("openai.com") && !apiKey.startsWith("sk-")
+      ? `sk-${apiKey}`
       : apiKey;
     process.env.OPENAI_API_KEY = formattedApiKey;
     
-    // Create OpenAI client with Mistral compatibility
+    // Create OpenAI client with generic compatibility
     const openai = new OpenAI({
       apiKey: formattedApiKey,
       baseURL: apiUrl,
-      ...(apiUrl.includes("mistral.ai") || apiUrl.includes("mistral") ? {
+      ...(!apiUrl.includes("openai.com") ? {
         defaultHeaders: {
           "Authorization": `Bearer ${apiKey}`,
           "Content-Type": "application/json",
@@ -308,17 +313,18 @@ export const POST = async (req: NextRequest) => {
       } : {}),
     });
     
-    // Force baseURL for Mistral
-    if (apiUrl.includes("mistral.ai") || apiUrl.includes("mistral")) {
+    // Force baseURL for non-OpenAI providers
+    if (!apiUrl.includes("openai.com")) {
       (openai as any).baseURL = apiUrl;
     }
     
     const actions = await buildActions();
     console.log(`[chat] actions built count=${actions.length}`);
 
-    const serviceAdapter = apiUrl.includes("mistral.ai") || apiUrl.includes("mistral")
-      ? new MistralCompatibleAdapter({ openai, model })
-      : new OpenAIAdapter({ openai, model });
+    // Use generic adapter for non-OpenAI providers, standard adapter for OpenAI
+    const serviceAdapter = apiUrl.includes("openai.com")
+      ? new OpenAIAdapter({ openai, model })
+      : new GenericOpenAIAdapter({ openai, model });
     const runtime = new CopilotRuntime({ actions });
 
     const { handleRequest } = copilotRuntimeNextJSAppRouterEndpoint({
