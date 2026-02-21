@@ -63,7 +63,7 @@ class OpenAILikeServiceAdapter {
                 object: chunk.object,
                 created: chunk.created,
                 model: chunk.model,
-                choices: chunk.choices?.map(choice => ({
+                choices: chunk.choices?.map((choice: { index: number; delta?: { content?: string }; finish_reason: string | null }) => ({
                   index: choice.index,
                   delta: choice.delta,
                   finish_reason: choice.finish_reason,
