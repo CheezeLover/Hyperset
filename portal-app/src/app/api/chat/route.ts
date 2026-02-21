@@ -1,132 +1,10 @@
-// Direct import without early environment setup
 import {
   CopilotRuntime,
+  OpenAIAdapter,
   copilotRuntimeNextJSAppRouterEndpoint,
 } from "@copilotkit/runtime";
 import OpenAI from "openai";
 import type { Parameter } from "@copilotkit/shared";
-import { TransformStream } from "stream/web";
-
-// Create a proper OpenAI-compatible service adapter
-// This implements the CopilotServiceAdapter interface that CopilotKit expects
-class OpenAILikeServiceAdapter {
-  private client: OpenAI;
-  model: string;  // Make this public to match the interface
-  
-  provider: string = "openai"; // Default to openai for compatibility
-  
-  constructor(apiKey: string, baseURL: string, model: string) {
-    // Create OpenAI client with proper configuration
-    this.client = new OpenAI({
-      apiKey: baseURL.includes("openai.com") ? apiKey : `sk-${apiKey}`,
-      baseURL: baseURL,
-      // For non-OpenAI providers, ensure proper headers
-      ...(!baseURL.includes("openai.com") ? {
-        defaultHeaders: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-      } : {}),
-    });
-    this.model = model;
-    // Set provider explicitly to avoid "undefined" provider errors
-    this.provider = "openai"; // Force openai provider for all cases
-  }
-  
-  // Implement the process method that CopilotKit expects
-  async process(params: {
-    messages: any[];
-    options?: Record<string, any>;
-    functions?: any[];
-    stream?: boolean;
-  }) {
-    try {
-      const stream = params.stream ?? true;
-      const response = await this.client.chat.completions.create({
-        model: this.model,
-        messages: params.messages,
-        stream: stream,
-        ...(params.options || {}),
-        ...(params.functions ? { functions: params.functions } : {}),
-      });
-      
-      // Transform the response to match CopilotKit's expected format
-      if (stream) {
-        // For streaming responses - handle the async iterable properly
-        const transformedStream = new TransformStream<any, any>();
-        const writer = transformedStream.writable.getWriter();
-        
-        (async () => {
-          try {
-            // Type the response properly as AsyncIterable
-            const asyncIterable = response as AsyncIterable<any>;
-            for await (const chunk of asyncIterable) {
-              // Transform each chunk to CopilotKit format
-              const transformedChunk = {
-                id: chunk.id,
-                object: chunk.object,
-                created: chunk.created,
-                model: chunk.model,
-                choices: chunk.choices?.map((choice: { index: number; delta?: { content?: string }; finish_reason: string | null }) => ({
-                  index: choice.index,
-                  delta: choice.delta,
-                  finish_reason: choice.finish_reason,
-                })) || [],
-                usage: chunk.usage,
-                threadId: params.options?.threadId || `thread_${Date.now()}`,
-              };
-              await writer.write(transformedChunk);
-            }
-            await writer.close();
-          } catch (error) {
-            await writer.abort(error);
-          }
-        })();
-        
-        return {
-          stream: transformedStream.readable,
-          threadId: params.options?.threadId || `thread_${Date.now()}`,
-        };
-      } else {
-        // For non-streaming responses - type as ChatCompletion
-        const chatCompletion = response as {
-          id: string;
-          object: string;
-          created: number;
-          model: string;
-          choices: any[];
-          usage: any;
-        };
-        
-        return {
-          id: chatCompletion.id,
-          object: chatCompletion.object,
-          created: chatCompletion.created,
-          model: chatCompletion.model,
-          choices: chatCompletion.choices.map((choice: any) => ({
-            index: choice.index,
-            message: choice.message,
-            finish_reason: choice.finish_reason,
-          })),
-          usage: chatCompletion.usage,
-          threadId: params.options?.threadId || `thread_${Date.now()}`,
-        };
-      }
-    } catch (error) {
-      console.error("OpenAI-like adapter process error:", error);
-      throw error;
-    }
-  }
-  
-  // Add other methods that might be expected
-  getModel() {
-    return this.model;
-  }
-  
-  getClient() {
-    return this.client;
-  }
-}
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/auth";
 import { listMcpTools, callMcpTool } from "@/lib/mcp-client";
@@ -392,25 +270,15 @@ export const POST = async (req: NextRequest) => {
       const actions = await buildActions();
       console.log(`[chat] actions built count=${actions.length}`);
 
-      // Create our custom service adapter that works with any OpenAI-compatible API
-      // Use a standard OpenAI model name to avoid provider detection issues
-      console.log(`[chat] Original model: ${model}, apiUrl: ${apiUrl}`);
-      
-      // Set the OPENAI_API_KEY environment variable explicitly for CopilotKit
-      process.env.OPENAI_API_KEY = apiKey.startsWith('sk-') ? apiKey : `sk-${apiKey}`;
-      console.log(`[chat] Set OPENAI_API_KEY for CopilotKit`);
-      
-      // Always use a standard OpenAI model name for CopilotKit compatibility
-      // Our adapter will handle the actual API endpoint and model mapping
-      const copilotKitModel = "gpt-4"; // Use a standard OpenAI model name
-      console.log(`[chat] Using CopilotKit-compatible model: ${copilotKitModel}`);
-      
-      const serviceAdapter = new OpenAILikeServiceAdapter(apiKey, apiUrl, model); // Use original model internally
-      
+      // Build an OpenAI-compatible client pointing at the configured endpoint
+      // (works for Mistral, Ollama, vLLM, Together AI, or vanilla OpenAI).
+      console.log(`[chat] model: ${model}, apiUrl: ${apiUrl}`);
+      const openaiClient = new OpenAI({ apiKey, baseURL: apiUrl });
+      const serviceAdapter = new OpenAIAdapter({ openai: openaiClient, model });
+
       // Create the runtime
       const runtime = new CopilotRuntime({ actions });
 
-      // Create the endpoint handler with our custom adapter
       const { handleRequest } = copilotRuntimeNextJSAppRouterEndpoint({
         runtime,
         serviceAdapter,
@@ -422,32 +290,8 @@ export const POST = async (req: NextRequest) => {
       console.log(`[chat] handleRequest returned status=${response.status} (elapsed ${Date.now() - reqStart}ms)`);
       return response;
     } catch (error) {
-      console.error(`[chat] CopilotKit approach failed, trying direct approach:`, error);
-      
-      // Fallback: Handle the request directly if CopilotKit fails
-      try {
-        const body = await req.json();
-        const serviceAdapter = new OpenAILikeServiceAdapter(apiKey, apiUrl, model);
-        
-        if (body.messages) {
-          const result = await serviceAdapter.process({
-            messages: body.messages,
-            options: body.options,
-            functions: body.functions,
-            stream: body.stream,
-          });
-          
-          return NextResponse.json(result);
-        } else {
-          return NextResponse.json({ error: "Invalid request format" }, { status: 400 });
-        }
-      } catch (directError) {
-        console.error(`[chat] Direct approach also failed:`, directError);
-        return NextResponse.json(
-          { error: "Failed to process request with both approaches", detail: String(directError) },
-          { status: 500 }
-        );
-      }
+      console.error(`[chat] handleRequest failed:`, error);
+      throw error;
     }
   } catch (err: unknown) {
     // Detect LLM API errors (OpenAI SDK wraps them with a .status field)
