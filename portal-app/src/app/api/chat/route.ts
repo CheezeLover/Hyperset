@@ -1,37 +1,78 @@
-// Set environment variable for OpenAI compatibility layer
-// This needs to be set before importing OpenAI SDK
-const apiUrl = process.env.CHAT_API_URL || process.env.ADMIN_API_URL;
-const apiKey = process.env.CHAT_API_KEY || process.env.ADMIN_API_KEY;
-
-if (apiUrl && apiKey && !apiUrl.includes("openai.com")) {
-  // For non-OpenAI providers, format the key to OpenAI format if needed
-  process.env.OPENAI_API_KEY = apiKey.startsWith("sk-") ? apiKey : `sk-${apiKey}`;
-}
-
+// Direct import without early environment setup
 import {
   CopilotRuntime,
-  OpenAIAdapter,
   copilotRuntimeNextJSAppRouterEndpoint,
 } from "@copilotkit/runtime";
 import OpenAI from "openai";
 import type { Parameter } from "@copilotkit/shared";
 
-// Create a generic OpenAI-compatible adapter that works with any provider
-class GenericOpenAIAdapter extends OpenAIAdapter {
-  constructor(config: any) {
-    // Ensure the baseURL is properly set for non-OpenAI providers
-    if (config.openai?.baseURL && !config.openai.baseURL.includes("openai.com")) {
-      // Force the client to use the specified baseURL
-      config.openai.baseURL = config.openai.baseURL;
+// Create a proper OpenAI-compatible service adapter
+// This implements the interface that CopilotKit expects
+class OpenAILikeServiceAdapter {
+  private client: OpenAI;
+  private model: string;
+  
+  constructor(apiKey: string, baseURL: string, model: string) {
+    // Create OpenAI client with proper configuration
+    this.client = new OpenAI({
+      apiKey: baseURL.includes("openai.com") ? apiKey : `sk-${apiKey}`,
+      baseURL: baseURL,
+      // For non-OpenAI providers, ensure proper headers
+      ...(!baseURL.includes("openai.com") ? {
+        defaultHeaders: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+      } : {}),
+    });
+    this.model = model;
+  }
+  
+  // Implement the interface that CopilotKit expects
+  async doStream(params: {
+    messages: any[];
+    options?: Record<string, any>;
+    functions?: any[];
+  }) {
+    try {
+      const response = await this.client.chat.completions.create({
+        model: this.model,
+        messages: params.messages,
+        stream: true,
+        ...(params.options || {}),
+        ...(params.functions ? { functions: params.functions } : {}),
+      });
       
-      // Set default headers for non-OpenAI providers
-      if (!config.openai.defaultHeaders) {
-        config.openai.defaultHeaders = {};
-      }
-      config.openai.defaultHeaders["Authorization"] = `Bearer ${config.openai.apiKey}`;
-      config.openai.defaultHeaders["Content-Type"] = "application/json";
+      return response;
+    } catch (error) {
+      console.error("OpenAI-like adapter stream error:", error);
+      throw error;
     }
-    super(config);
+  }
+  
+  // Non-streaming version
+  async doCompletion(params: {
+    messages: any[];
+    options?: Record<string, any>;
+    functions?: any[];
+  }) {
+    const response = await this.client.chat.completions.create({
+      model: this.model,
+      messages: params.messages,
+      stream: false,
+      ...(params.options || {}),
+      ...(params.functions ? { functions: params.functions } : {}),
+    });
+    return response;
+  }
+  
+  // Add other methods that might be expected
+  getModel() {
+    return this.model;
+  }
+  
+  getClient() {
+    return this.client;
   }
 }
 import { NextRequest, NextResponse } from "next/server";
@@ -292,39 +333,13 @@ export const POST = async (req: NextRequest) => {
     }
 
     // --- Build CopilotKit runtime ---
-    console.log(`[chat] building OpenAI adapter effectiveKey=${apiKey.slice(0,8)}...`);
-    
-    // Ensure OPENAI_API_KEY is set for the current request
-    // Format non-OpenAI keys to OpenAI format if needed
-    const formattedApiKey = !apiUrl.includes("openai.com") && !apiKey.startsWith("sk-")
-      ? `sk-${apiKey}`
-      : apiKey;
-    process.env.OPENAI_API_KEY = formattedApiKey;
-    
-    // Create OpenAI client with generic compatibility
-    const openai = new OpenAI({
-      apiKey: formattedApiKey,
-      baseURL: apiUrl,
-      ...(!apiUrl.includes("openai.com") ? {
-        defaultHeaders: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-      } : {}),
-    });
-    
-    // Force baseURL for non-OpenAI providers
-    if (!apiUrl.includes("openai.com")) {
-      (openai as any).baseURL = apiUrl;
-    }
+    console.log(`[chat] building service adapter for ${apiUrl}...`);
     
     const actions = await buildActions();
     console.log(`[chat] actions built count=${actions.length}`);
 
-    // Use generic adapter for non-OpenAI providers, standard adapter for OpenAI
-    const serviceAdapter = apiUrl.includes("openai.com")
-      ? new OpenAIAdapter({ openai, model })
-      : new GenericOpenAIAdapter({ openai, model });
+    // Create our custom service adapter that works with any OpenAI-compatible API
+    const serviceAdapter = new OpenAILikeServiceAdapter(apiKey, apiUrl, model);
     const runtime = new CopilotRuntime({ actions });
 
     const { handleRequest } = copilotRuntimeNextJSAppRouterEndpoint({
