@@ -194,18 +194,15 @@ export const POST = async (req: NextRequest) => {
     console.log(`[chat] POST method=${bodyMethod ?? "(none)"} isInfo=${isInfoRequest}`);
 
     // --- Handle CopilotKit info/handshake request directly ---
-    // CopilotKit (single-route transport) sends POST { method: "info" } to
-    // discover available agents. The client expects { agents: {} } JSON back.
-    // Passing this to handleRequest causes a protocol mismatch (the runtime
-    // returns a GraphQL streaming response the client cannot parse), leaving
-    // runtimeConnectionStatus as "error" and chatReady permanently false.
-    //
-    // We have no server-side agents (only actions), so we return an empty
-    // agents map immediately. CopilotKit will then send a ProxiedCopilotRuntimeAgent
-    // that talks to the GraphQL endpoint for actual chat requests.
+    // CopilotKit (single-route transport) sends POST { method: "info" } and
+    // expects { agents: { default: { description: "" } } } plain JSON back.
+    // Forwarding to handleRequest() returns a GraphQL streaming response which
+    // the client cannot parse → runtimeConnectionStatus stays "error" →
+    // chatReady stays false → permanent spinner.
+    // We must include a "default" agent entry or useAgent() throws.
     if (isInfoRequest) {
-      console.log(`[chat] Returning info response { agents: {} }`);
-      return NextResponse.json({ agents: {} });
+      console.log(`[chat] Returning info response with default agent`);
+      return NextResponse.json({ agents: { default: { description: "" } } });
     }
 
     // --- Resolve LLM settings ---
