@@ -97,13 +97,9 @@ a { color: inherit; text-decoration: none; }
   display: none !important;
 }
 
-/* "Powered by CopilotKit" footer — keep it but make it very subtle */
-.copilotKitChat [class*="poweredBy"],
-.copilotKitChat [class*="PoweredBy"],
-.copilotKitChat [class*="powered"],
-.copilotKitChat [class*="branding"],
-.copilotKitChat [class*="Branding"],
-.copilotKitChat [class*="footer"] a[href*="copilotkit"],
+/* "Powered by CopilotKit" footer — keep it but make it very subtle.
+   Only target anchor tags to avoid matching the input container which
+   also carries a "poweredBy" class in CopilotKit 1.51.x. */
 .copilotKitChat a[href*="copilotkit.ai"],
 .copilotKitChat a[href*="copilotkit"] {
   opacity: 0.2 !important;

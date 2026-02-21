@@ -181,9 +181,8 @@ export const POST = async (req: NextRequest) => {
     // for the subsequent handleRequest call.
     const bodyClone = req.clone();
     let bodyMethod: string | undefined;
-    let rawBody: unknown;
     try {
-      rawBody = await bodyClone.json();
+      const rawBody = await bodyClone.json();
       bodyMethod = typeof (rawBody as Record<string,unknown>)?.method === "string"
         ? (rawBody as Record<string,unknown>).method as string
         : undefined;
@@ -194,7 +193,19 @@ export const POST = async (req: NextRequest) => {
     const isInfoRequest = bodyMethod === "info";
     console.log(`[chat] POST method=${bodyMethod ?? "(none)"} isInfo=${isInfoRequest}`);
 
-    // --- Resolve LLM settings (always, including info requests) ---
+    // --- Handle CopilotKit info/handshake request directly ---
+    // CopilotKit (single-route transport) sends POST { method: "info" } and
+    // expects { agents: { default: { description: "" } } } plain JSON back.
+    // Forwarding to handleRequest() returns a GraphQL streaming response which
+    // the client cannot parse → runtimeConnectionStatus stays "error" →
+    // chatReady stays false → permanent spinner.
+    // We must include a "default" agent entry or useAgent() throws.
+    if (isInfoRequest) {
+      console.log(`[chat] Returning info response with default agent`);
+      return NextResponse.json({ agents: { default: { description: "" } } });
+    }
+
+    // --- Resolve LLM settings ---
     const user = getUserFromRequest(req);
     console.log(`[chat] user=${user.email} isAdmin=${user.isAdmin}`);
 
@@ -215,7 +226,6 @@ export const POST = async (req: NextRequest) => {
     let apiUrl: string;
     let apiKey: string;
     let model: string;
-    let missingKeyError: string | undefined;
 
     if (user.isAdmin) {
       apiUrl =
@@ -240,17 +250,12 @@ export const POST = async (req: NextRequest) => {
     console.log(`[chat] apiUrl=${apiUrl} model=${model} hasKey=${!!apiKey}`);
 
     if (!apiKey) {
-      missingKeyError =
+      const missingKeyError =
         "No LLM API key is set. " +
         (user.isAdmin
           ? "Open Admin Settings (gear icon) to configure one."
           : "Ask an admin to configure the chat API key.");
       console.warn(`[chat] missingKeyError: ${missingKeyError}`);
-    }
-
-    // For non-info requests, reject immediately if no key
-    if (!isInfoRequest && missingKeyError) {
-      console.error("[chat] Rejecting non-info request: no API key");
       return NextResponse.json(
         { error: "No API key configured", detail: missingKeyError },
         { status: 503 }
@@ -258,10 +263,9 @@ export const POST = async (req: NextRequest) => {
     }
 
     // --- Build CopilotKit runtime ---
-    const effectiveKey = apiKey || "placeholder-for-info-request";
-    console.log(`[chat] building OpenAI adapter effectiveKey=${effectiveKey.slice(0,8)}...`);
-    const openai = new OpenAI({ apiKey: effectiveKey, baseURL: apiUrl });
-    const actions = isInfoRequest ? [] : await buildActions();
+    console.log(`[chat] building OpenAI adapter effectiveKey=${apiKey.slice(0,8)}...`);
+    const openai = new OpenAI({ apiKey, baseURL: apiUrl });
+    const actions = await buildActions();
     console.log(`[chat] actions built count=${actions.length}`);
 
     const serviceAdapter = new OpenAIAdapter({ openai, model });
