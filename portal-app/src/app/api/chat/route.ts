@@ -5,6 +5,7 @@ import {
 } from "@copilotkit/runtime";
 import OpenAI from "openai";
 import type { Parameter } from "@copilotkit/shared";
+import { TransformStream } from "stream/web";
 
 // Create a proper OpenAI-compatible service adapter
 // This implements the CopilotServiceAdapter interface that CopilotKit expects
@@ -36,15 +37,62 @@ class OpenAILikeServiceAdapter {
     stream?: boolean;
   }) {
     try {
+      const stream = params.stream ?? true;
       const response = await this.client.chat.completions.create({
         model: this.model,
         messages: params.messages,
-        stream: params.stream ?? true,
+        stream: stream,
         ...(params.options || {}),
         ...(params.functions ? { functions: params.functions } : {}),
       });
       
-      return response;
+      // Transform the response to match CopilotKit's expected format
+      if (stream) {
+        // For streaming responses, we need to transform each chunk
+        const transformedStream = new TransformStream<any, any>();
+        const writer = transformedStream.writable.getWriter();
+        
+        (async () => {
+          try {
+            for await (const chunk of response) {
+              // Transform each chunk to CopilotKit format
+              const transformedChunk = {
+                id: chunk.id,
+                object: chunk.object,
+                created: chunk.created,
+                model: chunk.model,
+                choices: chunk.choices?.map(choice => ({
+                  index: choice.index,
+                  delta: choice.delta,
+                  finish_reason: choice.finish_reason,
+                })) || [],
+                usage: chunk.usage,
+                threadId: params.options?.threadId || `thread_${Date.now()}`,
+              };
+              await writer.write(transformedChunk);
+            }
+            await writer.close();
+          } catch (error) {
+            await writer.abort(error);
+          }
+        })();
+        
+        return {
+          stream: transformedStream.readable,
+          threadId: params.options?.threadId || `thread_${Date.now()}`,
+        };
+      } else {
+        // For non-streaming responses
+        return {
+          id: response.id,
+          object: response.object,
+          created: response.created,
+          model: response.model,
+          choices: response.choices,
+          usage: response.usage,
+          threadId: params.options?.threadId || `thread_${Date.now()}`,
+        };
+      }
     } catch (error) {
       console.error("OpenAI-like adapter process error:", error);
       throw error;
