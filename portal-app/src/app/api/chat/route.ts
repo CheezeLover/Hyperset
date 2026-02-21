@@ -7,7 +7,7 @@ import OpenAI from "openai";
 import type { Parameter } from "@copilotkit/shared";
 
 // Create a proper OpenAI-compatible service adapter
-// This implements the interface that CopilotKit expects
+// This implements the CopilotServiceAdapter interface that CopilotKit expects
 class OpenAILikeServiceAdapter {
   private client: OpenAI;
   private model: string;
@@ -28,42 +28,27 @@ class OpenAILikeServiceAdapter {
     this.model = model;
   }
   
-  // Implement the interface that CopilotKit expects
-  async doStream(params: {
+  // Implement the process method that CopilotKit expects
+  async process(params: {
     messages: any[];
     options?: Record<string, any>;
     functions?: any[];
+    stream?: boolean;
   }) {
     try {
       const response = await this.client.chat.completions.create({
         model: this.model,
         messages: params.messages,
-        stream: true,
+        stream: params.stream ?? true,
         ...(params.options || {}),
         ...(params.functions ? { functions: params.functions } : {}),
       });
       
       return response;
     } catch (error) {
-      console.error("OpenAI-like adapter stream error:", error);
+      console.error("OpenAI-like adapter process error:", error);
       throw error;
     }
-  }
-  
-  // Non-streaming version
-  async doCompletion(params: {
-    messages: any[];
-    options?: Record<string, any>;
-    functions?: any[];
-  }) {
-    const response = await this.client.chat.completions.create({
-      model: this.model,
-      messages: params.messages,
-      stream: false,
-      ...(params.options || {}),
-      ...(params.functions ? { functions: params.functions } : {}),
-    });
-    return response;
   }
   
   // Add other methods that might be expected
