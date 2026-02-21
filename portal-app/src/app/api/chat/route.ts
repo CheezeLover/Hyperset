@@ -396,6 +396,10 @@ export const POST = async (req: NextRequest) => {
       // Use a standard OpenAI model name to avoid provider detection issues
       console.log(`[chat] Original model: ${model}, apiUrl: ${apiUrl}`);
       
+      // Set the OPENAI_API_KEY environment variable explicitly for CopilotKit
+      process.env.OPENAI_API_KEY = apiKey.startsWith('sk-') ? apiKey : `sk-${apiKey}`;
+      console.log(`[chat] Set OPENAI_API_KEY for CopilotKit`);
+      
       // Always use a standard OpenAI model name for CopilotKit compatibility
       // Our adapter will handle the actual API endpoint and model mapping
       const copilotKitModel = "gpt-4"; // Use a standard OpenAI model name
