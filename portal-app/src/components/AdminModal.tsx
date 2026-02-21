@@ -6,7 +6,7 @@ interface AdminModalProps {
   onClose: () => void;
 }
 
-interface ApiSection {
+interface LlmSettings {
   apiUrl: string;
   apiKey: string;
   model: string;
@@ -17,114 +17,6 @@ interface TestResult {
   ok: boolean;
   error?: string;
   model?: string;
-}
-
-function ApiSectionForm({
-  title,
-  description,
-  values,
-  onChange,
-  onReset,
-  saving,
-}: {
-  title: string;
-  description: string;
-  values: ApiSection;
-  onChange: (patch: Partial<ApiSection>) => void;
-  onReset: () => void;
-  saving: boolean;
-}) {
-  const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<TestResult | null>(null);
-
-  const handleTest = async () => {
-    setTesting(true);
-    setTestResult(null);
-    try {
-      const res = await fetch("/api/admin", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          apiUrl: values.apiUrl,
-          apiKey: values.apiKey === "***" ? "" : values.apiKey,
-          model: values.model,
-        }),
-      });
-      const data = await res.json();
-      setTestResult(data);
-    } catch {
-      setTestResult({ ok: false, error: "Network error — could not reach server" });
-    } finally {
-      setTesting(false);
-    }
-  };
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <div>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--md-on-surface)" }}>
-          {title}
-        </div>
-        <div style={{ fontSize: 11, opacity: 0.6, marginTop: 2 }}>{description}</div>
-      </div>
-
-      <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-        <span style={labelStyle}>API URL</span>
-        <input
-          type="url"
-          value={values.apiUrl}
-          onChange={(e) => onChange({ apiUrl: e.target.value })}
-          placeholder="https://api.openai.com/v1"
-          style={inputStyle}
-          disabled={saving}
-        />
-      </label>
-
-      <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-        <span style={labelStyle}>API Key{values.isCustom ? " (overridden)" : ""}</span>
-        <input
-          type="password"
-          value={values.apiKey}
-          onChange={(e) => onChange({ apiKey: e.target.value })}
-          placeholder={values.isCustom ? "••••• (currently set)" : "sk-..."}
-          style={inputStyle}
-          disabled={saving}
-        />
-      </label>
-
-      <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-        <span style={labelStyle}>Model</span>
-        <input
-          type="text"
-          value={values.model}
-          onChange={(e) => onChange({ model: e.target.value })}
-          placeholder="gpt-4o"
-          style={inputStyle}
-          disabled={saving}
-        />
-      </label>
-
-      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-        <button
-          onClick={handleTest}
-          disabled={testing || saving || !values.apiUrl || !values.model || (!values.apiKey && !values.isCustom)}
-          style={testBtnStyle}
-          title="Send a minimal test request to verify these credentials work"
-        >
-          {testing ? "Testing…" : "Test connection"}
-        </button>
-        {values.isCustom && (
-          <button onClick={onReset} disabled={saving} style={ghostBtnStyle}>
-            Reset to env
-          </button>
-        )}
-      </div>
-
-      {testResult && (
-        <TestResultBanner result={testResult} />
-      )}
-    </div>
-  );
 }
 
 function TestResultBanner({ result }: { result: TestResult }) {
@@ -180,23 +72,21 @@ function TestResultBanner({ result }: { result: TestResult }) {
 }
 
 export function AdminModal({ onClose }: AdminModalProps) {
-  const [adminSection, setAdminSection] = useState<ApiSection>({
-    apiUrl: "", apiKey: "", model: "", isCustom: false,
-  });
-  const [chatSection, setChatSection] = useState<ApiSection>({
+  const [settings, setSettings] = useState<LlmSettings>({
     apiUrl: "", apiKey: "", model: "", isCustom: false,
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<TestResult | null>(null);
 
   useEffect(() => {
     fetch("/api/admin")
       .then((r) => r.json())
       .then((data) => {
-        setAdminSection({ ...data.admin, apiKey: data.admin.isCustom ? "***" : "" });
-        setChatSection({ ...data.chat, apiKey: data.chat.isCustom ? "***" : "" });
+        setSettings({ ...data, apiKey: data.isCustom ? "***" : "" });
         setLoading(false);
       })
       .catch(() => {
@@ -204,6 +94,28 @@ export function AdminModal({ onClose }: AdminModalProps) {
         setLoading(false);
       });
   }, []);
+
+  const handleTest = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const res = await fetch("/api/admin", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          apiUrl: settings.apiUrl,
+          apiKey: settings.apiKey === "***" ? "" : settings.apiKey,
+          model: settings.model,
+        }),
+      });
+      const data = await res.json();
+      setTestResult(data);
+    } catch {
+      setTestResult({ ok: false, error: "Network error — could not reach server" });
+    } finally {
+      setTesting(false);
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -213,16 +125,9 @@ export function AdminModal({ onClose }: AdminModalProps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          admin: {
-            apiUrl: adminSection.apiUrl || undefined,
-            apiKey: adminSection.apiKey && adminSection.apiKey !== "***" ? adminSection.apiKey : undefined,
-            model: adminSection.model || undefined,
-          },
-          chat: {
-            apiUrl: chatSection.apiUrl || undefined,
-            apiKey: chatSection.apiKey && chatSection.apiKey !== "***" ? chatSection.apiKey : undefined,
-            model: chatSection.model || undefined,
-          },
+          apiUrl: settings.apiUrl || undefined,
+          apiKey: settings.apiKey && settings.apiKey !== "***" ? settings.apiKey : undefined,
+          model: settings.model || undefined,
         }),
       });
       if (!res.ok) throw new Error("Save failed");
@@ -235,14 +140,13 @@ export function AdminModal({ onClose }: AdminModalProps) {
     }
   };
 
-  const handleReset = async (target: "admin" | "chat") => {
+  const handleReset = async () => {
     setSaving(true);
     try {
-      await fetch(`/api/admin?target=${target}`, { method: "DELETE" });
+      await fetch("/api/admin", { method: "DELETE" });
       const res = await fetch("/api/admin");
       const data = await res.json();
-      if (target === "admin") setAdminSection({ ...data.admin, apiKey: "" });
-      else setChatSection({ ...data.chat, apiKey: "" });
+      setSettings({ ...data, apiKey: "" });
     } catch {
       setSaveError("Failed to reset");
     } finally {
@@ -266,7 +170,7 @@ export function AdminModal({ onClose }: AdminModalProps) {
           borderRadius: "var(--radius-l)",
           padding: 24,
           minWidth: 360,
-          maxWidth: 500,
+          maxWidth: 480,
           width: "92%",
           maxHeight: "90vh",
           overflowY: "auto",
@@ -294,34 +198,66 @@ export function AdminModal({ onClose }: AdminModalProps) {
         {loading ? (
           <p style={{ opacity: 0.6, textAlign: "center", fontSize: 13 }}>Loading…</p>
         ) : (
-          <>
-            {/* Admin API section */}
-            <ApiSectionForm
-              title="Admin API"
-              description="Used when you are logged in as an admin."
-              values={adminSection}
-              onChange={(patch) => setAdminSection((s) => ({ ...s, ...patch }))}
-              onReset={() => handleReset("admin")}
-              saving={saving}
-            />
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+              <span style={labelStyle}>API URL</span>
+              <input
+                type="url"
+                value={settings.apiUrl}
+                onChange={(e) => setSettings((s) => ({ ...s, apiUrl: e.target.value }))}
+                placeholder="https://api.mistral.ai/v1"
+                style={inputStyle}
+                disabled={saving}
+              />
+            </label>
 
-            <div style={{ borderTop: "1px solid var(--md-outline-var)", margin: "16px 0" }} />
+            <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+              <span style={labelStyle}>API Key{settings.isCustom ? " (overridden)" : ""}</span>
+              <input
+                type="password"
+                value={settings.apiKey}
+                onChange={(e) => setSettings((s) => ({ ...s, apiKey: e.target.value }))}
+                placeholder={settings.isCustom ? "••••• (currently set)" : "Enter API key…"}
+                style={inputStyle}
+                disabled={saving}
+              />
+            </label>
 
-            {/* Chat API section */}
-            <ApiSectionForm
-              title="User Chat API"
-              description="Used by regular (non-admin) users."
-              values={chatSection}
-              onChange={(patch) => setChatSection((s) => ({ ...s, ...patch }))}
-              onReset={() => handleReset("chat")}
-              saving={saving}
-            />
+            <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+              <span style={labelStyle}>Model</span>
+              <input
+                type="text"
+                value={settings.model}
+                onChange={(e) => setSettings((s) => ({ ...s, model: e.target.value }))}
+                placeholder="ministral-3b-2512"
+                style={inputStyle}
+                disabled={saving}
+              />
+            </label>
+
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <button
+                onClick={handleTest}
+                disabled={testing || saving || !settings.apiUrl || !settings.model || (!settings.apiKey && !settings.isCustom)}
+                style={testBtnStyle}
+                title="Send a minimal test request to verify these credentials work"
+              >
+                {testing ? "Testing…" : "Test connection"}
+              </button>
+              {settings.isCustom && (
+                <button onClick={handleReset} disabled={saving} style={ghostBtnStyle}>
+                  Reset to env
+                </button>
+              )}
+            </div>
+
+            {testResult && <TestResultBanner result={testResult} />}
 
             {saveError && (
-              <p style={{ color: "#ef5350", fontSize: 12, marginTop: 8 }}>{saveError}</p>
+              <p style={{ color: "#ef5350", fontSize: 12, marginTop: 4 }}>{saveError}</p>
             )}
 
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
               <button
                 onClick={handleSave}
                 disabled={saving}
@@ -330,10 +266,10 @@ export function AdminModal({ onClose }: AdminModalProps) {
                   ...(saved ? { background: "#4caf50" } : {}),
                 }}
               >
-                {saved ? "Saved ✓" : saving ? "Saving…" : "Save all"}
+                {saved ? "Saved ✓" : saving ? "Saving…" : "Save"}
               </button>
             </div>
-          </>
+          </div>
         )}
       </div>
     </div>

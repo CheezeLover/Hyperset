@@ -6,7 +6,6 @@ import {
 import OpenAI from "openai";
 import type { Parameter } from "@copilotkit/shared";
 import { NextRequest, NextResponse } from "next/server";
-import { getUserFromRequest } from "@/lib/auth";
 import { listMcpTools, callMcpTool } from "@/lib/mcp-client";
 import { getIronSession } from "iron-session";
 import type { SessionData } from "@/lib/session";
@@ -56,8 +55,6 @@ type AnyAction = any;
 // 2. Our own ChatPanel uses this to check if an API key is configured
 //    and display an error banner before the user tries to type.
 export const GET = async (req: NextRequest) => {
-  const user = getUserFromRequest(req);
-
   // Read session to check for overrides
   const dummyRes = new Response();
   let apiKey = "";
@@ -67,23 +64,17 @@ export const GET = async (req: NextRequest) => {
       dummyRes as never,
       sessionOptions
     );
-    apiKey = user.isAdmin
-      ? (session.adminSettings?.apiKey ?? process.env.ADMIN_API_KEY ?? "")
-      : (session.chatSettings?.apiKey ?? process.env.CHAT_API_KEY ?? "");
+    apiKey = session.llmSettings?.apiKey ?? process.env.LLM_API_KEY ?? "";
   } catch {
     // If session read fails, fall back to env vars
-    apiKey = user.isAdmin
-      ? (process.env.ADMIN_API_KEY ?? "")
-      : (process.env.CHAT_API_KEY ?? "");
+    apiKey = process.env.LLM_API_KEY ?? "";
   }
 
   if (!apiKey) {
     return NextResponse.json(
       {
         error: "No API key configured",
-        detail: user.isAdmin
-          ? "No LLM API key is set. Open Admin Settings (gear icon) to configure one."
-          : "The chat API key has not been configured. Ask an admin to set it up.",
+        detail: "No LLM API key is set. An admin can configure one via the settings (gear icon).",
       },
       { status: 503 }
     );
@@ -206,8 +197,6 @@ export const POST = async (req: NextRequest) => {
     }
 
     // --- Resolve LLM settings ---
-    const user = getUserFromRequest(req);
-    console.log(`[chat] user=${user.email} isAdmin=${user.isAdmin}`);
 
     const dummyRes = new Response();
     let session;
@@ -217,44 +206,25 @@ export const POST = async (req: NextRequest) => {
         dummyRes as never,
         sessionOptions
       );
-      console.log(`[chat] session resolved adminSettings=${!!session.adminSettings} chatSettings=${!!session.chatSettings}`);
+      console.log(`[chat] session resolved llmSettings=${!!session.llmSettings}`);
     } catch (sessionErr) {
       console.error(`[chat] Failed to read session:`, sessionErr);
       session = {} as SessionData;
     }
 
-    let apiUrl: string;
-    let apiKey: string;
-    let model: string;
-
-    if (user.isAdmin) {
-      apiUrl =
-        session.adminSettings?.apiUrl ??
-        process.env.ADMIN_API_URL ??
-        "https://api.openai.com/v1";
-      apiKey =
-        session.adminSettings?.apiKey ?? process.env.ADMIN_API_KEY ?? "";
-      model =
-        session.adminSettings?.model ?? process.env.ADMIN_MODEL ?? "gpt-4o";
-    } else {
-      apiUrl =
-        session.chatSettings?.apiUrl ??
-        process.env.CHAT_API_URL ??
-        "https://api.openai.com/v1";
-      apiKey =
-        session.chatSettings?.apiKey ?? process.env.CHAT_API_KEY ?? "";
-      model =
-        session.chatSettings?.model ?? process.env.CHAT_MODEL ?? "gpt-4o";
-    }
+    const apiUrl =
+      session.llmSettings?.apiUrl ??
+      process.env.LLM_API_URL ??
+      "https://api.openai.com/v1";
+    const apiKey =
+      session.llmSettings?.apiKey ?? process.env.LLM_API_KEY ?? "";
+    const model =
+      session.llmSettings?.model ?? process.env.LLM_MODEL ?? "gpt-4o";
 
     console.log(`[chat] apiUrl=${apiUrl} model=${model} hasKey=${!!apiKey}`);
 
     if (!apiKey) {
-      const missingKeyError =
-        "No LLM API key is set. " +
-        (user.isAdmin
-          ? "Open Admin Settings (gear icon) to configure one."
-          : "Ask an admin to configure the chat API key.");
+      const missingKeyError = "No LLM API key is set. An admin can configure one via the settings (gear icon).";
       console.warn(`[chat] missingKeyError: ${missingKeyError}`);
       return NextResponse.json(
         { error: "No API key configured", detail: missingKeyError },
