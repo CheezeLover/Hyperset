@@ -63,13 +63,13 @@ services:
       - PAGES_PUBLIC_URL=${PAGES_PUBLIC_URL}
       - SUPERSET_MCP_URL=http://hyperset-superset-mcp:8000/mcp
       # User LLM API
-      - CHAT_API_URL=${CHAT_API_URL:-https://api.openai.com/v1}
+      - CHAT_API_URL=${CHAT_API_URL:-https://api.mistral.ai/v1}
       - CHAT_API_KEY=${CHAT_API_KEY}
-      - CHAT_MODEL=${CHAT_MODEL:-gpt-4o}
+      - CHAT_MODEL=${CHAT_MODEL:-ministral-3b-2512}
       # Admin LLM API (default; overridable at runtime via Admin Settings UI)
-      - ADMIN_API_URL=${ADMIN_API_URL:-https://api.openai.com/v1}
+      - ADMIN_API_URL=${ADMIN_API_URL:-https://api.mistral.ai/v1}
       - ADMIN_API_KEY=${ADMIN_API_KEY}
-      - ADMIN_MODEL=${ADMIN_MODEL:-gpt-4o}
+      - ADMIN_MODEL=${ADMIN_MODEL:-ministral-3b-2512}
       # Session encryption key for admin settings storage
       - SESSION_SECRET=${SESSION_SECRET}
       - NODE_ENV=production

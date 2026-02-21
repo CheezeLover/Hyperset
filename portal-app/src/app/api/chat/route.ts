@@ -231,20 +231,20 @@ export const POST = async (req: NextRequest) => {
       apiUrl =
         session.adminSettings?.apiUrl ??
         process.env.ADMIN_API_URL ??
-        "https://api.openai.com/v1";
+        "https://api.mistral.ai/v1";
       apiKey =
         session.adminSettings?.apiKey ?? process.env.ADMIN_API_KEY ?? "";
       model =
-        session.adminSettings?.model ?? process.env.ADMIN_MODEL ?? "gpt-4o";
+        session.adminSettings?.model ?? process.env.ADMIN_MODEL ?? "ministral-3b-2512";
     } else {
       apiUrl =
         session.chatSettings?.apiUrl ??
         process.env.CHAT_API_URL ??
-        "https://api.openai.com/v1";
+        "https://api.mistral.ai/v1";
       apiKey =
         session.chatSettings?.apiKey ?? process.env.CHAT_API_KEY ?? "";
       model =
-        session.chatSettings?.model ?? process.env.CHAT_MODEL ?? "gpt-4o";
+        session.chatSettings?.model ?? process.env.CHAT_MODEL ?? "ministral-3b-2512";
     }
 
     console.log(`[chat] apiUrl=${apiUrl} model=${model} hasKey=${!!apiKey}`);
