@@ -10,7 +10,7 @@ import type { Parameter } from "@copilotkit/shared";
 // This implements the CopilotServiceAdapter interface that CopilotKit expects
 class OpenAILikeServiceAdapter {
   private client: OpenAI;
-  private model: string;
+  model: string;  // Make this public to match the interface
   
   constructor(apiKey: string, baseURL: string, model: string) {
     // Create OpenAI client with proper configuration
