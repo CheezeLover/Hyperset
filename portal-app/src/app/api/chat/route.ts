@@ -265,24 +265,25 @@ export const POST = async (req: NextRequest) => {
     // --- Build CopilotKit runtime ---
     console.log(`[chat] building OpenAI adapter effectiveKey=${apiKey.slice(0,8)}...`);
     
-    // Handle Mistral AI compatibility
-    let openai: OpenAI;
+    // Handle Mistral AI compatibility by setting the environment variable
+    // that the OpenAIAdapter expects
     if (apiUrl.includes("mistral.ai") || apiUrl.includes("mistral")) {
-      // For Mistral AI, we need to handle the API key differently
-      // Mistral uses Bearer token authentication, so we create a custom OpenAI client
-      openai = new OpenAI({
-        apiKey: apiKey,
-        baseURL: apiUrl,
-        // Mistral may need different headers or configuration
+      // Set the environment variable that OpenAIAdapter looks for
+      process.env.OPENAI_API_KEY = apiKey;
+      console.log(`[chat] Set OPENAI_API_KEY env var for Mistral compatibility`);
+    }
+    
+    // Create OpenAI client with proper configuration
+    const openai = new OpenAI({
+      apiKey: apiUrl.includes("mistral.ai") || apiUrl.includes("mistral") ? apiKey : apiKey,
+      baseURL: apiUrl,
+      ...(apiUrl.includes("mistral.ai") || apiUrl.includes("mistral") ? {
         defaultHeaders: {
           "Authorization": `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
-      });
-    } else {
-      // Standard OpenAI configuration
-      openai = new OpenAI({ apiKey, baseURL: apiUrl });
-    }
+      } : {}),
+    });
     
     const actions = await buildActions();
     console.log(`[chat] actions built count=${actions.length}`);
