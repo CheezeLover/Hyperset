@@ -1063,41 +1063,76 @@ export function ChatPanel({
 
       {/* Input area */}
       <div style={{
-        borderTop: "1px solid var(--md-outline-var)", padding: "8px 10px",
-        display: "flex", gap: 8, alignItems: "flex-end", flexShrink: 0,
-        background: "var(--md-surface-cont)",
+        padding: "12px 12px 12px 16px",
+        display: "flex", gap: 10, alignItems: "flex-end", flexShrink: 0,
+        background: "var(--md-surface)",
+        borderTop: "1px solid var(--md-outline-var)",
       }}>
-        <textarea
-          ref={textareaRef}
-          value={input}
-          onChange={handleInputChange}
-          onKeyDown={handleKeyDown}
-          placeholder="Ask about your data…"
-          rows={1}
-          disabled={loading || !!chatError}
-          className="chat-input"
-          style={{
-            flex: 1, resize: "none", border: "1px solid var(--md-outline-var)",
-            borderRadius: 10, padding: "8px 11px", fontSize: 13,
-            background: "var(--md-surface)", color: "var(--md-on-surface)",
-            outline: "none", fontFamily: "inherit", lineHeight: `${LINE_HEIGHT}px`,
-            overflowY: "hidden", // dynamic, updated in handleInputChange
-            opacity: (loading || !!chatError) ? 0.5 : 1,
-            transition: "height 0.1s ease",
-          }}
-        />
+        <div style={{
+          flex: 1,
+          position: "relative",
+          borderRadius: 12,
+          background: "var(--md-surface-cont-hi)",
+          border: "1px solid transparent",
+          transition: "border-color 0.2s, box-shadow 0.2s",
+          ...(input.trim() && {
+            borderColor: "var(--md-primary)",
+            borderWidth: "1.5px",
+          })
+        }}>
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={handleInputChange}
+            onKeyDown={handleKeyDown}
+            placeholder="Ask about your data…"
+            rows={1}
+            disabled={loading || !!chatError}
+            className="chat-input"
+            style={{
+              flex: 1, resize: "none", 
+              border: "none",
+              borderRadius: 12, 
+              padding: "10px 14px 10px 48px", 
+              fontSize: 14,
+              background: "transparent", 
+              color: "var(--md-on-surface)",
+              outline: "none", 
+              fontFamily: "inherit", 
+              lineHeight: `${LINE_HEIGHT}px`,
+              overflowY: "hidden",
+              opacity: (loading || !!chatError) ? 0.6 : 1,
+              transition: "height 0.1s ease, padding 0.1s ease",
+              minHeight: 40,
+            }}
+          />
+          <div style={{
+            position: "absolute",
+            left: 16,
+            top: "50%",
+            transform: "translateY(-50%)",
+            pointerEvents: "none",
+            opacity: input.trim() ? 1 : 0.5,
+            transition: "opacity 0.2s",
+          }}>
+            <svg viewBox="0 0 24 24" width={18} height={18} fill="var(--md-primary)">
+              <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+            </svg>
+          </div>
+        </div>
         <button
           onClick={sendMessage}
           disabled={!input.trim() || loading || !!chatError}
           title="Send (Enter)"
           style={{
-            width: 36, height: 36, border: "none", borderRadius: 10,
-            background: (!input.trim() || loading || !!chatError) ? "var(--md-surface-cont-hi)" : "var(--md-primary)",
+            width: 40, height: 40, border: "none", borderRadius: "50%",
+            background: (!input.trim() || loading || !!chatError) ? "var(--md-surface-cont)" : "var(--md-primary)",
             color: (!input.trim() || loading || !!chatError) ? "var(--md-on-surface)" : "#fff",
             cursor: (!input.trim() || loading || !!chatError) ? "default" : "pointer",
             display: "flex", alignItems: "center", justifyContent: "center",
-            flexShrink: 0, transition: "background 0.2s",
-            opacity: (!input.trim() || loading || !!chatError) ? 0.4 : 1,
+            flexShrink: 0, transition: "background 0.2s, transform 0.1s",
+            opacity: (!input.trim() || loading || !!chatError) ? 0.6 : 1,
+            transform: input.trim() ? "scale(1)" : "scale(0.9)",
           }}
         >
           {loading ? (
@@ -1117,7 +1152,8 @@ export function ChatPanel({
         <AdminModal onClose={() => { setShowAdminModal(false); setChatError(null); }} />
       )}
 
-      <style>{`@keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }`}</style>
+      <style>{`@keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }`}</style>
     </div>
   );
 }
