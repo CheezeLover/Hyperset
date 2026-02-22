@@ -542,50 +542,52 @@ function FollowupSuggestions({ suggestions, onSuggestionClick }: {
 }) {
   return (
     <div style={{
-      marginTop: 8, padding: "0 8px",
+      marginTop: 12, 
+      paddingLeft: 16,
+      borderLeft: "2px solid var(--md-primary)",
     }}>
       <div style={{
         fontSize: 12, 
-        color: "var(--md-on-surface)", 
-        opacity: 0.7, 
-        marginBottom: 6, 
+        color: "var(--md-primary)", 
+        marginBottom: 8, 
         fontWeight: 500,
       }}>
-        Suggested follow-up questions:
+        Follow-up questions
       </div>
       <div style={{
         display: "flex", 
         flexDirection: "column", 
-        gap: 4,
+        gap: 6,
       }}>
         {suggestions.map((suggestion, index) => (
           <button
             key={index}
             onClick={() => onSuggestionClick(suggestion)}
             style={{
-              padding: "8px 12px",
-              background: "var(--md-surface-cont-hi)",
-              color: "var(--md-on-surface)",
-              border: "1px solid var(--md-outline-var)",
-              borderRadius: 8,
+              padding: "6px 0",
+              background: "transparent",
+              color: "var(--md-on-surface)", 
+              border: "none",
+              borderRadius: 0,
               fontSize: 13,
               cursor: "pointer",
               transition: "all 0.2s",
               textAlign: "left",
-              width: "100%",
+              width: "fit-content",
+              maxWidth: "100%",
               display: "flex",
               alignItems: "center",
             }}
             onMouseOver={(e) => {
-              e.currentTarget.style.background = "var(--md-secondary-cont)";
-              e.currentTarget.style.borderColor = "var(--md-secondary)";
+              e.currentTarget.style.color = "var(--md-primary)";
+              e.currentTarget.style.transform = "translateX(2px)";
             }}
             onMouseOut={(e) => {
-              e.currentTarget.style.background = "var(--md-surface-cont-hi)";
-              e.currentTarget.style.borderColor = "var(--md-outline-var)";
+              e.currentTarget.style.color = "var(--md-on-surface)";
+              e.currentTarget.style.transform = "none";
             }}
           >
-            <span style={{ marginRight: 8, opacity: 0.6 }}>→</span>
+            <span style={{ marginRight: 8, opacity: 0.6, color: "var(--md-primary)" }}>→</span>
             {suggestion}
           </button>
         ))}
@@ -848,12 +850,9 @@ export function ChatPanel({
   const handleClear = () => setMessages(() => []);
   
   const handleSuggestionClick = useCallback((suggestion: string) => {
-    // Auto-send the suggestion directly
+    // Send the suggestion immediately
     setInput(suggestion);
-    // Simulate sending the message
-    setTimeout(() => {
-      sendMessage();
-    }, 100);
+    sendMessage();
   }, [sendMessage]);
 
   return (
