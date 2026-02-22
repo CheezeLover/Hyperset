@@ -10,6 +10,109 @@ import { listMcpTools, callMcpTool } from "@/lib/mcp-client";
 import { getIronSession } from "iron-session";
 import type { SessionData } from "@/lib/session";
 
+// ---------------------------------------------------------------------------
+// Module-level fetch patch: rewrite AI SDK v5 /responses → /chat/completions
+// ---------------------------------------------------------------------------
+// The Vercel AI SDK v5 (@ai-sdk/openai ≥ 2.x) defaults to the OpenAI
+// /responses endpoint, which most compatible providers (Mistral, Ollama, …)
+// don't implement.  The "compatibility" option that would disable this does
+// not exist in the version bundled with @copilotkit/runtime.
+//
+// We install the patch at module-load time so it is in place before the AI
+// SDK captures the fetch reference during its own module initialisation.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+(function patchFetchForResponsesEndpoint() {
+  const _original = globalThis.fetch;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  globalThis.fetch = async function (input: any, init?: RequestInit): Promise<Response> {
+    const url =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+        ? input.href
+        : (input as Request).url;
+
+    if (!url.endsWith("/responses")) {
+      return _original(input, init);
+    }
+
+    // Rewrite URL: /responses → /chat/completions
+    const rewritten = url.replace(/\/responses$/, "/chat/completions");
+
+    // Translate body from Responses API format → Chat Completions API format
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let body: Record<string, any> = {};
+    if (init?.body) {
+      try {
+        body = JSON.parse(init.body as string);
+      } catch {
+        // Not JSON — pass through as-is
+        return _original(rewritten, init);
+      }
+    }
+
+    // input[] → messages[]
+    // Each entry in `input` has role + content array with items like
+    // {type:"input_text",text:"..."} or {type:"input_image",...}.
+    // For /chat/completions we need content to be a plain string (text only)
+    // or an array of {type:"text"|"image_url",...} objects.
+    if (Array.isArray(body.input)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      body.messages = body.input.map((msg: any) => {
+        if (typeof msg.content === "string") return msg;
+        if (Array.isArray(msg.content)) {
+          // Collapse to plain string when all parts are text
+          const allText = msg.content.every(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (p: any) => p.type === "input_text" || p.type === "text"
+          );
+          if (allText) {
+            return {
+              ...msg,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              content: msg.content.map((p: any) => p.text ?? "").join(""),
+            };
+          }
+          // Mixed content: remap to chat completions content format
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          return { ...msg, content: msg.content.map((p: any) => {
+            if (p.type === "input_text") return { type: "text", text: p.text };
+            if (p.type === "input_image") return { type: "image_url", image_url: { url: p.image_url } };
+            return p; // pass unknown parts through
+          }) };
+        }
+        return msg;
+      });
+      delete body.input;
+    }
+
+    // tools[]: Responses API uses flat {type,name,description,parameters}
+    // Chat Completions API needs {type:"function", function:{name,description,parameters}}
+    if (Array.isArray(body.tools)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      body.tools = body.tools.map((t: any) => {
+        if (t.type === "function" && t.function) return t; // already correct
+        if (t.type === "function" && !t.function) {
+          // Flat format from Responses API
+          const { type: _type, strict: _strict, ...rest } = t;
+          return { type: "function", function: rest };
+        }
+        return t;
+      });
+    }
+
+    // Strip Responses-API-only fields
+    delete body.previous_response_id;
+    delete body.reasoning;
+    delete body.truncation;
+    delete body.store;
+    delete body.metadata;
+
+    console.log(`[fetch-patch] rewrote ${url} → ${rewritten}`);
+    return _original(rewritten, { ...init, body: JSON.stringify(body) });
+  };
+})();
+
 const sessionOptions = {
   cookieName: "hyperset_session",
   password:
@@ -246,35 +349,13 @@ export const POST = async (req: NextRequest) => {
       const openaiClient = new OpenAI({ apiKey, baseURL: apiUrl });
       const serviceAdapter = new OpenAIAdapter({ openai: openaiClient, model });
 
-      // CopilotKit's agent runner uses @ai-sdk/openai internally. It reads
-      // OPENAI_API_KEY and OPENAI_BASE_URL from env at init time, then calls
-      // /responses (the AI SDK v5 default) which most providers don't support.
-      //
-      // Fix: set both env vars so the key check passes and the base URL is right,
-      // then patch globalThis.fetch to rewrite /responses → /chat/completions
-      // and translate the request body on the fly.
+      // CopilotKit's agent runner uses @ai-sdk/openai internally and reads
+      // OPENAI_API_KEY / OPENAI_BASE_URL from env at init time.
+      // Set them per-request so the key check passes and requests go to the
+      // right host.  The module-level fetch patch (above) rewrites /responses
+      // → /chat/completions so the endpoint is also correct.
       process.env.OPENAI_API_KEY = apiKey;
       process.env.OPENAI_BASE_URL = apiUrl;
-
-      const _originalFetch = globalThis.fetch;
-      globalThis.fetch = async (input, init) => {
-        const url = typeof input === "string" ? input
-          : input instanceof URL ? input.href
-          : (input as Request).url;
-        if (url.endsWith("/responses")) {
-          const rewritten = url.replace(/\/responses$/, "/chat/completions");
-          let body = init?.body ? JSON.parse(init.body as string) : {};
-          if (Array.isArray(body.input)) {
-            body = { ...body, messages: body.input };
-            delete body.input;
-          }
-          delete body.previous_response_id;
-          delete body.reasoning;
-          delete body.truncation;
-          return _originalFetch(rewritten, { ...init, body: JSON.stringify(body) });
-        }
-        return _originalFetch(input, init);
-      };
 
       // Create the runtime
       const runtime = new CopilotRuntime({ actions });
