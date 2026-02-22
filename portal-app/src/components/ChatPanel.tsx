@@ -1113,11 +1113,10 @@ export function ChatPanel({
             position: "absolute",
             right: 16,
             top: "50%",
-            transform: "translateY(-50%)",
+            transform: input.trim() ? "translateY(-50%) scale(1)" : "translateY(-50%) scale(0.9)",
             pointerEvents: "none",
             opacity: input.trim() ? 1 : 0.3,
             transition: "opacity 0.2s, transform 0.1s",
-            transform: input.trim() ? "translateY(-50%) scale(1)" : "translateY(-50%) scale(0.9)",
           }}>
             <button
               onClick={(e) => {
