@@ -11,18 +11,247 @@ import { getIronSession } from "iron-session";
 import type { SessionData } from "@/lib/session";
 
 // ---------------------------------------------------------------------------
-// Module-level fetch patch: rewrite AI SDK v5 /responses → /chat/completions
+// Module-level fetch patch: proxy /responses ↔ /chat/completions
 // ---------------------------------------------------------------------------
 // The Vercel AI SDK v5 (@ai-sdk/openai ≥ 2.x) defaults to the OpenAI
 // /responses endpoint, which most compatible providers (Mistral, Ollama, …)
 // don't implement.  The "compatibility" option that would disable this does
 // not exist in the version bundled with @copilotkit/runtime.
 //
-// We install the patch at module-load time so it is in place before the AI
-// SDK captures the fetch reference during its own module initialisation.
+// Strategy: intercept fetch at module-load time, rewrite the *request* body
+// from Responses-API format to Chat-Completions format, call the provider,
+// then wrap the *response* stream so each SSE chunk is re-encoded as a
+// Responses-API event that the AI SDK can parse.
+//
+// Responses-API SSE events the AI SDK stream parser looks for:
+//   response.created          { response: { id, ... } }
+//   response.output_item.added { output_index, item: { id, type, role?, ... } }
+//   response.output_text.delta { item_id, output_index, content_index, delta }
+//   response.output_text.done  { item_id, output_index, content_index, text }
+//   response.output_item.done  { output_index, item: { ... } }
+//   response.function_call_arguments.delta { item_id, output_index, delta }
+//   response.function_call_arguments.done  { item_id, output_index, arguments }
+//   response.completed        { response: { ... } }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 (function patchFetchForResponsesEndpoint() {
   const _original = globalThis.fetch;
+
+  // Translate a /responses request body → /chat/completions request body
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function translateRequestBody(body: Record<string, any>): Record<string, any> {
+    const out = { ...body };
+
+    // input[] → messages[]
+    if (Array.isArray(out.input)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      out.messages = out.input.map((msg: any) => {
+        if (typeof msg.content === "string") return msg;
+        if (Array.isArray(msg.content)) {
+          const allText = msg.content.every(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (p: any) => p.type === "input_text" || p.type === "text"
+          );
+          if (allText) {
+            return { role: msg.role, content: msg.content.map((p: { text?: string }) => p.text ?? "").join("") };
+          }
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          return { role: msg.role, content: msg.content.map((p: any) => {
+            if (p.type === "input_text") return { type: "text", text: p.text };
+            if (p.type === "input_image") return { type: "image_url", image_url: { url: p.image_url } };
+            return p;
+          }) };
+        }
+        return msg;
+      });
+      delete out.input;
+    }
+
+    // tools[]: flat Responses-API → wrapped Chat-Completions format
+    if (Array.isArray(out.tools)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      out.tools = out.tools.map((t: any) => {
+        if (t.type === "function" && t.function) return t;
+        if (t.type === "function" && !t.function) {
+          const { type: _type, strict: _strict, ...rest } = t;
+          return { type: "function", function: rest };
+        }
+        return t;
+      });
+    }
+
+    // Strip Responses-API-only fields
+    delete out.previous_response_id;
+    delete out.reasoning;
+    delete out.truncation;
+    delete out.store;
+    delete out.metadata;
+
+    return out;
+  }
+
+  // Wrap a /chat/completions SSE response stream as a /responses SSE stream
+  function wrapResponseStream(chatStream: ReadableStream<Uint8Array>): ReadableStream<Uint8Array> {
+    const encoder = new TextEncoder();
+    const decoder = new TextDecoder();
+
+    // State for building the synthetic Responses-API event sequence
+    const responseId = "resp_" + Math.random().toString(36).slice(2);
+    const itemId = "item_" + Math.random().toString(36).slice(2);
+    let headerSent = false;
+    let textStarted = false;
+    let fullText = "";
+    let toolCallState: Record<number, { id: string; name: string; args: string }> = {};
+
+    function sseEvent(type: string, data: unknown): Uint8Array {
+      return encoder.encode(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
+    }
+
+    const transform = new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        const text = decoder.decode(chunk, { stream: true });
+        const lines = text.split("\n");
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const payload = line.slice(6).trim();
+          if (payload === "[DONE]") continue;
+
+          let parsed: Record<string, unknown>;
+          try {
+            parsed = JSON.parse(payload);
+          } catch {
+            continue;
+          }
+
+          // Send response.created once
+          if (!headerSent) {
+            headerSent = true;
+            controller.enqueue(sseEvent("response.created", {
+              type: "response.created",
+              response: { id: responseId, object: "realtime.response", status: "in_progress", output: [] },
+            }));
+            controller.enqueue(sseEvent("response.output_item.added", {
+              type: "response.output_item.added",
+              output_index: 0,
+              item: { id: itemId, object: "realtime.item", type: "message", role: "assistant", content: [] },
+            }));
+          }
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const choices = (parsed as any).choices as Array<Record<string, unknown>> | undefined;
+          if (!choices?.length) continue;
+
+          const delta = choices[0].delta as Record<string, unknown> | undefined;
+          const finishReason = choices[0].finish_reason as string | null;
+
+          // Text delta
+          const textContent = delta?.content;
+          if (typeof textContent === "string" && textContent.length > 0) {
+            if (!textStarted) {
+              textStarted = true;
+              controller.enqueue(sseEvent("response.content_part.added", {
+                type: "response.content_part.added",
+                item_id: itemId,
+                output_index: 0,
+                content_index: 0,
+                part: { type: "text", text: "" },
+              }));
+            }
+            fullText += textContent;
+            controller.enqueue(sseEvent("response.output_text.delta", {
+              type: "response.output_text.delta",
+              item_id: itemId,
+              output_index: 0,
+              content_index: 0,
+              delta: textContent,
+            }));
+          }
+
+          // Tool call deltas
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const toolCalls = delta?.tool_calls as Array<any> | undefined;
+          if (Array.isArray(toolCalls)) {
+            for (const tc of toolCalls) {
+              const idx: number = tc.index ?? 0;
+              if (!toolCallState[idx]) {
+                const tcItemId = "tc_" + Math.random().toString(36).slice(2);
+                toolCallState[idx] = { id: tcItemId, name: "", args: "" };
+                controller.enqueue(sseEvent("response.output_item.added", {
+                  type: "response.output_item.added",
+                  output_index: idx + 1,
+                  item: { id: tcItemId, object: "realtime.item", type: "function_call", name: tc.function?.name ?? "", call_id: tc.id ?? tcItemId },
+                }));
+              }
+              if (tc.function?.name) toolCallState[idx].name = tc.function.name;
+              if (tc.function?.arguments) {
+                toolCallState[idx].args += tc.function.arguments;
+                controller.enqueue(sseEvent("response.function_call_arguments.delta", {
+                  type: "response.function_call_arguments.delta",
+                  item_id: toolCallState[idx].id,
+                  output_index: idx + 1,
+                  delta: tc.function.arguments,
+                }));
+              }
+            }
+          }
+
+          // Finish
+          if (finishReason === "stop" || finishReason === "tool_calls") {
+            if (textStarted) {
+              controller.enqueue(sseEvent("response.output_text.done", {
+                type: "response.output_text.done",
+                item_id: itemId,
+                output_index: 0,
+                content_index: 0,
+                text: fullText,
+              }));
+              controller.enqueue(sseEvent("response.content_part.done", {
+                type: "response.content_part.done",
+                item_id: itemId,
+                output_index: 0,
+                content_index: 0,
+                part: { type: "text", text: fullText },
+              }));
+              controller.enqueue(sseEvent("response.output_item.done", {
+                type: "response.output_item.done",
+                output_index: 0,
+                item: { id: itemId, object: "realtime.item", type: "message", role: "assistant", status: "completed",
+                        content: [{ type: "text", text: fullText }] },
+              }));
+            }
+            for (const [tcIdx, tc] of Object.entries(toolCallState)) {
+              const numIdx = Number(tcIdx) + 1;
+              controller.enqueue(sseEvent("response.function_call_arguments.done", {
+                type: "response.function_call_arguments.done",
+                item_id: tc.id,
+                output_index: numIdx,
+                arguments: tc.args,
+              }));
+              controller.enqueue(sseEvent("response.output_item.done", {
+                type: "response.output_item.done",
+                output_index: numIdx,
+                item: { id: tc.id, object: "realtime.item", type: "function_call", name: tc.name,
+                        call_id: tc.id, arguments: tc.args, status: "completed" },
+              }));
+            }
+            controller.enqueue(sseEvent("response.completed", {
+              type: "response.completed",
+              response: { id: responseId, object: "realtime.response", status: "completed",
+                          output: [], usage: (parsed as Record<string,unknown>).usage ?? {} },
+            }));
+          }
+        }
+      },
+      flush(controller) {
+        // If stream ended without a finish_reason (unexpected), close cleanly
+        if (!headerSent) return;
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+      },
+    });
+
+    return chatStream.pipeThrough(transform);
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   globalThis.fetch = async function (input: any, init?: RequestInit): Promise<Response> {
     const url =
@@ -39,77 +268,32 @@ import type { SessionData } from "@/lib/session";
     // Rewrite URL: /responses → /chat/completions
     const rewritten = url.replace(/\/responses$/, "/chat/completions");
 
-    // Translate body from Responses API format → Chat Completions API format
+    // Translate request body
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let body: Record<string, any> = {};
     if (init?.body) {
       try {
         body = JSON.parse(init.body as string);
       } catch {
-        // Not JSON — pass through as-is
         return _original(rewritten, init);
       }
     }
-
-    // input[] → messages[]
-    // Each entry in `input` has role + content array with items like
-    // {type:"input_text",text:"..."} or {type:"input_image",...}.
-    // For /chat/completions we need content to be a plain string (text only)
-    // or an array of {type:"text"|"image_url",...} objects.
-    if (Array.isArray(body.input)) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      body.messages = body.input.map((msg: any) => {
-        if (typeof msg.content === "string") return msg;
-        if (Array.isArray(msg.content)) {
-          // Collapse to plain string when all parts are text
-          const allText = msg.content.every(
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (p: any) => p.type === "input_text" || p.type === "text"
-          );
-          if (allText) {
-            return {
-              ...msg,
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              content: msg.content.map((p: any) => p.text ?? "").join(""),
-            };
-          }
-          // Mixed content: remap to chat completions content format
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          return { ...msg, content: msg.content.map((p: any) => {
-            if (p.type === "input_text") return { type: "text", text: p.text };
-            if (p.type === "input_image") return { type: "image_url", image_url: { url: p.image_url } };
-            return p; // pass unknown parts through
-          }) };
-        }
-        return msg;
-      });
-      delete body.input;
-    }
-
-    // tools[]: Responses API uses flat {type,name,description,parameters}
-    // Chat Completions API needs {type:"function", function:{name,description,parameters}}
-    if (Array.isArray(body.tools)) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      body.tools = body.tools.map((t: any) => {
-        if (t.type === "function" && t.function) return t; // already correct
-        if (t.type === "function" && !t.function) {
-          // Flat format from Responses API
-          const { type: _type, strict: _strict, ...rest } = t;
-          return { type: "function", function: rest };
-        }
-        return t;
-      });
-    }
-
-    // Strip Responses-API-only fields
-    delete body.previous_response_id;
-    delete body.reasoning;
-    delete body.truncation;
-    delete body.store;
-    delete body.metadata;
+    const translatedBody = translateRequestBody(body);
 
     console.log(`[fetch-patch] rewrote ${url} → ${rewritten}`);
-    return _original(rewritten, { ...init, body: JSON.stringify(body) });
+    const chatResponse = await _original(rewritten, { ...init, body: JSON.stringify(translatedBody) });
+
+    // If not a streaming response, pass through as-is
+    if (!chatResponse.ok || !chatResponse.body) return chatResponse;
+    const contentType = chatResponse.headers.get("content-type") ?? "";
+    if (!contentType.includes("text/event-stream")) return chatResponse;
+
+    // Wrap the response stream: translate chat.completion SSE → responses SSE
+    const wrappedStream = wrapResponseStream(chatResponse.body);
+    return new Response(wrappedStream, {
+      status: chatResponse.status,
+      headers: chatResponse.headers,
+    });
   };
 })();
 
