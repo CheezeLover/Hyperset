@@ -4,6 +4,7 @@ import {
   copilotRuntimeNextJSAppRouterEndpoint,
 } from "@copilotkit/runtime";
 import OpenAI from "openai";
+import { createOpenAI } from "@ai-sdk/openai";
 import type { Parameter } from "@copilotkit/shared";
 import { NextRequest, NextResponse } from "next/server";
 import { listMcpTools, callMcpTool } from "@/lib/mcp-client";
@@ -242,15 +243,27 @@ export const POST = async (req: NextRequest) => {
       // (works for Mistral, Ollama, vLLM, Together AI, or vanilla OpenAI).
       console.log(`[chat] model: ${model}, apiUrl: ${apiUrl}`);
 
-      // The OpenAI SDK client used by OpenAIAdapter (calls /chat/completions).
-      // We also set OPENAI_API_KEY so CopilotKit's internal agent runner can
-      // initialise. OPENAI_BASE_URL is intentionally NOT set — the Vercel AI SDK
-      // (used by the agent runner) defaults to /responses for non-openai.com URLs,
-      // breaking OpenAI-compatible providers. The agent runner is disabled below.
-      process.env.OPENAI_API_KEY = apiKey;
-
+      // OpenAI SDK client for OpenAIAdapter — uses /chat/completions directly.
       const openaiClient = new OpenAI({ apiKey, baseURL: apiUrl });
       const serviceAdapter = new OpenAIAdapter({ openai: openaiClient, model });
+
+      // CopilotKit's agent runner uses the Vercel AI SDK (@ai-sdk/openai) and
+      // constructs its own provider from env vars at call time.  In AI SDK v5
+      // the default is the /responses endpoint, which most providers don't support.
+      // createOpenAI with compatibility:"compatible" forces /chat/completions.
+      // We replace the module-level default export so the agent runner picks it up.
+      const compatibleProvider = createOpenAI({
+        apiKey,
+        baseURL: apiUrl,
+        compatibility: "compatible",
+      });
+      // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any
+      const aiSdkOpenai = require("@ai-sdk/openai") as any;
+      if (aiSdkOpenai.openai) {
+        // Replace the singleton default provider so any internal call to
+        // openai("model-name") uses our compatible, correctly-baseURLed instance.
+        aiSdkOpenai.openai = compatibleProvider;
+      }
 
       // Create the runtime
       const runtime = new CopilotRuntime({ actions });
