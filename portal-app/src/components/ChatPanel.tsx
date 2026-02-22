@@ -857,7 +857,6 @@ export function ChatPanel({
       content: suggestion 
     };
     setMessages((prev) => [...prev, userMsg]);
-    setInput(suggestion);
     
     // Build messages array for the API
     const history = [...messages, userMsg].map((m) => ({
