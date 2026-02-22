@@ -185,15 +185,22 @@ export const POST = async (req: NextRequest) => {
     console.log(`[chat] POST method=${bodyMethod ?? "(none)"} isInfo=${isInfoRequest}`);
 
     // --- Handle CopilotKit info/handshake request directly ---
-    // CopilotKit (single-route transport) sends POST { method: "info" } and
-    // expects { agents: { default: { description: "" } } } plain JSON back.
-    // Forwarding to handleRequest() returns a GraphQL streaming response which
-    // the client cannot parse → runtimeConnectionStatus stays "error" →
-    // chatReady stays false → permanent spinner.
-    // We must include a "default" agent entry or useAgent() throws.
+    // CopilotKit sends POST { method: "info" } expecting { agents: {...} } JSON.
+    // Forwarding to handleRequest() returns a GraphQL streaming response the
+    // client cannot parse → permanent spinner.
     if (isInfoRequest) {
-      console.log(`[chat] Returning info response with default agent`);
-      return NextResponse.json({ agents: { default: { description: "" } } });
+      console.log(`[chat] Returning info response`);
+      return NextResponse.json({ agents: {} });
+    }
+
+    // --- Block agent/* methods before they reach handleRequest ---
+    // CopilotKit's agent runner uses the Vercel AI SDK which calls /responses —
+    // an endpoint that most OpenAI-compatible providers (including Mistral) don't
+    // implement. We don't use CopilotKit agents, so return a 404 that the client
+    // will silently ignore, keeping normal action-based chat working.
+    if (bodyMethod?.startsWith("agent/")) {
+      console.log(`[chat] Blocking agent method: ${bodyMethod}`);
+      return NextResponse.json({ error: "Agents not supported" }, { status: 404 });
     }
 
     // --- Resolve LLM settings ---
@@ -244,12 +251,12 @@ export const POST = async (req: NextRequest) => {
       // (works for Mistral, Ollama, vLLM, Together AI, or vanilla OpenAI).
       console.log(`[chat] model: ${model}, apiUrl: ${apiUrl}`);
 
-      // CopilotKit's OpenAIAdapter wraps the Vercel AI SDK, which re-initialises
-      // its own OpenAI provider from environment variables (OPENAI_API_KEY /
-      // OPENAI_BASE_URL) rather than using the OpenAI client instance we pass in.
-      // Setting them here ensures the Vercel AI SDK hits the correct endpoint.
+      // The OpenAI SDK client used by OpenAIAdapter (calls /chat/completions).
+      // We also set OPENAI_API_KEY so CopilotKit's internal agent runner can
+      // initialise. OPENAI_BASE_URL is intentionally NOT set — the Vercel AI SDK
+      // (used by the agent runner) defaults to /responses for non-openai.com URLs,
+      // breaking OpenAI-compatible providers. The agent runner is disabled below.
       process.env.OPENAI_API_KEY = apiKey;
-      process.env.OPENAI_BASE_URL = apiUrl;
 
       const openaiClient = new OpenAI({ apiKey, baseURL: apiUrl });
       const serviceAdapter = new OpenAIAdapter({ openai: openaiClient, model });
