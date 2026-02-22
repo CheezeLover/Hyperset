@@ -1,0 +1,88 @@
+services:
+  caddy:
+    build: ./Caddy
+    image: localhost/hyperset-caddy:latest
+    container_name: hyperset-caddy
+    ports:
+      - "443:443"
+      - "80:80"
+    environment:
+      - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
+      - AUTH_CRYPTO_KEY=${AUTH_CRYPTO_KEY}
+      - SUPERSET_UPSTREAM=${SUPERSET_UPSTREAM}
+    env_file:
+      - ./.env
+    volumes:
+      - ./Caddy/Caddyfile:/etc/caddy/Caddyfile:Z
+      - ./Caddy/users.json:/data/users.json:Z
+      - ./Caddy/bridge.js:/Caddy/bridge.js:Z
+      - caddy_data:/data/caddy
+      - caddy_config:/config
+    networks:
+      - hyperset-net
+    restart: unless-stopped
+
+  pages:
+    build: ./Pages-Service
+    image: localhost/hyperset-pages:latest
+    container_name: hyperset-pages
+    volumes:
+      - ./Pages:/pages:Z
+    networks:
+      - hyperset-net
+    restart: unless-stopped
+
+  superset-mcp:
+    build: ./Superset-MCP
+    image: localhost/hyperset-superset-mcp:latest
+    container_name: hyperset-superset-mcp
+    environment:
+      # Internal address of the Superset instance
+      - SUPERSET_UPSTREAM=${SUPERSET_UPSTREAM}
+      # Service-account credentials for Superset DB auth
+      - SUPERSET_MCP_USER=${SUPERSET_MCP_USER}
+      - SUPERSET_MCP_PASSWORD=${SUPERSET_MCP_PASSWORD}
+    networks:
+      - hyperset-net
+    restart: unless-stopped
+
+  portal:
+    build:
+      context: ./portal-app
+      # Next.js webpack compilation is memory-hungry; shm_size gives it enough
+      # shared memory and the NODE_OPTIONS env is set in the Dockerfile.
+      shm_size: "256m"
+    image: localhost/hyperset-portal:latest
+    container_name: hyperset-portal
+    ports:
+      - "3000:3000"
+    environment:
+      - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
+      # Use explicit vars from .env — compose doesn't expand nested ${} in values
+      - SUPERSET_PUBLIC_URL=${SUPERSET_PUBLIC_URL}
+      - PAGES_PUBLIC_URL=${PAGES_PUBLIC_URL}
+      - SUPERSET_MCP_URL=http://hyperset-superset-mcp:8000/mcp
+      # LLM API (any OpenAI-compatible endpoint; overridable at runtime via the settings UI)
+      - LLM_API_URL=${LLM_API_URL:-https://api.openai.com/v1}
+      - LLM_API_KEY=${LLM_API_KEY}
+      - LLM_MODEL=${LLM_MODEL:-gpt-4o}
+      # Session encryption key for admin settings storage
+      - SESSION_SECRET=${SESSION_SECRET}
+      - NODE_ENV=production
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/config"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - hyperset-net
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  hyperset-net:
+    external: true

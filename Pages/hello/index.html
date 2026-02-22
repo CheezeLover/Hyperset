@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hello</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background: #f5f3f0;
+            color: #1c1b1f;
+        }
+        @media (prefers-color-scheme: dark) {
+            body { background: #1a1a1e; color: #e4e1e6; }
+            #result { background: #2e2e33; border-color: #49474e; }
+        }
+        h1 { color: #20a7c9; margin-bottom: 8px; }
+        button {
+            margin-top: 16px;
+            padding: 10px 24px;
+            background: #20a7c9;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+        button:hover { background: #1a8faa; }
+        #result {
+            margin-top: 16px;
+            padding: 12px 20px;
+            background: #fff;
+            border: 1px solid #cac5be;
+            border-radius: 12px;
+            min-width: 200px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>Hello Page</h1>
+    <p>Example page with a FastAPI backend.</p>
+    <button onclick="callBackend()">Call backend</button>
+    <div id="result">—</div>
+
+    <script>
+        async function callBackend() {
+            const el = document.getElementById('result');
+            el.textContent = 'Loading…';
+            try {
+                // Calls this page's own backend at /hello/api/hello
+                const res = await fetch('/hello/api/hello');
+                const data = await res.json();
+                el.textContent = JSON.stringify(data, null, 2);
+            } catch (e) {
+                el.textContent = 'Error: ' + e.message;
+            }
+        }
+    </script>
+</body>
+</html>

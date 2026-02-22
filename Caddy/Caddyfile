@@ -1,0 +1,117 @@
+{
+    order authenticate before respond
+    order authorize before basicauth
+    order replace after reverse_proxy
+
+    security {
+        local identity store localdb {
+            realm local
+            path /data/users.json
+        }
+
+        authentication portal myportal {
+            crypto default token lifetime 86400
+            crypto key sign-verify {env.AUTH_CRYPTO_KEY}
+            enable identity store localdb
+            cookie domain cluster.internal
+            cookie samesite lax
+            cookie insecure off
+
+            # --- SWAP THIS BLOCK WHEN CHANGING PROVIDERS ---
+            transform user {
+                match realm local
+                match role authp/admin
+                action add role hyperset/admin
+            }
+            transform user {
+                match realm local
+                match role authp/user
+                action add role hyperset/user
+            }
+            # --- END SWAP BLOCK ---
+
+            ui {
+                links {
+                    "Portal" https://{$HYPERSET_DOMAIN}
+                    "Superset" https://superset.{$HYPERSET_DOMAIN}
+                    "Pages" https://pages.{$HYPERSET_DOMAIN}
+                }
+            }
+        }
+
+        authorization policy mypolicy {
+            set auth url https://auth.{$HYPERSET_DOMAIN}/
+            set token sources cookie header
+            validate bearer header
+            crypto key sign-verify {env.AUTH_CRYPTO_KEY}
+            allow roles hyperset/admin hyperset/user
+            inject headers with claims
+        }
+    }
+}
+
+auth.{$HYPERSET_DOMAIN} {
+    tls internal {
+        on_demand
+    }
+    authenticate with myportal
+}
+
+# ── Main portal (Next.js) ──────────────────────────────────────
+{$HYPERSET_DOMAIN} {
+    tls internal {
+        on_demand
+    }
+    authorize with mypolicy
+
+    reverse_proxy hyperset-portal:3000 {
+        header_up X-Token-User-Id {http.request.header.X-Token-User-Id}
+        header_up X-Token-User-Email {http.request.header.X-Token-User-Email}
+        header_up X-Token-User-Roles {http.request.header.X-Token-User-Roles}
+        # Disable response buffering so SSE/streaming from CopilotKit flows
+        # through immediately instead of being held until the response ends.
+        flush_interval -1
+    }
+}
+
+# ── Pages service (unchanged) ──────────────────────────────────
+pages.{$HYPERSET_DOMAIN} {
+    tls internal {
+        on_demand
+    }
+    authorize with mypolicy
+    reverse_proxy hyperset-pages:8000 {
+        header_down -X-Frame-Options
+        header_down -Content-Security-Policy
+    }
+}
+
+# ── Superset with bridge.js injection ─────────────────────────
+superset.{$HYPERSET_DOMAIN} {
+    tls internal {
+        on_demand
+    }
+    authorize with mypolicy
+
+    # Serve the bridge script directly from Caddy
+    handle /bridge.js {
+        header Content-Type "application/javascript"
+        header Cache-Control "no-cache"
+        root * /Caddy
+        file_server
+    }
+
+    # Proxy everything else to Superset, injecting bridge.js into HTML responses
+    handle {
+        reverse_proxy {env.SUPERSET_UPSTREAM} {
+            header_up X-Webauth-User {http.request.header.X-Token-User-Id}
+            header_up X-Webauth-Email {http.request.header.X-Token-User-Email}
+            header_up X-Webauth-Groups {http.request.header.X-Token-User-Roles}
+            header_down -X-Frame-Options
+            header_down -Content-Security-Policy
+        }
+
+        # Inject bridge script before </body> using replace-response module
+        replace </body> "<script src=\"/bridge.js\"></script></body>"
+    }
+}
