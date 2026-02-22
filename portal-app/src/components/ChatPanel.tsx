@@ -17,6 +17,16 @@ interface ChatPanelProps {
 // ── Message types ────────────────────────────────────────────────
 type Role = "user" | "assistant" | "tool";
 
+interface ChatEvent {
+  type: "delta" | "tool_call" | "tool_result" | "done" | "error" | "followup_suggestions";
+  content?: string;
+  name?: string;
+  args?: Record<string, unknown>;
+  result?: string;
+  message?: string;
+  suggestions?: unknown; // Will be validated as string[]
+}
+
 export interface ToolCall {
   name: string;
   args: Record<string, unknown>;
@@ -28,6 +38,8 @@ export interface Message {
   role: Role;
   content: string;
   toolCalls?: ToolCall[];
+  /** Follow-up suggestions for assistant messages */
+  followupSuggestions?: string[];
   /** true while assistant is still streaming */
   streaming?: boolean;
 }
@@ -470,8 +482,14 @@ function ToolStep({ tc }: { tc: ToolCall }) {
 }
 
 // ── Message bubble ────────────────────────────────────────────────
-function MessageBubble({ msg, supersetUrl }: { msg: Message; supersetUrl: string }) {
+function MessageBubble({ msg, supersetUrl, onSuggestionClick }: { 
+  msg: Message; 
+  supersetUrl: string;
+  onSuggestionClick?: (suggestion: string) => void;
+}) {
   const isUser = msg.role === "user";
+  const isAssistant = msg.role === "assistant";
+  
   return (
     <div style={{
       display: "flex",
@@ -503,6 +521,77 @@ function MessageBubble({ msg, supersetUrl }: { msg: Message; supersetUrl: string
           )}
         </div>
       )}
+      
+      {/* Follow-up suggestions for assistant messages */}
+      {isAssistant && !msg.streaming && msg.followupSuggestions && msg.followupSuggestions.length > 0 && onSuggestionClick && (
+        <div style={{ maxWidth: "88%", marginTop: 4 }}>
+          <FollowupSuggestions 
+            suggestions={msg.followupSuggestions} 
+            onSuggestionClick={onSuggestionClick}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Follow-up suggestions component ────────────────────────────────
+function FollowupSuggestions({ suggestions, onSuggestionClick }: {
+  suggestions: string[];
+  onSuggestionClick: (suggestion: string) => void;
+}) {
+  return (
+    <div style={{
+      marginTop: 12, 
+      paddingLeft: 16,
+      borderLeft: "2px solid var(--md-primary)",
+    }}>
+      <div style={{
+        fontSize: 12, 
+        color: "var(--md-primary)", 
+        marginBottom: 8, 
+        fontWeight: 500,
+      }}>
+        Follow-up questions
+      </div>
+      <div style={{
+        display: "flex", 
+        flexDirection: "column", 
+        gap: 6,
+      }}>
+        {suggestions.map((suggestion, index) => (
+          <button
+            key={index}
+            onClick={() => onSuggestionClick(suggestion)}
+            style={{
+              padding: "6px 0",
+              background: "transparent",
+              color: "var(--md-on-surface)", 
+              border: "none",
+              borderRadius: 0,
+              fontSize: 13,
+              cursor: "pointer",
+              transition: "all 0.2s",
+              textAlign: "left",
+              width: "fit-content",
+              maxWidth: "100%",
+              display: "flex",
+              alignItems: "center",
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.color = "var(--md-primary)";
+              e.currentTarget.style.transform = "translateX(2px)";
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.color = "var(--md-on-surface)";
+              e.currentTarget.style.transform = "none";
+            }}
+          >
+            <span style={{ marginRight: 8, opacity: 0.6, color: "var(--md-primary)" }}>→</span>
+            {suggestion}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -565,6 +654,8 @@ function McpWarningBanner({ message, onDismiss }: { message: string; onDismiss: 
     </div>
   );
 }
+
+
 
 // ── Main panel ───────────────────────────────────────────────────
 export function ChatPanel({
@@ -675,7 +766,7 @@ export function ChatPanel({
 
         for (const line of lines) {
           if (!line.trim()) continue;
-          let event: Record<string, unknown>;
+          let event: ChatEvent;
           try { event = JSON.parse(line); } catch { continue; }
 
           if (event.type === "delta") {
@@ -721,6 +812,15 @@ export function ChatPanel({
               ? { ...m, streaming: false }
               : m
             ));
+          } else if (event.type === "followup_suggestions") {
+            // Validate that suggestions is a string array
+            const suggestions = Array.isArray(event.suggestions)
+              ? event.suggestions.filter((s): s is string => typeof s === "string")
+              : [];
+            setMessages((prev) => prev.map((m) => m.id === assistantId
+              ? { ...m, followupSuggestions: suggestions }
+              : m
+            ));
           } else if (event.type === "error") {
             setMessages((prev) => prev.map((m) => m.id === assistantId
               ? { ...m, content: m.content || (event.message as string), streaming: false }
@@ -748,6 +848,135 @@ export function ChatPanel({
   };
 
   const handleClear = () => setMessages(() => []);
+  
+  const handleSuggestionClick = useCallback((suggestion: string) => {
+    // Send the suggestion immediately without validation
+    const userMsg: Message = { 
+      id: Date.now().toString(), 
+      role: "user", 
+      content: suggestion 
+    };
+    setMessages((prev) => [...prev, userMsg]);
+    setInput(suggestion);
+    
+    // Build messages array for the API
+    const history = [...messages, userMsg].map((m) => ({
+      role: m.role === "tool" ? "user" : m.role,
+      content: m.content,
+    }));
+
+    const assistantId = (Date.now() + 1).toString();
+    setMessages((prev) => [...prev, { 
+      id: assistantId, 
+      role: "assistant", 
+      content: "", 
+      streaming: true, 
+      toolCalls: [] 
+    }]);
+    setLoading(true);
+
+    // Call the API directly
+    fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages: history }),
+    })
+    .then(async (response) => {
+      if (!response.ok || !response.body) {
+        const err = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+        setMessages((prev) => prev.map((m) => m.id === assistantId
+          ? { ...m, content: err.error ?? "Error", streaming: false }
+          : m
+        ));
+        return;
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let currentToolCallIndex: number | null = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          let event: ChatEvent;
+          try { event = JSON.parse(line); } catch { continue; }
+
+          if (event.type === "delta") {
+            setMessages((prev) => prev.map((m) => m.id === assistantId
+              ? { ...m, content: m.content + (event.content as string) }
+              : m
+            ));
+          } else if (event.type === "tool_call") {
+            currentToolCallIndex = Date.now();
+            const tc: ToolCall = { name: event.name as string, args: event.args as Record<string, unknown> };
+            if (event.name === "navigate_superset_dashboard") {
+              supersetIframeRef.current?.contentWindow?.postMessage(
+                { type: "navigate_dashboard", dashboardId: (event.args as Record<string, unknown>).dashboardId },
+                supersetOrigin
+              );
+            } else if (event.name === "navigate_superset_chart") {
+              supersetIframeRef.current?.contentWindow?.postMessage(
+                { type: "navigate_chart", chartId: (event.args as Record<string, unknown>).chartId },
+                supersetOrigin
+              );
+            }
+            setMessages((prev) => prev.map((m) => m.id === assistantId
+              ? { ...m, toolCalls: [...(m.toolCalls ?? []), tc] }
+              : m
+            ));
+          } else if (event.type === "tool_result") {
+            setMessages((prev) => prev.map((m) => {
+              if (m.id !== assistantId) return m;
+              const calls = [...(m.toolCalls ?? [])];
+              for (let i = calls.length - 1; i >= 0; i--) {
+                if (calls[i].name === event.name && calls[i].result === undefined) {
+                  calls[i] = { ...calls[i], result: event.result as string };
+                  break;
+                }
+              }
+              return { ...m, toolCalls: calls };
+            }));
+          } else if (event.type === "followup_suggestions") {
+            const suggestions = Array.isArray(event.suggestions)
+              ? event.suggestions.filter((s): s is string => typeof s === "string")
+              : [];
+            setMessages((prev) => prev.map((m) => m.id === assistantId
+              ? { ...m, followupSuggestions: suggestions }
+              : m
+            ));
+          } else if (event.type === "done") {
+            setMessages((prev) => prev.map((m) => m.id === assistantId
+              ? { ...m, streaming: false }
+              : m
+            ));
+          } else if (event.type === "error") {
+            setMessages((prev) => prev.map((m) => m.id === assistantId
+              ? { ...m, content: m.content || (event.message as string), streaming: false }
+              : m
+            ));
+          }
+        }
+      }
+    })
+    .catch((err) => {
+      const msg = err instanceof Error ? err.message : "Network error";
+      setMessages((prev) => prev.map((m) => m.id === assistantId
+        ? { ...m, content: msg, streaming: false }
+        : m
+      ));
+    })
+    .finally(() => {
+      setLoading(false);
+    });
+  }, [messages, supersetIframeRef, supersetOrigin]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--md-surface-cont)" }}>
@@ -822,7 +1051,14 @@ export function ChatPanel({
             <span style={{ fontSize: 13 }}>Hello! Ask me anything about your data.</span>
           </div>
         )}
-        {messages.map((msg) => <MessageBubble key={msg.id} msg={msg} supersetUrl={supersetUrl} />)}
+        {messages.map((msg) => (
+          <MessageBubble 
+            key={msg.id} 
+            msg={msg} 
+            supersetUrl={supersetUrl}
+            onSuggestionClick={handleSuggestionClick}
+          />
+        ))}
         <div ref={messagesEndRef} />
       </div>
 

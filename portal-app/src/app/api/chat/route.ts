@@ -60,6 +60,64 @@ export const GET = async (req: NextRequest) => {
   return NextResponse.json({ ok: true, ...(mcpWarning ? { mcpWarning } : {}) });
 };
 
+// ── Follow-up suggestion generation ────────────────────────────
+async function generateFollowupSuggestions(
+  openai: OpenAI,
+  model: string,
+  conversationHistory: OpenAI.Chat.ChatCompletionMessageParam[]
+): Promise<string[]> {
+  try {
+    // Create a prompt that asks the LLM to generate follow-up questions
+    const suggestionPrompt = `
+Based on the conversation history below, generate 3-4 concise, relevant follow-up questions that would help the user explore this topic further. Respond only with a JSON array of strings containing the questions, with no additional text or explanation.
+
+Conversation history:
+${conversationHistory.map((msg, i) => `${msg.role}: ${msg.content}`).join("\n")}
+
+Follow-up questions (JSON array only):`;
+
+    const response = await openai.chat.completions.create({
+      model: model,
+      messages: [
+        {
+          role: "system",
+          content: "You are a helpful assistant that generates follow-up questions based on conversation context. Always respond with only a valid JSON array of strings."
+        },
+        {
+          role: "user",
+          content: suggestionPrompt
+        }
+      ],
+      response_format: { type: "json_object" },
+      max_tokens: 200,
+      temperature: 0.7,
+    });
+
+    const result = response.choices[0]?.message?.content;
+    if (!result) return [];
+
+    try {
+      const parsed = JSON.parse(result);
+      if (Array.isArray(parsed)) {
+        // Filter and clean the suggestions
+        return parsed
+          .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+          .slice(0, 4)
+          .map((s: string) => s.trim().replace(/^[\"']|[\"']$/g, ""));
+      }
+    } catch (parseError) {
+      console.error("Failed to parse follow-up suggestions:", parseError);
+      // Fallback: try to extract questions from text response
+      const matches = result.match(/\"(.*?)\"/g) ?? [];
+      return matches.slice(0, 4).map(m => m.replace(/\"|\\/g, "").trim());
+    }
+    return [];
+  } catch (error) {
+    console.error("Error generating follow-up suggestions:", error);
+    return [];
+  }
+}
+
 // ── POST: streaming chat completion ──────────────────────────────
 // Body: { messages: [{role,content}], stream?: boolean }
 export const POST = async (req: NextRequest) => {
@@ -234,7 +292,21 @@ export const POST = async (req: NextRequest) => {
           }
 
           // If finish_reason is "stop" or no tool calls, we're done
-          if (finishReason !== "tool_calls" || toolCalls.length === 0) break;
+          if (finishReason !== "tool_calls" || toolCalls.length === 0) {
+            // Generate follow-up suggestions using the LLM
+            if (assistantText) {
+              try {
+                const suggestions = await generateFollowupSuggestions(openai, model, accumulated);
+                if (suggestions.length > 0) {
+                  send({ type: "followup_suggestions", suggestions });
+                }
+              } catch (e) {
+                console.error("Failed to generate follow-up suggestions:", e);
+                // Continue even if suggestion generation fails
+              }
+            }
+            break;
+          }
 
           // Execute tool calls
           for (const tc of toolCalls) {
