@@ -1157,7 +1157,33 @@ export function ChatPanel({
       )}
 
       <style>{`@keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
-@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }`}</style>
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+/* Modern rounded scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+/* Firefox scrollbar */
+scrollbar-width: thin;
+scrollbar-color: rgba(0, 0, 0, 0.2) transparent;`}</style>
     </div>
   );
 }
