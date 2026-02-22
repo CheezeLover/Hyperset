@@ -4,7 +4,6 @@ import {
   copilotRuntimeNextJSAppRouterEndpoint,
 } from "@copilotkit/runtime";
 import OpenAI from "openai";
-import { createOpenAI } from "@ai-sdk/openai";
 import type { Parameter } from "@copilotkit/shared";
 import { NextRequest, NextResponse } from "next/server";
 import { listMcpTools, callMcpTool } from "@/lib/mcp-client";
@@ -247,39 +246,35 @@ export const POST = async (req: NextRequest) => {
       const openaiClient = new OpenAI({ apiKey, baseURL: apiUrl });
       const serviceAdapter = new OpenAIAdapter({ openai: openaiClient, model });
 
-      // CopilotKit's agent runner uses @ai-sdk/openai (v2) internally and calls
-      // the /responses endpoint by default, which most OpenAI-compatible providers
-      // don't implement.  @ai-sdk/openai v2 has no compatibility flag, so we
-      // intercept at the fetch layer: any request to /responses is rewritten to
-      // /chat/completions and stripped of Responses-API-only fields.
-      const compatibleProvider = createOpenAI({
-        apiKey,
-        baseURL: apiUrl,
-        fetch: async (input, init) => {
-          const url = typeof input === "string" ? input : (input as Request).url;
-          if (url.endsWith("/responses")) {
-            const rewritten = url.replace(/\/responses$/, "/chat/completions");
-            // The Responses API body differs from Chat Completions; translate it.
-            let body = init?.body ? JSON.parse(init.body as string) : {};
-            // Map Responses API `input` array → Chat Completions `messages`
-            if (Array.isArray(body.input)) {
-              body = { ...body, messages: body.input };
-              delete body.input;
-            }
-            // Remove fields unknown to /chat/completions
-            delete body.previous_response_id;
-            delete body.reasoning;
-            delete body.truncation;
-            return fetch(rewritten, { ...init, body: JSON.stringify(body) });
+      // CopilotKit's agent runner uses @ai-sdk/openai internally. It reads
+      // OPENAI_API_KEY and OPENAI_BASE_URL from env at init time, then calls
+      // /responses (the AI SDK v5 default) which most providers don't support.
+      //
+      // Fix: set both env vars so the key check passes and the base URL is right,
+      // then patch globalThis.fetch to rewrite /responses → /chat/completions
+      // and translate the request body on the fly.
+      process.env.OPENAI_API_KEY = apiKey;
+      process.env.OPENAI_BASE_URL = apiUrl;
+
+      const _originalFetch = globalThis.fetch;
+      globalThis.fetch = async (input, init) => {
+        const url = typeof input === "string" ? input
+          : input instanceof URL ? input.href
+          : (input as Request).url;
+        if (url.endsWith("/responses")) {
+          const rewritten = url.replace(/\/responses$/, "/chat/completions");
+          let body = init?.body ? JSON.parse(init.body as string) : {};
+          if (Array.isArray(body.input)) {
+            body = { ...body, messages: body.input };
+            delete body.input;
           }
-          return fetch(url, init as RequestInit);
-        },
-      });
-      // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any
-      const aiSdkOpenai = require("@ai-sdk/openai") as any;
-      if (aiSdkOpenai.openai) {
-        aiSdkOpenai.openai = compatibleProvider;
-      }
+          delete body.previous_response_id;
+          delete body.reasoning;
+          delete body.truncation;
+          return _originalFetch(rewritten, { ...init, body: JSON.stringify(body) });
+        }
+        return _originalFetch(input, init);
+      };
 
       // Create the runtime
       const runtime = new CopilotRuntime({ actions });
