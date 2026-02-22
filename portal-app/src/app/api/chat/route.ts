@@ -247,21 +247,37 @@ export const POST = async (req: NextRequest) => {
       const openaiClient = new OpenAI({ apiKey, baseURL: apiUrl });
       const serviceAdapter = new OpenAIAdapter({ openai: openaiClient, model });
 
-      // CopilotKit's agent runner uses the Vercel AI SDK (@ai-sdk/openai) and
-      // constructs its own provider from env vars at call time.  In AI SDK v5
-      // the default is the /responses endpoint, which most providers don't support.
-      // createOpenAI with compatibility:"compatible" forces /chat/completions.
-      // We replace the module-level default export so the agent runner picks it up.
+      // CopilotKit's agent runner uses @ai-sdk/openai (v2) internally and calls
+      // the /responses endpoint by default, which most OpenAI-compatible providers
+      // don't implement.  @ai-sdk/openai v2 has no compatibility flag, so we
+      // intercept at the fetch layer: any request to /responses is rewritten to
+      // /chat/completions and stripped of Responses-API-only fields.
       const compatibleProvider = createOpenAI({
         apiKey,
         baseURL: apiUrl,
-        compatibility: "compatible",
+        fetch: async (input, init) => {
+          const url = typeof input === "string" ? input : (input as Request).url;
+          if (url.endsWith("/responses")) {
+            const rewritten = url.replace(/\/responses$/, "/chat/completions");
+            // The Responses API body differs from Chat Completions; translate it.
+            let body = init?.body ? JSON.parse(init.body as string) : {};
+            // Map Responses API `input` array → Chat Completions `messages`
+            if (Array.isArray(body.input)) {
+              body = { ...body, messages: body.input };
+              delete body.input;
+            }
+            // Remove fields unknown to /chat/completions
+            delete body.previous_response_id;
+            delete body.reasoning;
+            delete body.truncation;
+            return fetch(rewritten, { ...init, body: JSON.stringify(body) });
+          }
+          return fetch(url, init as RequestInit);
+        },
       });
       // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any
       const aiSdkOpenai = require("@ai-sdk/openai") as any;
       if (aiSdkOpenai.openai) {
-        // Replace the singleton default provider so any internal call to
-        // openai("model-name") uses our compatible, correctly-baseURLed instance.
         aiSdkOpenai.openai = compatibleProvider;
       }
 
