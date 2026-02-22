@@ -532,38 +532,54 @@ function FollowupSuggestions({ suggestions, onSuggestionClick }: {
 }) {
   return (
     <div style={{
-      display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8, padding: "0 8px",
+      marginTop: 8, padding: "0 8px",
     }}>
-      {suggestions.map((suggestion, index) => (
-        <button
-          key={index}
-          onClick={() => onSuggestionClick(suggestion)}
-          style={{
-            padding: "6px 12px",
-            background: "var(--md-secondary-cont)",
-            color: "var(--md-on-sec-cont)",
-            border: "none",
-            borderRadius: 20,
-            fontSize: 12,
-            cursor: "pointer",
-            transition: "all 0.2s",
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            maxWidth: "calc(33% - 6px)",
-          }}
-          onMouseOver={(e) => {
-            e.currentTarget.style.background = "var(--md-on-sec-cont)";
-            e.currentTarget.style.color = "var(--md-secondary-cont)";
-          }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.background = "var(--md-secondary-cont)";
-            e.currentTarget.style.color = "var(--md-on-sec-cont)";
-          }}
-        >
-          {suggestion}
-        </button>
-      ))}
+      <div style={{
+        fontSize: 12, 
+        color: "var(--md-on-surface)", 
+        opacity: 0.7, 
+        marginBottom: 6, 
+        fontWeight: 500,
+      }}>
+        Suggested follow-up questions:
+      </div>
+      <div style={{
+        display: "flex", 
+        flexDirection: "column", 
+        gap: 4,
+      }}>
+        {suggestions.map((suggestion, index) => (
+          <button
+            key={index}
+            onClick={() => onSuggestionClick(suggestion)}
+            style={{
+              padding: "8px 12px",
+              background: "var(--md-surface-cont-hi)",
+              color: "var(--md-on-surface)",
+              border: "1px solid var(--md-outline-var)",
+              borderRadius: 8,
+              fontSize: 13,
+              cursor: "pointer",
+              transition: "all 0.2s",
+              textAlign: "left",
+              width: "100%",
+              display: "flex",
+              alignItems: "center",
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.background = "var(--md-secondary-cont)";
+              e.currentTarget.style.borderColor = "var(--md-secondary)";
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.background = "var(--md-surface-cont-hi)";
+              e.currentTarget.style.borderColor = "var(--md-outline-var)";
+            }}
+          >
+            <span style={{ marginRight: 8, opacity: 0.6 }}>→</span>
+            {suggestion}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -627,59 +643,7 @@ function McpWarningBanner({ message, onDismiss }: { message: string; onDismiss: 
   );
 }
 
-// ── Follow-up suggestion generator ───────────────────────────────
-function generateFollowupSuggestions(response: string): string[] {
-  // Simple heuristic-based suggestion generator
-  const suggestions: string[] = [];
-  
-  // Extract key topics from the response
-  const topics = extractTopics(response);
-  
-  // Generate suggestions based on response content
-  if (response.length > 100) {
-    suggestions.push("Can you summarize this?");
-  }
-  
-  if (topics.includes("data") || topics.includes("dataset") || topics.includes("table")) {
-    suggestions.push("Show me more details about this data");
-    suggestions.push("What are the key insights from this data?");
-  }
-  
-  if (topics.includes("chart") || topics.includes("graph") || topics.includes("visualization")) {
-    suggestions.push("Create a different visualization of this data");
-    suggestions.push("What other charts would be useful?");
-  }
-  
-  if (topics.includes("dashboard")) {
-    suggestions.push("Show me related dashboards");
-    suggestions.push("How can I customize this dashboard?");
-  }
-  
-  if (topics.includes("trend") || topics.includes("pattern") || topics.includes("analysis")) {
-    suggestions.push("Analyze this trend in more depth");
-    suggestions.push("What factors influence this trend?");
-  }
-  
-  // Add generic follow-up questions
-  suggestions.push("Can you explain this in simpler terms?");
-  suggestions.push("What should I do next?");
-  
-  // Return up to 4 unique suggestions
-  return Array.from(new Set(suggestions)).slice(0, 4);
-}
 
-function extractTopics(text: string): string[] {
-  // Simple keyword extraction - can be enhanced with NLP later
-  const keywords = [
-    "data", "dataset", "table", "column", "row", "record",
-    "chart", "graph", "visualization", "plot", "dashboard",
-    "trend", "pattern", "analysis", "insight", "metric",
-    "sales", "revenue", "profit", "customer", "user", "performance"
-  ];
-  
-  const lowerText = text.toLowerCase();
-  return keywords.filter(keyword => lowerText.includes(keyword));
-}
 
 // ── Main panel ───────────────────────────────────────────────────
 export function ChatPanel({
@@ -832,14 +796,15 @@ export function ChatPanel({
             }));
             void currentToolCallIndex; // suppress unused warning
           } else if (event.type === "done") {
-            setMessages((prev) => prev.map((m) => {
-              if (m.id === assistantId) {
-                // Generate follow-up suggestions based on the assistant's response
-                const suggestions = generateFollowupSuggestions(m.content);
-                return { ...m, streaming: false, followupSuggestions: suggestions };
-              }
-              return m;
-            }));
+            setMessages((prev) => prev.map((m) => m.id === assistantId
+              ? { ...m, streaming: false }
+              : m
+            ));
+          } else if (event.type === "followup_suggestions") {
+            setMessages((prev) => prev.map((m) => m.id === assistantId
+              ? { ...m, followupSuggestions: event.suggestions }
+              : m
+            ));
           } else if (event.type === "error") {
             setMessages((prev) => prev.map((m) => m.id === assistantId
               ? { ...m, content: m.content || (event.message as string), streaming: false }
@@ -869,9 +834,13 @@ export function ChatPanel({
   const handleClear = () => setMessages(() => []);
   
   const handleSuggestionClick = useCallback((suggestion: string) => {
+    // Auto-send the suggestion directly
     setInput(suggestion);
-    textareaRef.current?.focus();
-  }, []);
+    // Simulate sending the message
+    setTimeout(() => {
+      sendMessage();
+    }, 100);
+  }, [sendMessage]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--md-surface-cont)" }}>
