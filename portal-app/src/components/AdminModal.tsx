@@ -125,9 +125,9 @@ export function AdminModal({ onClose }: AdminModalProps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          apiUrl: settings.apiUrl || undefined,
-          apiKey: settings.apiKey && settings.apiKey !== "***" ? settings.apiKey : undefined,
-          model: settings.model || undefined,
+          apiUrl: settings.apiUrl,
+          apiKey: settings.apiKey !== "***" ? settings.apiKey : undefined,
+          model: settings.model,
         }),
       });
       if (!res.ok) throw new Error("Save failed");

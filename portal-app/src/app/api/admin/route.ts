@@ -50,12 +50,9 @@ export async function POST(request: NextRequest) {
 
   const prev = session.llmSettings ?? {};
   session.llmSettings = {
-    apiUrl: body.apiUrl || prev.apiUrl,
-    apiKey:
-      body.apiKey && body.apiKey !== "***"
-        ? body.apiKey
-        : prev.apiKey,
-    model: body.model || prev.model,
+    apiUrl: body.apiUrl !== undefined ? body.apiUrl : prev.apiUrl,
+    apiKey: body.apiKey && body.apiKey !== "***" ? body.apiKey : prev.apiKey,
+    model: body.model !== undefined ? body.model : prev.model,
   };
 
   await session.save();

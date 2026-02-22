@@ -62,14 +62,10 @@ services:
       - SUPERSET_PUBLIC_URL=${SUPERSET_PUBLIC_URL}
       - PAGES_PUBLIC_URL=${PAGES_PUBLIC_URL}
       - SUPERSET_MCP_URL=http://hyperset-superset-mcp:8000/mcp
-      # User LLM API
-      - CHAT_API_URL=${CHAT_API_URL:-https://api.openai.com/v1}
-      - CHAT_API_KEY=${CHAT_API_KEY}
-      - CHAT_MODEL=${CHAT_MODEL:-gpt-4o}
-      # Admin LLM API (default; overridable at runtime via Admin Settings UI)
-      - ADMIN_API_URL=${ADMIN_API_URL:-https://api.openai.com/v1}
-      - ADMIN_API_KEY=${ADMIN_API_KEY}
-      - ADMIN_MODEL=${ADMIN_MODEL:-gpt-4o}
+      # LLM API (any OpenAI-compatible endpoint; overridable at runtime via the settings UI)
+      - LLM_API_URL=${LLM_API_URL:-https://api.openai.com/v1}
+      - LLM_API_KEY=${LLM_API_KEY}
+      - LLM_MODEL=${LLM_MODEL:-gpt-4o}
       # Session encryption key for admin settings storage
       - SESSION_SECRET=${SESSION_SECRET}
       - NODE_ENV=production
