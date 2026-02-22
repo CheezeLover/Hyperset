@@ -113,8 +113,10 @@ function parseMarkdownTable(lines: string[]): ParsedTable | null {
 
 // ── Markdown-lite renderer ────────────────────────────────────────
 // Handles bold, italic, inline code, code blocks, bullet lists, numbered lists,
-// line breaks, and tables. No external deps.
-function renderMarkdown(text: string): React.ReactNode {
+// line breaks, tables, and iframe embeds. No external deps.
+// Iframe syntax: [iframe](https://url.com) Title
+// Note: Superset domain from config is automatically whitelisted for iframes
+function renderMarkdown(text: string, supersetUrl: string): React.ReactNode {
   const lines = text.split("\n");
   const nodes: React.ReactNode[] = [];
   let i = 0;
@@ -244,6 +246,86 @@ function renderMarkdown(text: string): React.ReactNode {
           {inlineRender(hMatch[2])}
         </p>
       );
+      i++;
+      continue;
+    }
+
+    // Iframe embedding
+    const iframeMatch = line.match(/^\[iframe\]\(([^\s]+)\)\s*(.*)$/);
+    if (iframeMatch) {
+      const iframeUrl = iframeMatch[1];
+      const iframeTitle = iframeMatch[2].trim() || "Embedded Content";
+      
+      // Security: Only allow HTTPS URLs from trusted domains
+      // Dynamically include the configured Superset domain
+      const allowedDomains = [
+        "youtube.com", "youtu.be",
+        "vimeo.com",
+        "pages.hyperset.internal" // Allow internal pages
+      ];
+      
+      // Add the configured Superset domain to the whitelist
+      try {
+        const supersetUrlObj = new URL(supersetUrl);
+        allowedDomains.push(supersetUrlObj.hostname);
+      } catch {
+        // If supersetUrl is invalid, fall back to default
+        allowedDomains.push("superset.hyperset.internal");
+      }
+      
+      try {
+        const url = new URL(iframeUrl);
+        const isAllowed = allowedDomains.some(domain => 
+          url.hostname === domain || url.hostname.endsWith("." + domain)
+        );
+        
+        if (isAllowed && url.protocol === "https:") {
+          nodes.push(
+            <div key={key()} style={{ margin: "12px 0" }}>
+              <div style={{ 
+                fontSize: "11px", 
+                color: "var(--md-on-surface)", 
+                opacity: 0.7,
+                marginBottom: "4px",
+                fontWeight: 500 
+              }}>
+                {iframeTitle}
+              </div>
+              <div style={{ 
+                border: "1px solid var(--md-outline-var)",
+                borderRadius: "8px",
+                overflow: "hidden",
+                background: "var(--md-surface-cont)"
+              }}>
+                <iframe
+                  src={iframeUrl}
+                  title={iframeTitle}
+                  style={{ 
+                    width: "100%",
+                    height: "300px",
+                    border: "none",
+                    display: "block"
+                  }}
+                  sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+                  allowFullScreen
+                />
+              </div>
+            </div>
+          );
+        } else {
+          // Show URL as link if not allowed
+          nodes.push(
+            <p key={key()} style={{ margin: "2px 0", lineHeight: 1.6, color: "var(--md-primary)" }}>
+              🔒 <a href={iframeUrl} target="_blank" rel="noopener noreferrer" style={{ color: "var(--md-primary)" }}>
+                {iframeTitle || iframeUrl}
+              </a> (external content not embedded for security)
+            </p>
+          );
+        }
+      } catch {
+        // Invalid URL - show as text
+        nodes.push(<p key={key()} style={{ margin: "2px 0", lineHeight: 1.6 }}>{inlineRender(line)}</p>);
+      }
       i++;
       continue;
     }
@@ -388,7 +470,7 @@ function ToolStep({ tc }: { tc: ToolCall }) {
 }
 
 // ── Message bubble ────────────────────────────────────────────────
-function MessageBubble({ msg }: { msg: Message }) {
+function MessageBubble({ msg, supersetUrl }: { msg: Message; supersetUrl: string }) {
   const isUser = msg.role === "user";
   return (
     <div style={{
@@ -410,7 +492,7 @@ function MessageBubble({ msg }: { msg: Message }) {
           lineHeight: 1.55,
           wordBreak: "break-word",
         }}>
-          {isUser ? msg.content : renderMarkdown(msg.content)}
+          {isUser ? msg.content : renderMarkdown(msg.content, supersetUrl)}
           {msg.streaming && (
             <span style={{
               display: "inline-block", width: 6, height: 13,
@@ -740,7 +822,7 @@ export function ChatPanel({
             <span style={{ fontSize: 13 }}>Hello! Ask me anything about your data.</span>
           </div>
         )}
-        {messages.map((msg) => <MessageBubble key={msg.id} msg={msg} />)}
+        {messages.map((msg) => <MessageBubble key={msg.id} msg={msg} supersetUrl={supersetUrl} />)}
         <div ref={messagesEndRef} />
       </div>
 
