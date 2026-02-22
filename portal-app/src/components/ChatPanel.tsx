@@ -1061,23 +1061,25 @@ export function ChatPanel({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input area */}
+      {/* Floating Input area */}
       <div style={{
-        padding: "12px 12px 12px 16px",
-        display: "flex", gap: 10, alignItems: "flex-end", flexShrink: 0,
-        background: "var(--md-surface)",
-        borderTop: "1px solid var(--md-outline-var)",
+        padding: "16px 20px 20px 24px",
+        display: "flex", 
+        flexShrink: 0,
+        background: "transparent",
+        position: "relative",
       }}>
         <div style={{
           flex: 1,
           position: "relative",
-          borderRadius: 12,
-          background: "var(--md-surface-cont-hi)",
-          border: "1px solid transparent",
-          transition: "border-color 0.2s, box-shadow 0.2s",
+          borderRadius: 24,
+          background: "var(--md-surface)",
+          border: "1px solid var(--md-outline-var)",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+          transition: "all 0.2s ease",
           ...(input.trim() && {
             borderColor: "var(--md-primary)",
-            borderWidth: "1.5px",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
           })
         }}>
           <textarea
@@ -1092,8 +1094,8 @@ export function ChatPanel({
             style={{
               flex: 1, resize: "none", 
               border: "none",
-              borderRadius: 12, 
-              padding: "10px 14px 10px 48px", 
+              borderRadius: 24, 
+              padding: "12px 52px 12px 20px", 
               fontSize: 14,
               background: "transparent", 
               color: "var(--md-on-surface)",
@@ -1102,49 +1104,52 @@ export function ChatPanel({
               lineHeight: `${LINE_HEIGHT}px`,
               overflowY: "hidden",
               opacity: (loading || !!chatError) ? 0.6 : 1,
-              transition: "height 0.1s ease, padding 0.1s ease",
-              minHeight: 40,
+              transition: "height 0.1s ease",
+              minHeight: 48,
+              width: "100%",
             }}
           />
           <div style={{
             position: "absolute",
-            left: 16,
+            right: 16,
             top: "50%",
             transform: "translateY(-50%)",
             pointerEvents: "none",
-            opacity: input.trim() ? 1 : 0.5,
-            transition: "opacity 0.2s",
+            opacity: input.trim() ? 1 : 0.3,
+            transition: "opacity 0.2s, transform 0.1s",
+            transform: input.trim() ? "translateY(-50%) scale(1)" : "translateY(-50%) scale(0.9)",
           }}>
-            <svg viewBox="0 0 24 24" width={18} height={18} fill="var(--md-primary)">
-              <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
-            </svg>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (input.trim() && !loading && !chatError) sendMessage();
+              }}
+              disabled={!input.trim() || loading || !!chatError}
+              title="Send"
+              style={{
+                border: "none",
+                background: "transparent",
+                cursor: (!input.trim() || loading || !!chatError) ? "default" : "pointer",
+                padding: "4px",
+                borderRadius: "50%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                pointerEvents: "auto",
+              }}
+            >
+              {loading ? (
+                <svg viewBox="0 0 24 24" width={20} height={20} fill="var(--md-primary)" style={{ animation: "spin 1s linear infinite" }}>
+                  <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/>
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" width={20} height={20} fill="var(--md-primary)">
+                  <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" transform="rotate(-45 12 12)" />
+                </svg>
+              )}
+            </button>
           </div>
         </div>
-        <button
-          onClick={sendMessage}
-          disabled={!input.trim() || loading || !!chatError}
-          title="Send (Enter)"
-          style={{
-            width: 40, height: 40, border: "none", borderRadius: "50%",
-            background: (!input.trim() || loading || !!chatError) ? "var(--md-surface-cont)" : "var(--md-primary)",
-            color: (!input.trim() || loading || !!chatError) ? "var(--md-on-surface)" : "#fff",
-            cursor: (!input.trim() || loading || !!chatError) ? "default" : "pointer",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            flexShrink: 0, transition: "background 0.2s, transform 0.1s",
-            opacity: (!input.trim() || loading || !!chatError) ? 0.6 : 1,
-            transform: input.trim() ? "scale(1)" : "scale(0.9)",
-          }}
-        >
-          {loading ? (
-            <svg viewBox="0 0 24 24" width={16} height={16} fill="currentColor" style={{ animation: "spin 1s linear infinite" }}>
-              <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/>
-            </svg>
-          ) : (
-            <svg viewBox="0 0 24 24" width={16} height={16} fill="currentColor">
-              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
-            </svg>
-          )}
-        </button>
       </div>
 
       {/* Admin modal */}
