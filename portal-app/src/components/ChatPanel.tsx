@@ -116,7 +116,7 @@ function parseMarkdownTable(lines: string[]): ParsedTable | null {
 // line breaks, tables, and iframe embeds. No external deps.
 // Iframe syntax: [iframe](https://url.com) Title
 // Note: Superset domain from config is automatically whitelisted for iframes
-function renderMarkdown(text: string): React.ReactNode {
+function renderMarkdown(text: string, supersetUrl: string): React.ReactNode {
   const lines = text.split("\n");
   const nodes: React.ReactNode[] = [];
   let i = 0;
@@ -470,7 +470,7 @@ function ToolStep({ tc }: { tc: ToolCall }) {
 }
 
 // ── Message bubble ────────────────────────────────────────────────
-function MessageBubble({ msg }: { msg: Message }) {
+function MessageBubble({ msg, supersetUrl }: { msg: Message; supersetUrl: string }) {
   const isUser = msg.role === "user";
   return (
     <div style={{
@@ -492,7 +492,7 @@ function MessageBubble({ msg }: { msg: Message }) {
           lineHeight: 1.55,
           wordBreak: "break-word",
         }}>
-          {isUser ? msg.content : renderMarkdown(msg.content)}
+          {isUser ? msg.content : renderMarkdown(msg.content, supersetUrl)}
           {msg.streaming && (
             <span style={{
               display: "inline-block", width: 6, height: 13,
@@ -822,7 +822,7 @@ export function ChatPanel({
             <span style={{ fontSize: 13 }}>Hello! Ask me anything about your data.</span>
           </div>
         )}
-        {messages.map((msg) => <MessageBubble key={msg.id} msg={msg} />)}
+        {messages.map((msg) => <MessageBubble key={msg.id} msg={msg} supersetUrl={supersetUrl} />)}
         <div ref={messagesEndRef} />
       </div>
 
