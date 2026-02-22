@@ -32,9 +32,88 @@ export interface Message {
   streaming?: boolean;
 }
 
+// ── Table parsing helper ──────────────────────────────────────────
+interface ParsedTable {
+  headers: string[];
+  alignments: ("left" | "right" | "center")[];
+  rows: string[][];
+}
+
+function parseMarkdownTable(lines: string[]): ParsedTable | null {
+  if (lines.length < 2) return null;
+
+  // Parse header row
+  const headerLine = lines[0].trim();
+  if (!headerLine.startsWith("|") || !headerLine.endsWith("|")) return null;
+
+  const headerCells = headerLine
+    .split("|")
+    .slice(1, -1) // Remove empty first/last from |header1|header2|
+    .map(cell => cell.trim());
+
+  if (headerCells.length === 0) return null;
+
+  // Parse alignment row (second line)
+  const alignLine = lines[1].trim();
+  const alignments: ("left" | "right" | "center")[] = [];
+
+  if (alignLine.startsWith("|") && alignLine.endsWith("|")) {
+    const alignParts = alignLine.split("|").slice(1, -1);
+    for (const part of alignParts) {
+      const trimmed = part.trim();
+      if (trimmed.startsWith(":") && trimmed.endsWith(":")) {
+        alignments.push("center");
+      } else if (trimmed.startsWith(":")) {
+        alignments.push("left");
+      } else if (trimmed.endsWith(":")) {
+        alignments.push("right");
+      } else {
+        alignments.push("left"); // default
+      }
+    }
+  }
+
+  // If no alignment row or it doesn't match, default to left alignment
+  if (alignments.length !== headerCells.length) {
+    alignments.length = 0; // clear and rebuild with defaults
+    for (let i = 0; i < headerCells.length; i++) {
+      alignments.push("left");
+    }
+  }
+
+  // Parse data rows (skip header and alignment lines)
+  const rows: string[][] = [];
+  for (let i = 2; i < lines.length; i++) {
+    const rowLine = lines[i].trim();
+    
+    // Be more lenient - allow rows that contain | even if they don't start/end with |
+    if (!rowLine.includes("|")) continue;
+
+    // Clean up the line by ensuring it starts and ends with |
+    let cleanLine = rowLine;
+    if (!cleanLine.startsWith("|")) cleanLine = "|" + cleanLine;
+    if (!cleanLine.endsWith("|")) cleanLine = cleanLine + "|";
+
+    const rowCells = cleanLine
+      .split("|")
+      .slice(1, -1)
+      .map(cell => cell.trim());
+
+    if (rowCells.length === headerCells.length) {
+      rows.push(rowCells);
+    }
+  }
+
+  return {
+    headers: headerCells,
+    alignments,
+    rows
+  };
+}
+
 // ── Markdown-lite renderer ────────────────────────────────────────
 // Handles bold, italic, inline code, code blocks, bullet lists, numbered lists,
-// and line breaks. No external deps.
+// line breaks, and tables. No external deps.
 function renderMarkdown(text: string): React.ReactNode {
   const lines = text.split("\n");
   const nodes: React.ReactNode[] = [];
@@ -87,6 +166,72 @@ function renderMarkdown(text: string): React.ReactNode {
       }
       nodes.push(<ol key={key()} style={{ margin: "4px 0 4px 16px", padding: 0 }}>{items}</ol>);
       continue;
+    }
+
+    // Table
+    if (line.includes("|") && !line.startsWith("    ") && !line.startsWith("\t")) {
+      // Parse table - collect all consecutive lines that look like table rows
+      const tableLines: string[] = [line];
+      i++;
+      while (i < lines.length) {
+        const nextLine = lines[i];
+        if (nextLine.includes("|") && !nextLine.startsWith("    ") && !nextLine.startsWith("\t")) {
+          tableLines.push(nextLine);
+          i++;
+        } else {
+          break;
+        }
+      }
+
+      // Parse table structure
+      const parsedTable = parseMarkdownTable(tableLines);
+      if (parsedTable) {
+        nodes.push(
+          <div key={key()} style={{ overflowX: "auto", margin: "8px 0" }}>
+            <table style={{ 
+              borderCollapse: "collapse", 
+              width: "100%",
+              fontSize: "12px",
+              border: "1px solid var(--md-outline-var)"
+            }}>
+              <thead>
+                <tr style={{ background: "var(--md-surface-cont-hi)" }}>
+                  {parsedTable.headers.map((header, colIndex) => (
+                    <th key={colIndex} style={{ 
+                      padding: "6px 10px",
+                      textAlign: parsedTable.alignments[colIndex] || "left",
+                      border: "1px solid var(--md-outline-var)",
+                      fontWeight: 600,
+                      color: "var(--md-on-surface)"
+                    }}>
+                      {inlineRender(header.trim())}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {parsedTable.rows.map((row, rowIndex) => (
+                  <tr key={rowIndex} style={{ 
+                    background: rowIndex % 2 === 0 ? "var(--md-surface)" : "var(--md-surface-cont-hi)"
+                  }}>
+                    {row.map((cell, cellIndex) => (
+                      <td key={cellIndex} style={{ 
+                        padding: "6px 10px",
+                        textAlign: parsedTable.alignments[cellIndex] || "left",
+                        border: "1px solid var(--md-outline-var)",
+                        color: "var(--md-on-surface)"
+                      }}>
+                        {inlineRender(cell.trim())}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+        continue;
+      }
     }
 
     // Heading
