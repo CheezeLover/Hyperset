@@ -188,19 +188,10 @@ export const POST = async (req: NextRequest) => {
     // CopilotKit sends POST { method: "info" } expecting { agents: {...} } JSON.
     // Forwarding to handleRequest() returns a GraphQL streaming response the
     // client cannot parse → permanent spinner.
+    // We must include a "default" agent entry or the CopilotKit client throws.
     if (isInfoRequest) {
       console.log(`[chat] Returning info response`);
-      return NextResponse.json({ agents: {} });
-    }
-
-    // --- Block agent/* methods before they reach handleRequest ---
-    // CopilotKit's agent runner uses the Vercel AI SDK which calls /responses —
-    // an endpoint that most OpenAI-compatible providers (including Mistral) don't
-    // implement. We don't use CopilotKit agents, so return a 404 that the client
-    // will silently ignore, keeping normal action-based chat working.
-    if (bodyMethod?.startsWith("agent/")) {
-      console.log(`[chat] Blocking agent method: ${bodyMethod}`);
-      return NextResponse.json({ error: "Agents not supported" }, { status: 404 });
+      return NextResponse.json({ agents: { default: { description: "" } } });
     }
 
     // --- Resolve LLM settings ---
