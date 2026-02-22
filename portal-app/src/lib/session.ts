@@ -9,10 +9,8 @@ export interface LlmSettings {
 }
 
 export interface SessionData {
-  /** Runtime override for the admin LLM API */
-  adminSettings?: LlmSettings;
-  /** Runtime override for the user (chat) LLM API */
-  chatSettings?: LlmSettings;
+  /** Runtime override for the LLM API (set by admin, applies to all users) */
+  llmSettings?: LlmSettings;
 }
 
 const sessionOptions = {

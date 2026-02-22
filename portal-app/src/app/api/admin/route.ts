@@ -23,7 +23,7 @@ function requireAdmin(request: NextRequest) {
   return null;
 }
 
-/** GET /api/admin — return current effective settings for both APIs */
+/** GET /api/admin — return current effective LLM settings */
 export async function GET(request: NextRequest) {
   const denied = requireAdmin(request);
   if (denied) return denied;
@@ -32,22 +32,14 @@ export async function GET(request: NextRequest) {
   const session = await getIronSession<SessionData>(request, response, sessionOptions);
 
   return NextResponse.json({
-    admin: {
-      apiUrl: session.adminSettings?.apiUrl ?? process.env.ADMIN_API_URL ?? "",
-      apiKey: session.adminSettings?.apiKey ? "***" : "",
-      model: session.adminSettings?.model ?? process.env.ADMIN_MODEL ?? "gpt-4o",
-      isCustom: !!(session.adminSettings?.apiUrl || session.adminSettings?.apiKey || session.adminSettings?.model),
-    },
-    chat: {
-      apiUrl: session.chatSettings?.apiUrl ?? process.env.CHAT_API_URL ?? "",
-      apiKey: session.chatSettings?.apiKey ? "***" : "",
-      model: session.chatSettings?.model ?? process.env.CHAT_MODEL ?? "gpt-4o",
-      isCustom: !!(session.chatSettings?.apiUrl || session.chatSettings?.apiKey || session.chatSettings?.model),
-    },
+    apiUrl: session.llmSettings?.apiUrl ?? process.env.LLM_API_URL ?? "",
+    apiKey: session.llmSettings?.apiKey ? "***" : "",
+    model: session.llmSettings?.model ?? process.env.LLM_MODEL ?? "gpt-4o",
+    isCustom: !!(session.llmSettings?.apiUrl || session.llmSettings?.apiKey || session.llmSettings?.model),
   });
 }
 
-/** POST /api/admin — save settings for admin and/or chat API */
+/** POST /api/admin — save LLM settings (admin-only, applies to all users) */
 export async function POST(request: NextRequest) {
   const denied = requireAdmin(request);
   if (denied) return denied;
@@ -56,55 +48,32 @@ export async function POST(request: NextRequest) {
   const response = NextResponse.json({ ok: true });
   const session = await getIronSession<SessionData>(request, response, sessionOptions);
 
-  // Update admin settings if provided
-  if (body.admin) {
-    const prev = session.adminSettings ?? {};
-    session.adminSettings = {
-      apiUrl: body.admin.apiUrl || prev.apiUrl,
-      apiKey:
-        body.admin.apiKey && body.admin.apiKey !== "***"
-          ? body.admin.apiKey
-          : prev.apiKey,
-      model: body.admin.model || prev.model,
-    };
-  }
-
-  // Update chat settings if provided
-  if (body.chat) {
-    const prev = session.chatSettings ?? {};
-    session.chatSettings = {
-      apiUrl: body.chat.apiUrl || prev.apiUrl,
-      apiKey:
-        body.chat.apiKey && body.chat.apiKey !== "***"
-          ? body.chat.apiKey
-          : prev.apiKey,
-      model: body.chat.model || prev.model,
-    };
-  }
+  const prev = session.llmSettings ?? {};
+  session.llmSettings = {
+    apiUrl: body.apiUrl !== undefined ? body.apiUrl : prev.apiUrl,
+    apiKey: body.apiKey && body.apiKey !== "***" ? body.apiKey : prev.apiKey,
+    model: body.model !== undefined ? body.model : prev.model,
+  };
 
   await session.save();
   return response;
 }
 
-/** DELETE /api/admin — reset all runtime overrides back to env defaults */
+/** DELETE /api/admin — reset runtime overrides back to env defaults */
 export async function DELETE(request: NextRequest) {
   const denied = requireAdmin(request);
   if (denied) return denied;
 
-  const { searchParams } = new URL(request.url);
-  const target = searchParams.get("target"); // "admin" | "chat" | null (both)
-
   const response = NextResponse.json({ ok: true });
   const session = await getIronSession<SessionData>(request, response, sessionOptions);
 
-  if (!target || target === "admin") session.adminSettings = undefined;
-  if (!target || target === "chat") session.chatSettings = undefined;
+  session.llmSettings = undefined;
 
   await session.save();
   return response;
 }
 
-/** POST /api/admin/test — validate an API config by making a minimal call */
+/** PATCH /api/admin — validate an API config by making a minimal call */
 export async function PATCH(request: NextRequest) {
   const denied = requireAdmin(request);
   if (denied) return denied;
@@ -126,7 +95,6 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ ok: replied, model: res.model });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    // Extract HTTP status if present
     const status = (err as { status?: number }).status;
     return NextResponse.json(
       { ok: false, error: msg, status },
