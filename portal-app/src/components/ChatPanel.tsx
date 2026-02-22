@@ -17,6 +17,16 @@ interface ChatPanelProps {
 // ── Message types ────────────────────────────────────────────────
 type Role = "user" | "assistant" | "tool";
 
+interface ChatEvent {
+  type: "delta" | "tool_call" | "tool_result" | "done" | "error" | "followup_suggestions";
+  content?: string;
+  name?: string;
+  args?: Record<string, unknown>;
+  result?: string;
+  message?: string;
+  suggestions?: unknown; // Will be validated as string[]
+}
+
 export interface ToolCall {
   name: string;
   args: Record<string, unknown>;
@@ -754,7 +764,7 @@ export function ChatPanel({
 
         for (const line of lines) {
           if (!line.trim()) continue;
-          let event: Record<string, unknown>;
+          let event: ChatEvent;
           try { event = JSON.parse(line); } catch { continue; }
 
           if (event.type === "delta") {
@@ -801,8 +811,12 @@ export function ChatPanel({
               : m
             ));
           } else if (event.type === "followup_suggestions") {
+            // Validate that suggestions is a string array
+            const suggestions = Array.isArray(event.suggestions)
+              ? event.suggestions.filter((s): s is string => typeof s === "string")
+              : [];
             setMessages((prev) => prev.map((m) => m.id === assistantId
-              ? { ...m, followupSuggestions: event.suggestions }
+              ? { ...m, followupSuggestions: suggestions }
               : m
             ));
           } else if (event.type === "error") {
