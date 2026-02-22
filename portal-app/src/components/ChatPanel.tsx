@@ -531,7 +531,7 @@ function FollowupSuggestions({ suggestions, onSuggestionClick }: {
   onSuggestionClick: (suggestion: string) => void;
 }) {
   return (
-    <div style{{
+    <div style={{
       display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8, padding: "0 8px",
     }}>
       {suggestions.map((suggestion, index) => (
