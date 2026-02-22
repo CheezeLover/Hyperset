@@ -68,6 +68,51 @@
           "organization": "authp"
         }
       ]
+    },
+    {
+      "id": "test-user-id",
+      "username": "user",
+      "name": {
+        "last": "User",
+        "alias": true
+      },
+      "names": [
+        {
+          "last": "User",
+          "alias": true
+        }
+      ],
+      "email_address": {
+        "address": "user@test.com",
+        "domain": "test.com"
+      },
+      "email_addresses": [
+        {
+          "address": "user@test.com",
+          "domain": "test.com"
+        }
+      ],
+      "passwords": [
+        {
+          "purpose": "generic",
+          "algorithm": "bcrypt",
+          "hash": "$2a$10$N9qo8uLOickgx2ZMRZoMy.Mr7RYL5xytDd8pzUhlO4NXUQW6pS4F2",
+          "cost": 10,
+          "expired_at": "0001-01-01T00:00:00Z",
+          "created_at": "2026-02-22T00:00:00Z",
+          "disabled_at": "0001-01-01T00:00:00Z"
+        }
+      ],
+      "created": "2026-02-22T00:00:00Z",
+      "last_modified": "2026-02-22T00:00:00Z",
+      "roles": [
+        {
+          "name": "user",
+          "organization": "authp"
+        }
+      ]
     }
-  ]
+  ],
+  "revision": 8,
+  "last_modified": "2026-02-22T14:00:00.000000Z"
 }
