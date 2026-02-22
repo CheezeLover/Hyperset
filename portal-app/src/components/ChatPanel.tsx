@@ -850,10 +850,133 @@ export function ChatPanel({
   const handleClear = () => setMessages(() => []);
   
   const handleSuggestionClick = useCallback((suggestion: string) => {
-    // Send the suggestion immediately
+    // Send the suggestion immediately without validation
+    const userMsg: Message = { 
+      id: Date.now().toString(), 
+      role: "user", 
+      content: suggestion 
+    };
+    setMessages((prev) => [...prev, userMsg]);
     setInput(suggestion);
-    sendMessage();
-  }, [sendMessage]);
+    
+    // Build messages array for the API
+    const history = [...messages, userMsg].map((m) => ({
+      role: m.role === "tool" ? "user" : m.role,
+      content: m.content,
+    }));
+
+    const assistantId = (Date.now() + 1).toString();
+    setMessages((prev) => [...prev, { 
+      id: assistantId, 
+      role: "assistant", 
+      content: "", 
+      streaming: true, 
+      toolCalls: [] 
+    }]);
+    setLoading(true);
+
+    // Call the API directly
+    fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages: history }),
+    })
+    .then(async (response) => {
+      if (!response.ok || !response.body) {
+        const err = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+        setMessages((prev) => prev.map((m) => m.id === assistantId
+          ? { ...m, content: err.error ?? "Error", streaming: false }
+          : m
+        ));
+        return;
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let currentToolCallIndex: number | null = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          let event: ChatEvent;
+          try { event = JSON.parse(line); } catch { continue; }
+
+          if (event.type === "delta") {
+            setMessages((prev) => prev.map((m) => m.id === assistantId
+              ? { ...m, content: m.content + (event.content as string) }
+              : m
+            ));
+          } else if (event.type === "tool_call") {
+            currentToolCallIndex = Date.now();
+            const tc: ToolCall = { name: event.name as string, args: event.args as Record<string, unknown> };
+            if (event.name === "navigate_superset_dashboard") {
+              supersetIframeRef.current?.contentWindow?.postMessage(
+                { type: "navigate_dashboard", dashboardId: (event.args as Record<string, unknown>).dashboardId },
+                supersetOrigin
+              );
+            } else if (event.name === "navigate_superset_chart") {
+              supersetIframeRef.current?.contentWindow?.postMessage(
+                { type: "navigate_chart", chartId: (event.args as Record<string, unknown>).chartId },
+                supersetOrigin
+              );
+            }
+            setMessages((prev) => prev.map((m) => m.id === assistantId
+              ? { ...m, toolCalls: [...(m.toolCalls ?? []), tc] }
+              : m
+            ));
+          } else if (event.type === "tool_result") {
+            setMessages((prev) => prev.map((m) => {
+              if (m.id !== assistantId) return m;
+              const calls = [...(m.toolCalls ?? [])];
+              for (let i = calls.length - 1; i >= 0; i--) {
+                if (calls[i].name === event.name && calls[i].result === undefined) {
+                  calls[i] = { ...calls[i], result: event.result as string };
+                  break;
+                }
+              }
+              return { ...m, toolCalls: calls };
+            }));
+          } else if (event.type === "followup_suggestions") {
+            const suggestions = Array.isArray(event.suggestions)
+              ? event.suggestions.filter((s): s is string => typeof s === "string")
+              : [];
+            setMessages((prev) => prev.map((m) => m.id === assistantId
+              ? { ...m, followupSuggestions: suggestions }
+              : m
+            ));
+          } else if (event.type === "done") {
+            setMessages((prev) => prev.map((m) => m.id === assistantId
+              ? { ...m, streaming: false }
+              : m
+            ));
+          } else if (event.type === "error") {
+            setMessages((prev) => prev.map((m) => m.id === assistantId
+              ? { ...m, content: m.content || (event.message as string), streaming: false }
+              : m
+            ));
+          }
+        }
+      }
+    })
+    .catch((err) => {
+      const msg = err instanceof Error ? err.message : "Network error";
+      setMessages((prev) => prev.map((m) => m.id === assistantId
+        ? { ...m, content: msg, streaming: false }
+        : m
+      ));
+    })
+    .finally(() => {
+      setLoading(false);
+    });
+  }, [messages, supersetIframeRef, supersetOrigin]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--md-surface-cont)" }}>
