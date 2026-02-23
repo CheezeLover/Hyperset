@@ -213,6 +213,17 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# 3c. Ensure Podman can resolve short image names (e.g. redis:7, postgres:16)
+# ---------------------------------------------------------------------------
+if has_cmd podman && [[ ! -f /etc/containers/registries.conf.d/docker.conf ]]; then
+    info "Configuring Podman to use Docker Hub for short image names..."
+    sudo mkdir -p /etc/containers/registries.conf.d
+    echo 'unqualified-search-registries = ["docker.io"]' \
+        | sudo tee /etc/containers/registries.conf.d/docker.conf > /dev/null
+    success "Podman registry config written"
+fi
+
+# ---------------------------------------------------------------------------
 # 4. Start the stack
 # ---------------------------------------------------------------------------
 info "Starting Superset with $COMPOSE_CMD (image tag: ${SUPERSET_VERSION})..."
