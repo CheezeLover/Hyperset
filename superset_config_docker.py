@@ -10,9 +10,11 @@
 #   - https://github.com/apache/superset/issues/36117 (LocalProxy bug)
 #   - Superset's SupersetAuthView shadowing FAB's authremoteuserview
 #
-# Strategy: instead of fighting view registration order, we use
-# FLASK_APP_MUTATOR to install a before_request hook that auto-logs in
-# the user from REMOTE_USER on every request — including /login/.
+# Strategy: FLASK_APP_MUTATOR installs a before_request hook that auto-logs
+# in the user from REMOTE_USER on every request — including /login/.
+#
+# Role assignment: roles from the X-Webauth-Groups header are applied ONLY
+# at user creation time. After that, roles are managed in Superset.
 # =============================================================================
 
 import os
@@ -35,13 +37,15 @@ RECAPTCHA_PRIVATE_KEY = ""
 REMOTE_USER_ENV_VAR = "HTTP_X_WEBAUTH_USER"
 
 AUTH_USER_REGISTRATION = True
-AUTH_USER_REGISTRATION_ROLE = "Admin"
+AUTH_USER_REGISTRATION_ROLE = "Gamma"  # fallback if no role header present
+
+# Do NOT sync roles on every login — only set at creation
+AUTH_ROLES_SYNC_AT_LOGIN = False
 
 AUTH_ROLES_MAPPING = {
     os.getenv("HYPERSET_ADMIN_ROLE_HEADER", "hyperset/admin"): ["Admin"],
     os.getenv("HYPERSET_USER_ROLE_HEADER", "hyperset/user"):   ["Gamma"],
 }
-AUTH_ROLES_SYNC_AT_LOGIN = True
 
 # ---------------------------------------------------------------------------
 # Security
@@ -71,7 +75,6 @@ WTF_CSRF_ENABLED = False
 # ---------------------------------------------------------------------------
 # Embedded / guest token support
 # ---------------------------------------------------------------------------
-
 FEATURE_FLAGS = {
     "EMBEDDED_SUPERSET": True,
     "ENABLE_TEMPLATE_PROCESSING": True,
@@ -149,22 +152,56 @@ ADDITIONAL_MIDDLEWARE = [HypersetRemoteUserMiddleware]
 # ---------------------------------------------------------------------------
 # Custom Security Manager — patches auth_user_remote_user to avoid
 # the LocalProxy bug in Superset 6.0 (issue #36117)
+#
+# Reads X-Webauth-Groups header at creation time to determine initial role.
+# After creation, roles are managed in Superset (AUTH_ROLES_SYNC_AT_LOGIN=False).
 # ---------------------------------------------------------------------------
 class HypersetSecurityManager(SupersetSecurityManager):
+
+    def _resolve_initial_role(self):
+        """
+        Read the X-Webauth-Groups header (space-separated roles from Caddy)
+        and return the highest-privilege Superset role.
+        Falls back to AUTH_USER_REGISTRATION_ROLE if no match.
+        """
+        roles_header = request.environ.get("HTTP_X_WEBAUTH_GROUPS", "")
+        caddy_roles = roles_header.split() if roles_header else []
+
+        # Check for admin first (highest privilege wins)
+        admin_key = os.getenv("HYPERSET_ADMIN_ROLE_HEADER", "hyperset/admin")
+        user_key = os.getenv("HYPERSET_USER_ROLE_HEADER", "hyperset/user")
+
+        if admin_key in caddy_roles:
+            return self.find_role("Admin")
+        elif user_key in caddy_roles:
+            return self.find_role("Gamma")
+
+        # Fallback
+        return self.find_role(self.auth_user_registration_role)
 
     def auth_user_remote_user(self, username):
         """
         Override that avoids passing g.user (a LocalProxy) to session.add().
+        On first login (user creation), reads roles from Caddy header.
+        On subsequent logins, just logs in without touching roles.
         """
         user = self.find_user(username=username)
 
         if user is None and self.auth_user_registration:
+            # New user — resolve role from Caddy header
+            initial_role = self._resolve_initial_role()
+
+            # Extract email from header if available
+            email = request.environ.get("HTTP_X_WEBAUTH_EMAIL", "")
+            if not email:
+                email = f"{username}@hyperset.local"
+
             user = self.add_user(
                 username=username,
-                first_name=username,
+                first_name=username.split("@")[0].title(),
                 last_name="",
-                email=f"{username}@hyperset.local",
-                role=self.find_role(self.auth_user_registration_role),
+                email=email,
+                role=initial_role,
             )
 
         if user:
@@ -175,14 +212,10 @@ class HypersetSecurityManager(SupersetSecurityManager):
 CUSTOM_SECURITY_MANAGER = HypersetSecurityManager
 
 # ---------------------------------------------------------------------------
-# FLASK_APP_MUTATOR — runs after the app is fully created, including all
-# view registrations. Installs a before_request hook that:
+# FLASK_APP_MUTATOR — installs a before_request hook that:
 #   1. Reads REMOTE_USER (set by the WSGI middleware above)
 #   2. Logs the user in via our patched auth_user_remote_user
 #   3. Redirects /login/ to the index if already authenticated
-#
-# This bypasses the SupersetAuthView vs AuthRemoteUserView conflict
-# entirely — auth happens before any view runs.
 # ---------------------------------------------------------------------------
 def FLASK_APP_MUTATOR(app):
 
@@ -199,7 +232,6 @@ def FLASK_APP_MUTATOR(app):
         # Already logged in as the correct user — nothing to do
         if current_user and current_user.is_authenticated:
             if current_user.username == remote_user:
-                # If they're hitting /login/ while already authenticated, redirect
                 if request.path.rstrip("/") == "/login":
                     return redirect("/superset/welcome/")
                 return None
@@ -211,7 +243,6 @@ def FLASK_APP_MUTATOR(app):
             login_user(user)
             g.user = user
 
-            # Redirect away from login page
             if request.path.rstrip("/") == "/login":
                 next_url = request.args.get("next", "/superset/welcome/")
                 return redirect(next_url)
