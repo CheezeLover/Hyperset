@@ -158,8 +158,8 @@ SECRET_KEY=${SUPERSET_SECRET_KEY}
 # Expose Superset on a specific port (Caddy will proxy to this)
 SUPERSET_PORT=${SUPERSET_PORT}
 
-# Tell docker compose to use our custom Python config file
-SUPERSET_CONFIG_PATH=/app/pythonpath/superset_config_docker.py
+# superset_config_docker.py is picked up automatically via PYTHONPATH
+# (no SUPERSET_CONFIG_PATH override needed)
 
 # Image tag pinned to the version we cloned
 TAG=${SUPERSET_VERSION}
@@ -168,11 +168,12 @@ success "docker/.env-local written"
 
 # ---------------------------------------------------------------------------
 # 3. Write superset_config_docker.py
-#    Placed in docker/pythonpath/ which is volume-mounted by the
-#    official docker-compose stack at /app/pythonpath/.
+#    Placed in docker/pythonpath_dev/ — mounted at /app/docker/pythonpath_dev
+#    and included in PYTHONPATH, so Superset auto-discovers it.
 # ---------------------------------------------------------------------------
-info "Writing docker/pythonpath/superset_config_docker.py..."
-cat > docker/pythonpath/superset_config_docker.py << 'PYEOF'
+info "Writing docker/pythonpath_dev/superset_config_docker.py..."
+mkdir -p docker/pythonpath_dev
+cat > docker/pythonpath_dev/superset_config_docker.py << 'PYEOF'
 # =============================================================================
 # superset_config_docker.py
 # Hyperset-compatible Superset configuration
