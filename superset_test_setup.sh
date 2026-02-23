@@ -108,12 +108,21 @@ else
         curl -fsSL https://get.docker.com | sudo sh
     fi
     sudo systemctl enable --now docker
-    COMPOSE_CMD="docker compose"
-    success "docker installed"
+    # Add current user to the docker group so we can use it without sudo
+    sudo usermod -aG docker "$USER"
+    COMPOSE_CMD="sudo docker compose"
+    success "docker installed — NOTE: log out and back in after this session to use docker without sudo"
 fi
 
-# Verify compose works
-$COMPOSE_CMD version &>/dev/null || error "'$COMPOSE_CMD' is not working. Check your installation."
+# Verify compose works — use sudo if needed (fresh install, user not yet in docker group)
+if ! $COMPOSE_CMD version &>/dev/null; then
+    if sudo docker compose version &>/dev/null 2>&1; then
+        # Prepend sudo for this session
+        COMPOSE_CMD="sudo $COMPOSE_CMD"
+    else
+        error "'$COMPOSE_CMD' is not working. Check your installation."
+    fi
+fi
 success "Compose OK ($COMPOSE_CMD)"
 
 # ---------------------------------------------------------------------------
@@ -159,11 +168,11 @@ success "docker/.env-local written"
 
 # ---------------------------------------------------------------------------
 # 3. Write superset_config_docker.py
-#    Placed in docker/pythonpath_dev/ which is already volume-mounted by the
+#    Placed in docker/pythonpath/ which is volume-mounted by the
 #    official docker-compose stack at /app/pythonpath/.
 # ---------------------------------------------------------------------------
-info "Writing docker/pythonpath_dev/superset_config_docker.py..."
-cat > docker/pythonpath_dev/superset_config_docker.py << 'PYEOF'
+info "Writing docker/pythonpath/superset_config_docker.py..."
+cat > docker/pythonpath/superset_config_docker.py << 'PYEOF'
 # =============================================================================
 # superset_config_docker.py
 # Hyperset-compatible Superset configuration
