@@ -225,23 +225,70 @@ fi
 
 # ---------------------------------------------------------------------------
 # 4. Start the stack
+#    podman-compose has issues with dependency ordering — it tries to start
+#    all containers at once and fails when dependents can't find their deps.
+#    Workaround: start infra first, wait, then start the rest.
 # ---------------------------------------------------------------------------
+COMPOSE_FILE="docker-compose-image-tag.yml"
+
 info "Starting Superset with $COMPOSE_CMD (image tag: ${SUPERSET_VERSION})..."
 info "This pulls images and may take a few minutes on the first run."
 
-$COMPOSE_CMD -f docker-compose-image-tag.yml up -d
+if [[ "$COMPOSE_CMD" == *"podman"* ]]; then
+    # Podman-compose: start in stages to avoid dependency graph errors
+    info "Using staged startup for podman-compose..."
 
-success "Docker Compose stack started"
+    # Stage 1: infra (redis + postgres)
+    info "Stage 1/3: Starting redis and postgres..."
+    $COMPOSE_CMD -f "$COMPOSE_FILE" up -d db cache 2>/dev/null || \
+    $COMPOSE_CMD -f "$COMPOSE_FILE" up -d superset_db superset_cache 2>/dev/null || true
+    sleep 10
+    success "Infra services started"
+
+    # Stage 2: init (runs migrations, creates default roles/perms)
+    info "Stage 2/3: Running Superset init..."
+    $COMPOSE_CMD -f "$COMPOSE_FILE" up -d init 2>/dev/null || \
+    $COMPOSE_CMD -f "$COMPOSE_FILE" up -d superset_init 2>/dev/null || true
+
+    # Wait for init to finish
+    RETRIES=30
+    info "Waiting for init to complete..."
+    while true; do
+        # Check if init container exited (it's a one-shot)
+        INIT_STATUS=$($COMPOSE_CMD -f "$COMPOSE_FILE" ps 2>/dev/null | grep -i init | grep -ci "exit\|exited\|done" || true)
+        if [[ "$INIT_STATUS" -ge 1 ]]; then
+            break
+        fi
+        RETRIES=$((RETRIES - 1))
+        if [[ $RETRIES -le 0 ]]; then
+            warn "Init may not have completed — continuing anyway"
+            break
+        fi
+        echo -n "."
+        sleep 5
+    done
+    echo ""
+    success "Init completed"
+
+    # Stage 3: app + workers
+    info "Stage 3/3: Starting Superset app and workers..."
+    $COMPOSE_CMD -f "$COMPOSE_FILE" up -d
+    success "All services started"
+else
+    # Docker compose handles dependency ordering correctly
+    $COMPOSE_CMD -f "$COMPOSE_FILE" up -d
+    success "Docker Compose stack started"
+fi
 
 # ---------------------------------------------------------------------------
 # 5. Wait for Superset to become healthy
 # ---------------------------------------------------------------------------
 info "Waiting for Superset to become healthy on port ${SUPERSET_PORT}..."
-RETRIES=30
+RETRIES=40
 until curl -sf "http://localhost:${SUPERSET_PORT}/health" > /dev/null 2>&1; do
     RETRIES=$((RETRIES - 1))
     if [[ $RETRIES -le 0 ]]; then
-        error "Superset did not become healthy in time. Check: $COMPOSE_CMD -f docker-compose-image-tag.yml logs"
+        error "Superset did not become healthy in time. Check: $COMPOSE_CMD -f $COMPOSE_FILE logs"
     fi
     echo -n "."
     sleep 5
@@ -261,7 +308,7 @@ if [[ "$HTTP_CODE" == "302" ]]; then
     success "AUTH_REMOTE_USER is working — /login/ returns 302 redirect"
 else
     warn "AUTH_REMOTE_USER check returned HTTP $HTTP_CODE (expected 302)"
-    warn "Check logs: $COMPOSE_CMD -f docker-compose-image-tag.yml logs superset"
+    warn "Check logs: $COMPOSE_CMD -f $COMPOSE_FILE logs superset"
 fi
 
 # ---------------------------------------------------------------------------
@@ -292,8 +339,8 @@ cat << EOF
      only Caddy/Hyperset should reach port ${SUPERSET_PORT}.
   2. Set HYPERSET_ORIGIN in docker/.env-local to your actual portal URL
      (e.g. https://hyperset.internal) before going to production.
-  3. To stop:    $COMPOSE_CMD -f docker-compose-image-tag.yml down
-  4. To view logs: $COMPOSE_CMD -f docker-compose-image-tag.yml logs -f
+  3. To stop:    $COMPOSE_CMD -f $COMPOSE_FILE down
+  4. To view logs: $COMPOSE_CMD -f $COMPOSE_FILE logs -f
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 EOF
