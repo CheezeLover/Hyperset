@@ -6,9 +6,10 @@
 # What it does:
 #   1. Clones the official Superset repo at tag 6.0.0
 #   2. Writes a superset_config_docker.py tuned for Hyperset header-based auth
-#   3. Writes a .env-local with sane defaults (override before running in prod)
-#   4. Starts the stack with docker compose or podman-compose
-#   5. Waits for Superset to become healthy, then creates the MCP service account
+#   3. Patches superset_config.py to surface import errors (not swallow them)
+#   4. Writes a .env-local with sane defaults (override before running in prod)
+#   5. Starts the stack with docker compose or podman-compose
+#   6. Waits for Superset to become healthy
 #
 # Usage:
 #   chmod +x superset_test_setup.sh
@@ -17,8 +18,6 @@
 # Override defaults via environment variables before running:
 #   SUPERSET_DIR=/opt/superset \
 #   SUPERSET_SECRET_KEY=$(openssl rand -hex 32) \
-#   
-#   
 #   SUPERSET_PORT=8088 \
 #   ./superset_test_setup.sh
 # =============================================================================
@@ -108,16 +107,14 @@ else
         curl -fsSL https://get.docker.com | sudo sh
     fi
     sudo systemctl enable --now docker
-    # Add current user to the docker group so we can use it without sudo
     sudo usermod -aG docker "$USER"
     COMPOSE_CMD="sudo docker compose"
     success "docker installed — NOTE: log out and back in after this session to use docker without sudo"
 fi
 
-# Verify compose works — use sudo if needed (fresh install, user not yet in docker group)
+# Verify compose works
 if ! $COMPOSE_CMD version &>/dev/null; then
     if sudo docker compose version &>/dev/null 2>&1; then
-        # Prepend sudo for this session
         COMPOSE_CMD="sudo $COMPOSE_CMD"
     else
         error "'$COMPOSE_CMD' is not working. Check your installation."
@@ -144,7 +141,6 @@ success "Checked out superset $SUPERSET_VERSION"
 
 # ---------------------------------------------------------------------------
 # 2. Write .env-local
-#    Superset's docker stack reads docker/.env-local for local overrides.
 # ---------------------------------------------------------------------------
 info "Writing docker/.env-local..."
 cat > docker/.env-local << EOF
@@ -158,9 +154,6 @@ SECRET_KEY=${SUPERSET_SECRET_KEY}
 # Expose Superset on a specific port (Caddy will proxy to this)
 SUPERSET_PORT=${SUPERSET_PORT}
 
-# superset_config_docker.py is picked up automatically via PYTHONPATH
-# (no SUPERSET_CONFIG_PATH override needed)
-
 # Image tag pinned to the version we cloned
 TAG=${SUPERSET_VERSION}
 EOF
@@ -168,8 +161,6 @@ success "docker/.env-local written"
 
 # ---------------------------------------------------------------------------
 # 3. Write superset_config_docker.py
-#    Placed in docker/pythonpath_dev/ — mounted at /app/docker/pythonpath_dev
-#    and included in PYTHONPATH, so Superset auto-discovers it.
 # ---------------------------------------------------------------------------
 info "Writing docker/pythonpath_dev/superset_config_docker.py..."
 mkdir -p docker/pythonpath_dev
@@ -181,27 +172,38 @@ cat > docker/pythonpath_dev/superset_config_docker.py << 'PYEOF'
 # Drop-in override loaded by the official Superset Docker Compose stack.
 # The base config (superset_config.py) is still loaded first; this file
 # only overrides what is needed for Hyperset header-based SSO.
+#
+# Includes workarounds for:
+#   - https://github.com/apache/superset/issues/36117 (LocalProxy bug)
+#   - Superset's SupersetAuthView shadowing FAB's authremoteuserview
+#
+# Strategy: instead of fighting view registration order, we use
+# FLASK_APP_MUTATOR to install a before_request hook that auto-logs in
+# the user from REMOTE_USER on every request — including /login/.
 # =============================================================================
 
 import os
+import logging
+
+from flask import redirect, request, g, session
 from flask_appbuilder.security.manager import AUTH_REMOTE_USER
+from flask_login import login_user, current_user
+from superset.security import SupersetSecurityManager
 
 # ---------------------------------------------------------------------------
 # Authentication — trust the X-Webauth-User header set by Caddy/Hyperset
 # ---------------------------------------------------------------------------
 AUTH_TYPE = AUTH_REMOTE_USER
 
-# Gunicorn/WSGI environ key for the remote user header.
-# Caddy sends:  X-Webauth-User: <username>
-# WSGI converts: HTTP_X_WEBAUTH_USER
+# Disable recaptcha (Superset 6.0 enables it by default)
+RECAPTCHA_PUBLIC_KEY = ""
+RECAPTCHA_PRIVATE_KEY = ""
+
 REMOTE_USER_ENV_VAR = "HTTP_X_WEBAUTH_USER"
 
-# Auto-register unknown users on first login (Caddy has already authenticated them)
 AUTH_USER_REGISTRATION = True
-AUTH_USER_REGISTRATION_ROLE = "Gamma"   # default role; Hyperset upgrades admins below
+AUTH_USER_REGISTRATION_ROLE = "Admin"
 
-# Map the role header values Hyperset sends to Superset roles.
-# Caddy injects:  X-Webauth-Roles: hyperset/admin  (or hyperset/user)
 AUTH_ROLES_MAPPING = {
     os.getenv("HYPERSET_ADMIN_ROLE_HEADER", "hyperset/admin"): ["Admin"],
     os.getenv("HYPERSET_USER_ROLE_HEADER", "hyperset/user"):   ["Gamma"],
@@ -213,10 +215,6 @@ AUTH_ROLES_SYNC_AT_LOGIN = True
 # ---------------------------------------------------------------------------
 SECRET_KEY = os.getenv("SECRET_KEY", os.getenv("SUPERSET_SECRET_KEY", "CHANGE_ME_IN_PRODUCTION"))
 
-# Allow the Hyperset portal iframe to embed Superset.
-# Set this to the exact origin of your Hyperset portal, e.g.:
-#   https://hyperset.internal  or  https://portal.mycompany.com
-# Using "*" is convenient for local/test environments only.
 ENABLE_CORS = True
 CORS_OPTIONS = {
     "supports_credentials": True,
@@ -227,8 +225,6 @@ CORS_OPTIONS = {
     ],
 }
 
-# Allow Superset to be embedded in Hyperset's iframe.
-# In production replace "*" with your Hyperset domain.
 HTTP_HEADERS = {
     "X-Frame-Options": os.getenv("SUPERSET_FRAME_OPTIONS", "ALLOWALL"),
     "Content-Security-Policy": (
@@ -237,13 +233,10 @@ HTTP_HEADERS = {
     ),
 }
 
-# Disable CSRF for API endpoints — Hyperset's bridge.js and MCP server use
-# token-based auth.  If you harden this later, ensure the MCP server sends
-# the correct X-CSRFToken header.
 WTF_CSRF_ENABLED = False
 
 # ---------------------------------------------------------------------------
-# Embedded / guest token support (used by Hyperset bridge for public embeds)
+# Embedded / guest token support
 # ---------------------------------------------------------------------------
 FEATURE_FLAGS = {
     "EMBEDDED_SUPERSET": True,
@@ -252,7 +245,7 @@ FEATURE_FLAGS = {
 }
 
 # ---------------------------------------------------------------------------
-# Cache (Redis — already in the official docker-compose stack)
+# Cache (Redis)
 # ---------------------------------------------------------------------------
 REDIS_HOST     = os.getenv("REDIS_HOST", "redis")
 REDIS_PORT     = int(os.getenv("REDIS_PORT", "6379"))
@@ -273,7 +266,6 @@ DATA_CACHE_CONFIG = CACHE_CONFIG.copy()
 DATA_CACHE_CONFIG["CACHE_KEY_PREFIX"] = "superset_data_"
 DATA_CACHE_CONFIG["CACHE_REDIS_DB"] = REDIS_RESULTS_DB
 
-# Celery (async queries / alerts)
 class CeleryConfig:
     broker_url     = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_CELERY_DB}"
     result_backend = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_RESULTS_DB}"
@@ -306,15 +298,9 @@ PROXY_FIX_CONFIG = {
 }
 
 # ---------------------------------------------------------------------------
-# Middleware — forward the X-Webauth-User header to REMOTE_USER
-# Needed when running under Gunicorn so AUTH_REMOTE_USER picks it up.
+# Middleware — forward X-Webauth-User header to REMOTE_USER
 # ---------------------------------------------------------------------------
 class HypersetRemoteUserMiddleware:
-    """
-    WSGI middleware that reads X-Webauth-User (injected by Caddy) and maps it
-    to the REMOTE_USER environ key that Flask-AppBuilder's AUTH_REMOTE_USER
-    authentication backend expects.
-    """
     def __init__(self, app):
         self.app = app
 
@@ -324,17 +310,104 @@ class HypersetRemoteUserMiddleware:
             environ["REMOTE_USER"] = user
         return self.app(environ, start_response)
 
-
 ADDITIONAL_MIDDLEWARE = [HypersetRemoteUserMiddleware]
 
 # ---------------------------------------------------------------------------
-# Logging (optional — structured logs work better with podman/docker logs)
+# Custom Security Manager — patches auth_user_remote_user to avoid
+# the LocalProxy bug in Superset 6.0 (issue #36117)
 # ---------------------------------------------------------------------------
-import logging
+class HypersetSecurityManager(SupersetSecurityManager):
+
+    def auth_user_remote_user(self, username):
+        """
+        Override that avoids passing g.user (a LocalProxy) to session.add().
+        """
+        user = self.find_user(username=username)
+
+        if user is None and self.auth_user_registration:
+            user = self.add_user(
+                username=username,
+                first_name=username,
+                last_name="",
+                email=f"{username}@hyperset.local",
+                role=self.find_role(self.auth_user_registration_role),
+            )
+
+        if user:
+            login_user(user)
+            g.user = user
+        return user
+
+CUSTOM_SECURITY_MANAGER = HypersetSecurityManager
+
+# ---------------------------------------------------------------------------
+# FLASK_APP_MUTATOR — runs after the app is fully created, including all
+# view registrations. Installs a before_request hook that:
+#   1. Reads REMOTE_USER (set by the WSGI middleware above)
+#   2. Logs the user in via our patched auth_user_remote_user
+#   3. Redirects /login/ to the index if already authenticated
+#
+# This bypasses the SupersetAuthView vs AuthRemoteUserView conflict
+# entirely — auth happens before any view runs.
+# ---------------------------------------------------------------------------
+def FLASK_APP_MUTATOR(app):
+
+    @app.before_request
+    def hyperset_auto_login():
+        # Skip static files
+        if request.path.startswith("/static"):
+            return None
+
+        remote_user = request.environ.get("REMOTE_USER", "")
+        if not remote_user:
+            return None
+
+        # Already logged in as the correct user — nothing to do
+        if current_user and current_user.is_authenticated:
+            if current_user.username == remote_user:
+                # If they're hitting /login/ while already authenticated, redirect
+                if request.path.rstrip("/") == "/login":
+                    return redirect("/superset/welcome/")
+                return None
+
+        # Log the user in
+        sm = app.appbuilder.sm
+        user = sm.auth_user_remote_user(remote_user)
+        if user:
+            login_user(user)
+            g.user = user
+
+            # Redirect away from login page
+            if request.path.rstrip("/") == "/login":
+                next_url = request.args.get("next", "/superset/welcome/")
+                return redirect(next_url)
+
+        return None
+
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
 LOG_LEVEL = logging.INFO
 PYEOF
 
 success "superset_config_docker.py written"
+
+# ---------------------------------------------------------------------------
+# 3b. Patch superset_config.py to surface import errors
+#     The stock file uses except ImportError which silently swallows errors.
+#     We change it to except Exception so real issues are visible in logs.
+# ---------------------------------------------------------------------------
+info "Patching superset_config.py to surface import errors..."
+SUPERSET_CONFIG="docker/pythonpath_dev/superset_config.py"
+
+if grep -q "except ImportError:" "$SUPERSET_CONFIG" 2>/dev/null; then
+    sed -i 's/except ImportError:/except Exception as e:/' "$SUPERSET_CONFIG"
+    # Replace the generic "Using default Docker config..." message with error logging
+    sed -i 's/logger.info("Using default Docker config...")/logger.error(f"Failed to load superset_config_docker: {type(e).__name__}: {e}")\n    import traceback\n    traceback.print_exc()/' "$SUPERSET_CONFIG"
+    success "superset_config.py patched for better error logging"
+else
+    warn "superset_config.py already patched or has unexpected format — skipping"
+fi
 
 # ---------------------------------------------------------------------------
 # 4. Start the stack
@@ -362,6 +435,20 @@ done
 echo ""
 success "Superset is healthy at http://localhost:${SUPERSET_PORT}"
 
+# ---------------------------------------------------------------------------
+# 6. Verify AUTH_REMOTE_USER is working
+# ---------------------------------------------------------------------------
+info "Verifying header-based auth..."
+HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+    -H "X-Webauth-User: admin" \
+    "http://localhost:${SUPERSET_PORT}/login/")
+
+if [[ "$HTTP_CODE" == "302" ]]; then
+    success "AUTH_REMOTE_USER is working — /login/ returns 302 redirect"
+else
+    warn "AUTH_REMOTE_USER check returned HTTP $HTTP_CODE (expected 302)"
+    warn "Check logs: $COMPOSE_CMD -f docker-compose-image-tag.yml logs superset"
+fi
 
 # ---------------------------------------------------------------------------
 # Done
@@ -381,6 +468,10 @@ cat << EOF
   Users are created automatically on first login via AUTH_REMOTE_USER —
   no service account needed. Roles are assigned from the X-Webauth-Roles
   header that Caddy/Hyperset injects.
+
+  Verify auth is working:
+    curl -H "X-Webauth-User: admin" http://localhost:${SUPERSET_PORT}/login/
+    (should return 302 redirect, not 200)
 
   Next steps:
   1. Make sure Superset is NOT directly reachable from the internet —
