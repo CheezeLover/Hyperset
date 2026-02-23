@@ -103,7 +103,7 @@ superset.{$HYPERSET_DOMAIN} {
 
     # Proxy everything else to Superset, injecting bridge.js into HTML responses
     handle {
-        reverse_proxy {env.SUPERSET_UPSTREAM} {
+        reverse_proxy {$SUPERSET_UPSTREAM} {
             header_up X-Webauth-User {http.request.header.X-Token-User-Id}
             header_up X-Webauth-Email {http.request.header.X-Token-User-Email}
             header_up X-Webauth-Groups {http.request.header.X-Token-User-Roles}
