@@ -31,9 +31,6 @@ set -euo pipefail
 SUPERSET_VERSION="${SUPERSET_VERSION:-6.0.0}"
 SUPERSET_DIR="${SUPERSET_DIR:-./superset}"
 SUPERSET_PORT="${SUPERSET_PORT:-8088}"
-SUPERSET_ADMIN_USER="${SUPERSET_ADMIN_USER:-admin}"
-SUPERSET_ADMIN_PASSWORD="${SUPERSET_ADMIN_PASSWORD:-admin}"
-SUPERSET_ADMIN_EMAIL="${SUPERSET_ADMIN_EMAIL:-admin@hyperset.local}"
 SUPERSET_SECRET_KEY="${SUPERSET_SECRET_KEY:-$(openssl rand -hex 32)}"
 
 # Roles that Hyperset injects via X-Webauth-Roles header
@@ -295,36 +292,6 @@ done
 echo ""
 success "Superset is healthy at http://localhost:${SUPERSET_PORT}"
 
-# ---------------------------------------------------------------------------
-# 6. Create the initial admin / MCP service account
-#    AUTH_REMOTE_USER means passwords aren't used for browser logins, but
-#    the FAB admin command still creates the local DB record that Hyperset's
-#    MCP server references.
-# ---------------------------------------------------------------------------
-info "Creating Superset admin user '${SUPERSET_ADMIN_USER}'..."
-
-SUPERSET_CONTAINER=$(docker compose -f docker-compose-image-tag.yml ps -q superset_app 2>/dev/null \
-    || docker compose -f docker-compose-image-tag.yml ps -q superset 2>/dev/null \
-    || true)
-
-if [[ -z "$SUPERSET_CONTAINER" ]]; then
-    warn "Could not determine Superset container ID — skipping admin creation."
-    warn "Run manually inside the container:"
-    warn "  superset fab create-admin --username ${SUPERSET_ADMIN_USER} --firstname Admin --lastname User --email ${SUPERSET_ADMIN_EMAIL} --password ${SUPERSET_ADMIN_PASSWORD}"
-else
-    docker exec "$SUPERSET_CONTAINER" \
-        superset fab create-admin \
-            --username  "${SUPERSET_ADMIN_USER}" \
-            --firstname "Admin" \
-            --lastname  "User" \
-            --email     "${SUPERSET_ADMIN_EMAIL}" \
-            --password  "${SUPERSET_ADMIN_PASSWORD}" \
-        2>/dev/null && success "Admin user created" || warn "Admin user may already exist — skipping."
-
-    info "Running superset init to sync roles and permissions..."
-    docker exec "$SUPERSET_CONTAINER" superset init
-    success "superset init complete"
-fi
 
 # ---------------------------------------------------------------------------
 # Done
@@ -335,20 +302,22 @@ cat << EOF
   Superset ${SUPERSET_VERSION} is running — Hyperset SSO ready
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  Direct access (bypass Hyperset):  http://localhost:${SUPERSET_PORT}
-  Admin username / password:        ${SUPERSET_ADMIN_USER} / ${SUPERSET_ADMIN_PASSWORD}
-  SECRET_KEY (save this!):          ${SUPERSET_SECRET_KEY}
+  Direct access (test only):  http://localhost:${SUPERSET_PORT}
+  SECRET_KEY (save this!):    ${SUPERSET_SECRET_KEY}
 
-  Point Hyperset at this instance by setting in your Hyperset .env:
+  Point Hyperset at this instance in your Hyperset .env:
     SUPERSET_UPSTREAM=http://<this-server-ip>:${SUPERSET_PORT}
-    SUPERSET_MCP_USER=${SUPERSET_ADMIN_USER}
+
+  Users are created automatically on first login via AUTH_REMOTE_USER —
+  no service account needed. Roles are assigned from the X-Webauth-Roles
+  header that Caddy/Hyperset injects.
 
   Next steps:
-  1. Make sure Superset is NOT directly exposed to the internet —
-     only Caddy/Hyperset should be able to reach port ${SUPERSET_PORT}.
+  1. Make sure Superset is NOT directly reachable from the internet —
+     only Caddy/Hyperset should reach port ${SUPERSET_PORT}.
   2. Set HYPERSET_ORIGIN in docker/.env-local to your actual portal URL
      (e.g. https://hyperset.internal) before going to production.
-  3. To stop:  docker compose -f docker-compose-image-tag.yml down
+  3. To stop:    docker compose -f docker-compose-image-tag.yml down
   4. To view logs: docker compose -f docker-compose-image-tag.yml logs -f
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
