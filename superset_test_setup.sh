@@ -7,7 +7,7 @@
 #   1. Clones the official Superset repo at tag 6.0.0
 #   2. Writes a superset_config_docker.py tuned for Hyperset header-based auth
 #   3. Writes a .env-local with sane defaults (override before running in prod)
-#   4. Starts the stack with docker compose
+#   4. Starts the stack with docker compose or podman-compose
 #   5. Waits for Superset to become healthy, then creates the MCP service account
 #
 # Usage:
@@ -17,8 +17,8 @@
 # Override defaults via environment variables before running:
 #   SUPERSET_DIR=/opt/superset \
 #   SUPERSET_SECRET_KEY=$(openssl rand -hex 32) \
-#   SUPERSET_ADMIN_USER=admin \
-#   SUPERSET_ADMIN_PASSWORD=admin \
+#   
+#   
 #   SUPERSET_PORT=8088 \
 #   ./superset_test_setup.sh
 # =============================================================================
@@ -45,16 +45,76 @@ success() { echo -e "\033[0;32m[OK]\033[0m    $*"; }
 warn()    { echo -e "\033[0;33m[WARN]\033[0m  $*"; }
 error()   { echo -e "\033[0;31m[ERR]\033[0m   $*" >&2; exit 1; }
 
-require_cmd() { command -v "$1" &>/dev/null || error "'$1' is not installed. Please install it first."; }
+has_cmd() { command -v "$1" &>/dev/null; }
 
 # ---------------------------------------------------------------------------
-# Pre-flight checks
+# Install dependencies (git + docker or podman)
 # ---------------------------------------------------------------------------
-info "Checking prerequisites..."
-require_cmd git
-require_cmd docker
-docker compose version &>/dev/null || error "'docker compose' (v2 plugin) is required."
-success "Prerequisites OK"
+info "Checking and installing dependencies..."
+
+# Detect package manager
+if has_cmd apt-get; then
+    PKG_INSTALL="sudo apt-get install -y -qq"
+    PKG_UPDATE="sudo apt-get update -qq"
+elif has_cmd dnf; then
+    PKG_INSTALL="sudo dnf install -y -q"
+    PKG_UPDATE="sudo dnf check-update -q || true"
+elif has_cmd yum; then
+    PKG_INSTALL="sudo yum install -y -q"
+    PKG_UPDATE="sudo yum check-update -q || true"
+else
+    error "No supported package manager found (apt-get, dnf, yum). Install git and docker/podman manually."
+fi
+
+# git
+if ! has_cmd git; then
+    info "Installing git..."
+    $PKG_UPDATE && $PKG_INSTALL git
+    success "git installed"
+else
+    success "git already present"
+fi
+
+# Prefer docker, fall back to podman
+if has_cmd docker; then
+    COMPOSE_CMD="docker compose"
+    success "docker already present"
+elif has_cmd podman; then
+    if has_cmd podman-compose; then
+        COMPOSE_CMD="podman-compose"
+        success "podman + podman-compose already present"
+    else
+        info "Installing podman-compose..."
+        $PKG_INSTALL podman-compose
+        COMPOSE_CMD="podman-compose"
+        success "podman-compose installed"
+    fi
+else
+    info "Neither docker nor podman found — installing docker..."
+    $PKG_UPDATE
+    if has_cmd apt-get; then
+        $PKG_INSTALL ca-certificates curl gnupg lsb-release
+        sudo install -m 0755 -d /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/debian/gpg \
+            | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+        echo \
+            "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+            https://download.docker.com/linux/debian \
+            $(lsb_release -cs) stable" \
+            | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+        sudo apt-get update -qq
+        $PKG_INSTALL docker-ce docker-ce-cli containerd.io docker-compose-plugin
+    else
+        curl -fsSL https://get.docker.com | sudo sh
+    fi
+    sudo systemctl enable --now docker
+    COMPOSE_CMD="docker compose"
+    success "docker installed"
+fi
+
+# Verify compose works
+$COMPOSE_CMD version &>/dev/null || error "'$COMPOSE_CMD' is not working. Check your installation."
+success "Compose OK ($COMPOSE_CMD)"
 
 # ---------------------------------------------------------------------------
 # 1. Clone Superset at the chosen tag
@@ -269,10 +329,10 @@ success "superset_config_docker.py written"
 # ---------------------------------------------------------------------------
 # 4. Start the stack
 # ---------------------------------------------------------------------------
-info "Starting Superset with docker compose (image tag: ${SUPERSET_VERSION})..."
+info "Starting Superset with $COMPOSE_CMD (image tag: ${SUPERSET_VERSION})..."
 info "This pulls images and may take a few minutes on the first run."
 
-docker compose -f docker-compose-image-tag.yml up -d
+$COMPOSE_CMD -f docker-compose-image-tag.yml up -d
 
 success "Docker Compose stack started"
 
@@ -284,7 +344,7 @@ RETRIES=30
 until curl -sf "http://localhost:${SUPERSET_PORT}/health" > /dev/null 2>&1; do
     RETRIES=$((RETRIES - 1))
     if [[ $RETRIES -le 0 ]]; then
-        error "Superset did not become healthy in time. Check: docker compose -f docker-compose-image-tag.yml logs"
+        error "Superset did not become healthy in time. Check: $COMPOSE_CMD -f docker-compose-image-tag.yml logs"
     fi
     echo -n "."
     sleep 5
@@ -317,8 +377,8 @@ cat << EOF
      only Caddy/Hyperset should reach port ${SUPERSET_PORT}.
   2. Set HYPERSET_ORIGIN in docker/.env-local to your actual portal URL
      (e.g. https://hyperset.internal) before going to production.
-  3. To stop:    docker compose -f docker-compose-image-tag.yml down
-  4. To view logs: docker compose -f docker-compose-image-tag.yml logs -f
+  3. To stop:    $COMPOSE_CMD -f docker-compose-image-tag.yml down
+  4. To view logs: $COMPOSE_CMD -f docker-compose-image-tag.yml logs -f
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 EOF
