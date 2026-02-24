@@ -7,6 +7,12 @@ export interface HypersetUser {
   isAdmin: boolean;
 }
 
+export interface UserContext {
+  username: string;
+  email: string;
+  roles: string[];
+}
+
 /**
  * Parse the x-token-user-roles header injected by caddy-security.
  *
@@ -54,4 +60,21 @@ export function getUserFromRequest(request: Request): HypersetUser {
     request.headers.get("x-token-user-roles")
   );
   return { id, email, roles, isAdmin };
+}
+
+export async function getUserFromHeaders(): Promise<UserContext> {
+  const h = await headers();
+  // Utiliser l'email comme username car X-Token-User-Id n'est pas disponible
+  const email = h.get("x-token-user-email");
+
+  if (!email) {
+    throw new Error("Unauthenticated: missing X-Token-User-Email header");
+  }
+
+  // Pour les roles, utiliser X-Token-User-Roles
+  const rolesRaw = h.get("x-token-user-roles") ?? "";
+  const roles = rolesRaw.split(",").map((r) => r.trim()).filter(Boolean);
+
+  // Retourner l'email comme username
+  return { username: email, email, roles };
 }
