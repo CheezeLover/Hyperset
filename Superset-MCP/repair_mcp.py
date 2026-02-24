@@ -1,5 +1,16 @@
 #!/usr/bin/env python3
 
+"""
+Script de reparation pour le MCP corrompu
+Ce script genere le fichier main.py correct directement
+"""
+
+import os
+import sys
+
+# Contenu correct du fichier main.py
+correct_content = '''#!/usr/bin/env python3
+
 from typing import (
     Any,
     Dict,
@@ -560,3 +571,29 @@ if __name__ == "__main__":
     else:
         logger.info("Starting Superset MCP server (stdio)...")
         mcp.run()
+'''
+
+def main():
+    """Ecrire le fichier corrigé"""
+    output_file = "main.py"
+    
+    try:
+        with open(output_file, 'w', encoding='utf-8') as f:
+            f.write(correct_content)
+        
+        print(f"Fichier {output_file} a ete regenere avec succes.")
+        print("Le MCP est maintenant pret a etre deploye.")
+        print()
+        print("Pour deployer:")
+        print("1. Copiez ce fichier dans le conteneur ou sur le serveur")
+        print("2. Assurez-vous que la variable MCP_SERVICE_SECRET est configuree")
+        print("3. Redemarrez le service MCP")
+        
+    except Exception as e:
+        print(f"Erreur lors de l'ecriture du fichier: {e}")
+        return 1
+    
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main())
