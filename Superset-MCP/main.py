@@ -1,4 +1,88 @@
-from typing import (
+============
+
+
+@mcp.tool()
+@handle_api_errors
+async def superset_auth_check_token_validity(ctx: Context) -> Dict[str, Any]:
+    """
+    Check if the current access token is still valid
+
+    Makes a request to the /api/v1/me/ endpoint to test if the current token is valid.
+    Use this to verify authentication status before making other API calls.
+
+    Returns:
+        A dictionary with token validity status and any error information
+    """
+    superset_ctx: SupersetContext = ctx.request_context.lifespan_context
+
+    if not superset_ctx.access_token:
+        return {"valid": False, "error": "No access token available"}
+
+    try:
+        # Make a simple API call to test if token is valid (get user info)
+        response = await superset_ctx.client.get("/api/v1/me/")
+
+        if response.status_code == 200:
+            return {"valid": True}
+        else:
+            return {
+                "valid": False,
+                "status_code": response.status_code,
+                "error": response.text,
+            }
+    except Exception as e:
+        return {"valid": False, "error": str(e)}
+
+
+@mcp.tool()
+@handle_api_errors
+async def superset_auth_refresh_token(ctx: Context) -> Dict[str, Any]:
+    """
+    Re-authenticate with Superset using the configured credentials.
+
+    Returns:
+        A dictionary with the new access token or error information
+    """
+    superset_ctx: SupersetContext = ctx.request_context.lifespan_context
+
+    token = await _login(superset_ctx.client)
+    if not token:
+        return {"error": "Re-authentication failed. Check SUPERSET_MCP_USER / SUPERSET_MCP_PASSWORD."}
+
+    superset_ctx.access_token = token
+    superset_ctx.client.headers.update({"Authorization": f"Bearer {token}"})
+    return {"message": "Successfully re-authenticated", "access_token": token}
+
+
+@mcp.tool()
+@handle_api_errors
+async def superset_auth_authenticate_user(ctx: Context) -> Dict[str, Any]:
+    """
+    Authenticate with Superset using SUPERSET_MCP_USER / SUPERSET_MCP_PASSWORD.
+
+    If a valid token is already cached it is returned immediately.
+
+    Returns:
+        A dictionary with authentication status and access token or error information
+    """
+    superset_ctx: SupersetContext = ctx.request_context.lifespan_context
+
+    if superset_ctx.access_token:
+        validity = await superset_auth_check_token_validity(ctx)
+        if validity.get("valid"):
+            return {"message": "Already authenticated with valid token", "access_token": superset_ctx.access_token}
+
+    token = await _login(superset_ctx.client)
+    if not token:
+        return {"error": "Authentication failed. Check SUPERSET_MCP_USER / SUPERSET_MCP_PASSWORD."}
+
+    superset_ctx.access_token = token
+    superset_ctx.client.headers.update({"Authorization": f"Bearer {token}"})
+    
+    return {"message": f"Authenticated as '{SUPERSET_MCP_USER}'", "access_token": token}
+
+
+=======from typing import (
     Any,
     Dict,
     List,
@@ -10,8 +94,12 @@ from typing import (
 )
 import os
 import httpx
+import base64
+import hashlib
+import hmac as hmac_lib
+import time
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import wraps
 from fastapi import FastAPI, HTTPException
 from mcp.server.fastmcp import FastMCP, Context
@@ -60,6 +148,52 @@ SUPERSET_BASE_URL = (
 SUPERSET_MCP_USER = os.getenv("SUPERSET_MCP_USER", "")
 SUPERSET_MCP_PASSWORD = os.getenv("SUPERSET_MCP_PASSWORD", "")
 
+# ── Token verification ─────────────────────────────────────────
+_MCP_SECRET = os.getenv("MCP_SERVICE_SECRET", "")
+if not _MCP_SECRET or len(_MCP_SECRET) < 32:
+    raise RuntimeError("MCP_SERVICE_SECRET must be set and >= 32 chars")
+_SECRET_BYTES = _MCP_SECRET.encode()
+
+@dataclass
+class VerifiedIdentity:
+    username: str
+    email: str
+    roles: list[str]
+
+def _b64url_decode(s: str) -> bytes:
+    padding = 4 - len(s) % 4
+    return base64.urlsafe_b64decode(s + "=" * (padding % 4))
+
+def verify_mcp_token(token: str) -> VerifiedIdentity:
+    parts = token.split(".")
+    if len(parts) != 2:
+        raise ValueError("Malformed token")
+    encoded, sig = parts
+    expected = hmac_lib.new(_SECRET_BYTES, encoded.encode(), hashlib.sha256)
+    expected_b64 = base64.urlsafe_b64encode(expected.digest()).rstrip(b"=").decode()
+    if not hmac_lib.compare_digest(sig, expected_b64):
+        raise ValueError("Invalid signature")
+    try:
+        payload = json.loads(_b64url_decode(encoded))
+    except Exception:
+        raise ValueError("Cannot decode payload")
+    if time.time() * 1000 > payload.get("exp", 0):
+        raise ValueError("Token expired")
+    username = payload.get("sub")
+    if not username:
+        raise ValueError("Missing 'sub' claim")
+    return VerifiedIdentity(
+        username=username,
+        email=payload.get("email", ""),
+        roles=payload.get("roles", []),
+    )
+
+def extract_identity(request) -> VerifiedIdentity:
+    auth = request.headers.get("authorization", "")
+    if not auth.startswith("Bearer "):
+        raise ValueError("Missing Authorization header")
+    return verify_mcp_token(auth[7:])
+
 # Initialize FastAPI app for handling additional web endpoints if needed
 app = FastAPI(title="Superset MCP Server")
 
@@ -76,32 +210,10 @@ class SupersetContext:
 
     client: httpx.AsyncClient
     base_url: str
-    access_token: Optional[str] = None
-    csrf_token: Optional[str] = None
-    app: FastAPI = None
+    # Plus de access_token, csrf_token, app globaux
 
 
-async def _login(client: httpx.AsyncClient) -> Optional[str]:
-    """Login to Superset with username/password and return the access token."""
-    if not SUPERSET_MCP_USER or not SUPERSET_MCP_PASSWORD:
-        logger.warning("SUPERSET_MCP_USER or SUPERSET_MCP_PASSWORD not set — cannot authenticate")
-        return None
-    try:
-        response = await client.post(
-            "/api/v1/security/login",
-            json={"username": SUPERSET_MCP_USER, "password": SUPERSET_MCP_PASSWORD, "provider": "db", "refresh": True},
-        )
-        if response.status_code == 200:
-            token = response.json().get("access_token")
-            if token:
-                logger.info(f"Authenticated as '{SUPERSET_MCP_USER}'")
-                return token
-            logger.warning("Login succeeded but no access_token in response")
-        else:
-            logger.warning(f"Login failed: {response.status_code} — {response.text}")
-    except Exception as e:
-        logger.warning(f"Login error: {e}")
-    return None
+
 
 
 @asynccontextmanager
@@ -114,18 +226,16 @@ async def superset_lifespan(server: FastMCP) -> AsyncIterator[SupersetContext]:
     global _shared_client, _shared_ctx
 
     if _shared_ctx is None:
-        logger.info(f"Initializing Superset context (base URL: {SUPERSET_BASE_URL})...")
-        client = httpx.AsyncClient(base_url=SUPERSET_BASE_URL, timeout=30.0)
-        ctx = SupersetContext(client=client, base_url=SUPERSET_BASE_URL, app=app)
-        token = await _login(client)
-        if token:
-            ctx.access_token = token
-            client.headers.update({"Authorization": f"Bearer {token}"})
+        logger.info(f"Initializing Superset MCP ({SUPERSET_BASE_URL})")
+        client = httpx.AsyncClient(
+            base_url=SUPERSET_BASE_URL,
+            timeout=30.0,
+            # Intentionnellement aucun header par défaut
+        )
+        _shared_ctx = SupersetContext(client=client, base_url=SUPERSET_BASE_URL)
         _shared_client = client
-        _shared_ctx = ctx
 
     yield _shared_ctx
-    # Do not close the shared client — it lives for the duration of the process.
 
 
 # Initialize FastMCP server with lifespan and dependencies.
@@ -147,7 +257,6 @@ mcp = FastMCP(
 T = TypeVar("T")
 R = TypeVar("R")
 
-# ===== Helper Functions and Decorators =====
 
 
 def requires_auth(
@@ -231,97 +340,153 @@ async def with_auto_refresh(
     return await api_call()
 
 
-async def get_csrf_token(ctx: Context) -> Optional[str]:
-    """
-    Get a CSRF token from Superset
 
-    Makes a request to the /api/v1/security/csrf_token endpoint to get a token
+=======
+# ===== Helper Functions and Decorators =====
+
+
+def handle_api_errors(
+    func: Callable[..., Awaitable[Dict[str, Any]]],
+) -> Callable[..., Awaitable[Dict[str, Any]]]:
+    """Decorator to handle API errors in a consistent way"""
+
+    @wraps(func)
+    async def wrapper(ctx: Context, *args, **kwargs) -> Dict[str, Any]:
+        try:
+            return await func(ctx, *args, **kwargs)
+        except Exception as e:
+            # Extract function name for better error context
+            function_name = func.__name__
+            return {"error": f"Error in {function_name}: {str(e)}"}
+
+    return wrapper=====
+
+
+def requires_auth(
+    func: Callable[..., Awaitable[Dict[str, Any]]],
+) -> Callable[..., Awaitable[Dict[str, Any]]]:
+    """Decorator to check authentication before executing a function"""
+
+    @wraps(func)
+    async def wrapper(ctx: Context, *args, **kwargs) -> Dict[str, Any]:
+        superset_ctx: SupersetContext = ctx.request_context.lifespan_context
+
+        if not superset_ctx.access_token:
+            return {"error": "Not authenticated. Please authenticate first."}
+
+        return await func(ctx, *args, **kwargs)
+
+    return wrapper
+
+
+def handle_api_errors(
+    func: Callable[..., Awaitable[Dict[str, Any]]],
+) -> Callable[..., Awaitable[Dict[str, Any]]]:
+    """Decorator to handle API errors in a consistent way"""
+
+    @wraps(func)
+    async def wrapper(ctx: Context, *args, **kwargs) -> Dict[str, Any]:
+        try:
+            return await func(ctx, *args, **kwargs)
+        except Exception as e:
+            # Extract function name for better error context
+            function_name = func.__name__
+            return {"error": f"Error in {function_name}: {str(e)}"}
+
+    return wrapper
+
+
+async def with_auto_refresh(
+    ctx: Context, api_call: Callable[[], Awaitable[httpx.Response]]
+) -> httpx.Response:
+    """
+    Helper function to handle automatic token refreshing for API calls
+
+    This function will attempt to execute the provided API call. If the call
+    fails with a 401 Unauthorized error, it will try to refresh the token
+    and retry the API call once.
 
     Args:
-        ctx: MCP context
+        ctx: The MCP context
+        api_call: The API call function to execute (should be a callable that returns a response)
     """
     superset_ctx: SupersetContext = ctx.request_context.lifespan_context
-    client = superset_ctx.client
 
+    if not superset_ctx.access_token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    # First attempt
     try:
-        response = await client.get("/api/v1/security/csrf_token/")
-        if response.status_code == 200:
-            data = response.json()
-            csrf_token = data.get("result")
-            superset_ctx.csrf_token = csrf_token
-            return csrf_token
-        else:
-            logger.info(
-                f"Failed to get CSRF token: {response.status_code} - {response.text}"
-            )
-            return None
+        response = await api_call()
+
+        # If not an auth error, return the response
+        if response.status_code != 401:
+            return response
+
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code != 401:
+            raise e
+        response = e.response
     except Exception as e:
-        logger.info(f"Error getting CSRF token: {str(e)}")
-        return None
+        # For other errors, just raise
+        raise e
+
+    # If we got a 401, try to re-authenticate
+    logger.info("Received 401 Unauthorized. Attempting to re-authenticate...")
+    token = await _login(superset_ctx.client)
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication failed")
+    superset_ctx.access_token = token
+    superset_ctx.client.headers.update({"Authorization": f"Bearer {token}"})
+
+    # Retry the API call with the new token
+    return await api_call()
 
 
-async def make_api_request(
+async def superset_request(
     ctx: Context,
     method: str,
     endpoint: str,
-    data: Dict[str, Any] = None,
-    params: Dict[str, Any] = None,
-    auto_refresh: bool = True,
-) -> Dict[str, Any]:
-    """
-    Helper function to make API requests to Superset
-
-    Args:
-        ctx: MCP context
-        method: HTTP method (get, post, put, delete)
-        endpoint: API endpoint (without base URL)
-        data: Optional JSON payload for POST/PUT requests
-        params: Optional query parameters
-        auto_refresh: Whether to auto-refresh token on 401
-    """
-    superset_ctx: SupersetContext = ctx.request_context.lifespan_context
-    client = superset_ctx.client
-
-    # For non-GET requests, make sure we have a CSRF token
-    if method.lower() != "get" and not superset_ctx.csrf_token:
-        await get_csrf_token(ctx)
-
-    async def make_request() -> httpx.Response:
-        headers = {}
-
-        # Add CSRF token for non-GET requests
-        if method.lower() != "get" and superset_ctx.csrf_token:
-            headers["X-CSRFToken"] = superset_ctx.csrf_token
-
-        if method.lower() == "get":
-            return await client.get(endpoint, params=params)
-        elif method.lower() == "post":
-            return await client.post(
-                endpoint, json=data, params=params, headers=headers
-            )
-        elif method.lower() == "put":
-            return await client.put(endpoint, json=data, headers=headers)
-        elif method.lower() == "delete":
-            return await client.delete(endpoint, headers=headers)
-        else:
-            raise ValueError(f"Unsupported HTTP method: {method}")
-
-    # Use auto_refresh if requested
-    response = (
-        await with_auto_refresh(ctx, make_request)
-        if auto_refresh
-        else await make_request()
-    )
-
-    if response.status_code not in [200, 201]:
-        return {
-            "error": f"API request failed: {response.status_code} - {response.text}"
-        }
-
-    return response.json()
+    data: dict = None,
+    params: dict = None,
+) -> dict:
+    sc: SupersetContext = ctx.request_context.lifespan_context
+    try:
+        identity = extract_identity(ctx.request_context.request)
+    except ValueError as e:
+        return {"error": f"Authentication failed: {e}"}
+    logger.info("MCP call: %s %s (user=%s)", method.upper(), endpoint, identity.username)
+    # Headers locaux à cet appel — jamais stockés sur le client partagé
+    req_headers = {
+        "X-Webauth-User": identity.username,
+        "X-Webauth-Email": identity.email,
+    }
+    if method.lower() != "get":
+        csrf_resp = await sc.client.get(
+            "/api/v1/security/csrf_token/",
+            headers=req_headers,
+        )
+        if csrf_resp.status_code == 200:
+            req_headers["X-CSRFToken"] = csrf_resp.json().get("result", "")
+    if method.lower() == "get":
+        resp = await sc.client.get(endpoint, params=params, headers=req_headers)
+    elif method.lower() == "post":
+        resp = await sc.client.post(endpoint, json=data, params=params, headers=req_headers)
+    elif method.lower() == "put":
+        resp = await sc.client.put(endpoint, json=data, headers=req_headers)
+    elif method.lower() == "delete":
+        resp = await sc.client.delete(endpoint, headers=req_headers)
+    else:
+        return {"error": f"Unsupported method: {method}"}
+    if resp.status_code not in [200, 201]:
+        return {"error": f"Superset {resp.status_code}: {resp.text}"}
+    return resp.json()
 
 
-# ===== Authentication Tools =====
+
+
+=======
+============
 
 
 @mcp.tool()
@@ -401,7 +566,7 @@ async def superset_auth_authenticate_user(ctx: Context) -> Dict[str, Any]:
 
     superset_ctx.access_token = token
     superset_ctx.client.headers.update({"Authorization": f"Bearer {token}"})
-    await get_csrf_token(ctx)
+    
     return {"message": f"Authenticated as '{SUPERSET_MCP_USER}'", "access_token": token}
 
 
@@ -409,7 +574,6 @@ async def superset_auth_authenticate_user(ctx: Context) -> Dict[str, Any]:
 
 
 @mcp.tool()
-@requires_auth
 @handle_api_errors
 async def superset_dashboard_list(ctx: Context) -> Dict[str, Any]:
     """
@@ -421,11 +585,11 @@ async def superset_dashboard_list(ctx: Context) -> Dict[str, Any]:
     Returns:
         A dictionary containing dashboard data including id, title, url, and metadata
     """
-    return await make_api_request(ctx, "get", "/api/v1/dashboard/")
+    return await superset_request(ctx, "get", "/api/v1/dashboard/")
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_dashboard_get_by_id(
     ctx: Context, dashboard_id: int
@@ -442,11 +606,11 @@ async def superset_dashboard_get_by_id(
     Returns:
         A dictionary with complete dashboard information including components and layout
     """
-    return await make_api_request(ctx, "get", f"/api/v1/dashboard/{dashboard_id}")
+    return await superset_request(ctx, "get", f"/api/v1/dashboard/{dashboard_id}")
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_dashboard_create(
     ctx: Context, dashboard_title: str, json_metadata: Dict[str, Any] = None
@@ -468,11 +632,11 @@ async def superset_dashboard_create(
     if json_metadata:
         payload["json_metadata"] = json_metadata
 
-    return await make_api_request(ctx, "post", "/api/v1/dashboard/", data=payload)
+    return await superset_request(ctx, "post", "/api/v1/dashboard/", data=payload)
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_dashboard_update(
     ctx: Context, dashboard_id: int, data: Dict[str, Any]
@@ -490,13 +654,13 @@ async def superset_dashboard_update(
     Returns:
         A dictionary with the updated dashboard information
     """
-    return await make_api_request(
+    return await superset_request(
         ctx, "put", f"/api/v1/dashboard/{dashboard_id}", data=data
     )
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_dashboard_delete(ctx: Context, dashboard_id: int) -> Dict[str, Any]:
     """
@@ -511,7 +675,7 @@ async def superset_dashboard_delete(ctx: Context, dashboard_id: int) -> Dict[str
     Returns:
         A dictionary with deletion confirmation message
     """
-    response = await make_api_request(
+    response = await superset_request(
         ctx, "delete", f"/api/v1/dashboard/{dashboard_id}"
     )
 
@@ -526,7 +690,7 @@ async def superset_dashboard_delete(ctx: Context, dashboard_id: int) -> Dict[str
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_chart_list(ctx: Context) -> Dict[str, Any]:
     """
@@ -538,11 +702,11 @@ async def superset_chart_list(ctx: Context) -> Dict[str, Any]:
     Returns:
         A dictionary containing chart data including id, slice_name, viz_type, and datasource info
     """
-    return await make_api_request(ctx, "get", "/api/v1/chart/")
+    return await superset_request(ctx, "get", "/api/v1/chart/")
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_chart_get_by_id(ctx: Context, chart_id: int) -> Dict[str, Any]:
     """
@@ -557,11 +721,11 @@ async def superset_chart_get_by_id(ctx: Context, chart_id: int) -> Dict[str, Any
     Returns:
         A dictionary with complete chart information including visualization configuration
     """
-    return await make_api_request(ctx, "get", f"/api/v1/chart/{chart_id}")
+    return await superset_request(ctx, "get", f"/api/v1/chart/{chart_id}")
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_chart_create(
     ctx: Context,
@@ -594,11 +758,11 @@ async def superset_chart_create(
         "params": json.dumps(params),
     }
 
-    return await make_api_request(ctx, "post", "/api/v1/chart/", data=payload)
+    return await superset_request(ctx, "post", "/api/v1/chart/", data=payload)
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_chart_update(
     ctx: Context, chart_id: int, data: Dict[str, Any]
@@ -616,11 +780,11 @@ async def superset_chart_update(
     Returns:
         A dictionary with the updated chart information
     """
-    return await make_api_request(ctx, "put", f"/api/v1/chart/{chart_id}", data=data)
+    return await superset_request(ctx, "put", f"/api/v1/chart/{chart_id}", data=data)
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_chart_delete(ctx: Context, chart_id: int) -> Dict[str, Any]:
     """
@@ -635,7 +799,7 @@ async def superset_chart_delete(ctx: Context, chart_id: int) -> Dict[str, Any]:
     Returns:
         A dictionary with deletion confirmation message
     """
-    response = await make_api_request(ctx, "delete", f"/api/v1/chart/{chart_id}")
+    response = await superset_request(ctx, "delete", f"/api/v1/chart/{chart_id}")
 
     if not response.get("error"):
         return {"message": f"Chart {chart_id} deleted successfully"}
@@ -647,7 +811,7 @@ async def superset_chart_delete(ctx: Context, chart_id: int) -> Dict[str, Any]:
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_database_list(ctx: Context) -> Dict[str, Any]:
     """
@@ -659,11 +823,11 @@ async def superset_database_list(ctx: Context) -> Dict[str, Any]:
     Returns:
         A dictionary containing database connection information including id, name, and configuration
     """
-    return await make_api_request(ctx, "get", "/api/v1/database/")
+    return await superset_request(ctx, "get", "/api/v1/database/")
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_database_get_by_id(ctx: Context, database_id: int) -> Dict[str, Any]:
     """
@@ -678,11 +842,11 @@ async def superset_database_get_by_id(ctx: Context, database_id: int) -> Dict[st
     Returns:
         A dictionary with complete database configuration information
     """
-    return await make_api_request(ctx, "get", f"/api/v1/database/{database_id}")
+    return await superset_request(ctx, "get", f"/api/v1/database/{database_id}")
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_database_create(
     ctx: Context,
@@ -733,11 +897,11 @@ async def superset_database_create(
         "expose_in_sqllab": True,
     }
 
-    return await make_api_request(ctx, "post", "/api/v1/database/", data=payload)
+    return await superset_request(ctx, "post", "/api/v1/database/", data=payload)
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_database_get_tables(
     ctx: Context, database_id: int
@@ -754,11 +918,11 @@ async def superset_database_get_tables(
     Returns:
         A dictionary with list of tables including schema and table name information
     """
-    return await make_api_request(ctx, "get", f"/api/v1/database/{database_id}/tables/")
+    return await superset_request(ctx, "get", f"/api/v1/database/{database_id}/tables/")
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_database_schemas(ctx: Context, database_id: int) -> Dict[str, Any]:
     """
@@ -773,13 +937,13 @@ async def superset_database_schemas(ctx: Context, database_id: int) -> Dict[str,
     Returns:
         A dictionary with list of schema names
     """
-    return await make_api_request(
+    return await superset_request(
         ctx, "get", f"/api/v1/database/{database_id}/schemas/"
     )
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_database_test_connection(
     ctx: Context, database_data: Dict[str, Any]
@@ -796,13 +960,13 @@ async def superset_database_test_connection(
     Returns:
         A dictionary with connection test results
     """
-    return await make_api_request(
+    return await superset_request(
         ctx, "post", "/api/v1/database/test_connection", data=database_data
     )
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_database_update(
     ctx: Context, database_id: int, data: Dict[str, Any]
@@ -820,13 +984,13 @@ async def superset_database_update(
     Returns:
         A dictionary with the updated database information
     """
-    return await make_api_request(
+    return await superset_request(
         ctx, "put", f"/api/v1/database/{database_id}", data=data
     )
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_database_delete(ctx: Context, database_id: int) -> Dict[str, Any]:
     """
@@ -841,7 +1005,7 @@ async def superset_database_delete(ctx: Context, database_id: int) -> Dict[str, 
     Returns:
         A dictionary with deletion confirmation message
     """
-    response = await make_api_request(ctx, "delete", f"/api/v1/database/{database_id}")
+    response = await superset_request(ctx, "delete", f"/api/v1/database/{database_id}")
 
     if not response.get("error"):
         return {"message": f"Database {database_id} deleted successfully"}
@@ -850,7 +1014,7 @@ async def superset_database_delete(ctx: Context, database_id: int) -> Dict[str, 
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_database_get_catalogs(
     ctx: Context, database_id: int
@@ -867,13 +1031,13 @@ async def superset_database_get_catalogs(
     Returns:
         A dictionary with list of catalog names for databases that support catalogs
     """
-    return await make_api_request(
+    return await superset_request(
         ctx, "get", f"/api/v1/database/{database_id}/catalogs/"
     )
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_database_get_connection(
     ctx: Context, database_id: int
@@ -890,13 +1054,13 @@ async def superset_database_get_connection(
     Returns:
         A dictionary with detailed connection information
     """
-    return await make_api_request(
+    return await superset_request(
         ctx, "get", f"/api/v1/database/{database_id}/connection"
     )
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_database_get_function_names(
     ctx: Context, database_id: int
@@ -913,13 +1077,13 @@ async def superset_database_get_function_names(
     Returns:
         A dictionary with list of supported function names
     """
-    return await make_api_request(
+    return await superset_request(
         ctx, "get", f"/api/v1/database/{database_id}/function_names/"
     )
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_database_get_related_objects(
     ctx: Context, database_id: int
@@ -936,13 +1100,13 @@ async def superset_database_get_related_objects(
     Returns:
         A dictionary with counts and lists of related charts and dashboards
     """
-    return await make_api_request(
+    return await superset_request(
         ctx, "get", f"/api/v1/database/{database_id}/related_objects/"
     )
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_database_validate_sql(
     ctx: Context, database_id: int, sql: str
@@ -961,13 +1125,13 @@ async def superset_database_validate_sql(
         A dictionary with validation results
     """
     payload = {"sql": sql}
-    return await make_api_request(
+    return await superset_request(
         ctx, "post", f"/api/v1/database/{database_id}/validate_sql/", data=payload
     )
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_database_validate_parameters(
     ctx: Context, parameters: Dict[str, Any]
@@ -984,7 +1148,7 @@ async def superset_database_validate_parameters(
     Returns:
         A dictionary with validation results
     """
-    return await make_api_request(
+    return await superset_request(
         ctx, "post", "/api/v1/database/validate_parameters/", data=parameters
     )
 
@@ -993,7 +1157,7 @@ async def superset_database_validate_parameters(
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_dataset_list(ctx: Context) -> Dict[str, Any]:
     """
@@ -1005,11 +1169,11 @@ async def superset_dataset_list(ctx: Context) -> Dict[str, Any]:
     Returns:
         A dictionary containing dataset information including id, table_name, and database
     """
-    return await make_api_request(ctx, "get", "/api/v1/dataset/")
+    return await superset_request(ctx, "get", "/api/v1/dataset/")
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_dataset_get_by_id(ctx: Context, dataset_id: int) -> Dict[str, Any]:
     """
@@ -1024,11 +1188,11 @@ async def superset_dataset_get_by_id(ctx: Context, dataset_id: int) -> Dict[str,
     Returns:
         A dictionary with complete dataset information
     """
-    return await make_api_request(ctx, "get", f"/api/v1/dataset/{dataset_id}")
+    return await superset_request(ctx, "get", f"/api/v1/dataset/{dataset_id}")
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_dataset_create(
     ctx: Context,
@@ -1063,14 +1227,14 @@ async def superset_dataset_create(
     if owners:
         payload["owners"] = owners
 
-    return await make_api_request(ctx, "post", "/api/v1/dataset/", data=payload)
+    return await superset_request(ctx, "post", "/api/v1/dataset/", data=payload)
 
 
 # ===== SQL Lab Tools =====
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_sqllab_execute_query(
     ctx: Context, database_id: int, sql: str
@@ -1091,7 +1255,7 @@ async def superset_sqllab_execute_query(
     # Ensure we have a CSRF token before executing the query
     superset_ctx: SupersetContext = ctx.request_context.lifespan_context
     if not superset_ctx.csrf_token:
-        await get_csrf_token(ctx)
+        
 
     payload = {
         "database_id": database_id,
@@ -1102,11 +1266,11 @@ async def superset_sqllab_execute_query(
         "select_as_cta": False,
     }
 
-    return await make_api_request(ctx, "post", "/api/v1/sqllab/execute/", data=payload)
+    return await superset_request(ctx, "post", "/api/v1/sqllab/execute/", data=payload)
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_sqllab_get_saved_queries(ctx: Context) -> Dict[str, Any]:
     """
@@ -1118,11 +1282,11 @@ async def superset_sqllab_get_saved_queries(ctx: Context) -> Dict[str, Any]:
     Returns:
         A dictionary containing saved query information including id, label, and database
     """
-    return await make_api_request(ctx, "get", "/api/v1/saved_query/")
+    return await superset_request(ctx, "get", "/api/v1/saved_query/")
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_sqllab_format_sql(ctx: Context, sql: str) -> Dict[str, Any]:
     """
@@ -1138,13 +1302,13 @@ async def superset_sqllab_format_sql(ctx: Context, sql: str) -> Dict[str, Any]:
         A dictionary with the formatted SQL
     """
     payload = {"sql": sql}
-    return await make_api_request(
+    return await superset_request(
         ctx, "post", "/api/v1/sqllab/format_sql", data=payload
     )
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_sqllab_get_results(ctx: Context, key: str) -> Dict[str, Any]:
     """
@@ -1159,13 +1323,13 @@ async def superset_sqllab_get_results(ctx: Context, key: str) -> Dict[str, Any]:
     Returns:
         A dictionary with query results including column information and data rows
     """
-    return await make_api_request(
+    return await superset_request(
         ctx, "get", f"/api/v1/sqllab/results/", params={"key": key}
     )
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_sqllab_estimate_query_cost(
     ctx: Context, database_id: int, sql: str, schema: str = None
@@ -1192,11 +1356,11 @@ async def superset_sqllab_estimate_query_cost(
     if schema:
         payload["schema"] = schema
 
-    return await make_api_request(ctx, "post", "/api/v1/sqllab/estimate", data=payload)
+    return await superset_request(ctx, "post", "/api/v1/sqllab/estimate", data=payload)
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_sqllab_export_query_results(
     ctx: Context, client_id: str
@@ -1230,7 +1394,7 @@ async def superset_sqllab_export_query_results(
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_sqllab_get_bootstrap_data(ctx: Context) -> Dict[str, Any]:
     """
@@ -1242,14 +1406,14 @@ async def superset_sqllab_get_bootstrap_data(ctx: Context) -> Dict[str, Any]:
     Returns:
         A dictionary with SQL Lab configuration including allowed databases and settings
     """
-    return await make_api_request(ctx, "get", "/api/v1/sqllab/")
+    return await superset_request(ctx, "get", "/api/v1/sqllab/")
 
 
 # ===== Saved Query Tools =====
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_saved_query_get_by_id(ctx: Context, query_id: int) -> Dict[str, Any]:
     """
@@ -1264,11 +1428,11 @@ async def superset_saved_query_get_by_id(ctx: Context, query_id: int) -> Dict[st
     Returns:
         A dictionary with the saved query details including SQL text and database
     """
-    return await make_api_request(ctx, "get", f"/api/v1/saved_query/{query_id}")
+    return await superset_request(ctx, "get", f"/api/v1/saved_query/{query_id}")
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_saved_query_create(
     ctx: Context, query_data: Dict[str, Any]
@@ -1290,14 +1454,14 @@ async def superset_saved_query_create(
     Returns:
         A dictionary with the created saved query information including its ID
     """
-    return await make_api_request(ctx, "post", "/api/v1/saved_query/", data=query_data)
+    return await superset_request(ctx, "post", "/api/v1/saved_query/", data=query_data)
 
 
 # ===== Query Tools =====
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_query_stop(ctx: Context, client_id: str) -> Dict[str, Any]:
     """
@@ -1313,11 +1477,11 @@ async def superset_query_stop(ctx: Context, client_id: str) -> Dict[str, Any]:
         A dictionary with confirmation of query termination
     """
     payload = {"client_id": client_id}
-    return await make_api_request(ctx, "post", "/api/v1/query/stop", data=payload)
+    return await superset_request(ctx, "post", "/api/v1/query/stop", data=payload)
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_query_list(ctx: Context) -> Dict[str, Any]:
     """
@@ -1329,11 +1493,11 @@ async def superset_query_list(ctx: Context) -> Dict[str, Any]:
     Returns:
         A dictionary containing query information including status, duration, and SQL
     """
-    return await make_api_request(ctx, "get", "/api/v1/query/")
+    return await superset_request(ctx, "get", "/api/v1/query/")
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_query_get_by_id(ctx: Context, query_id: int) -> Dict[str, Any]:
     """
@@ -1348,14 +1512,14 @@ async def superset_query_get_by_id(ctx: Context, query_id: int) -> Dict[str, Any
     Returns:
         A dictionary with complete query execution information
     """
-    return await make_api_request(ctx, "get", f"/api/v1/query/{query_id}")
+    return await superset_request(ctx, "get", f"/api/v1/query/{query_id}")
 
 
 # ===== Activity and User Tools =====
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_activity_get_recent(ctx: Context) -> Dict[str, Any]:
     """
@@ -1367,11 +1531,11 @@ async def superset_activity_get_recent(ctx: Context) -> Dict[str, Any]:
     Returns:
         A dictionary with recent user activities including viewed charts and dashboards
     """
-    return await make_api_request(ctx, "get", "/api/v1/log/recent_activity/")
+    return await superset_request(ctx, "get", "/api/v1/log/recent_activity/")
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_user_get_current(ctx: Context) -> Dict[str, Any]:
     """
@@ -1383,11 +1547,11 @@ async def superset_user_get_current(ctx: Context) -> Dict[str, Any]:
     Returns:
         A dictionary with user profile data
     """
-    return await make_api_request(ctx, "get", "/api/v1/me/")
+    return await superset_request(ctx, "get", "/api/v1/me/")
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_user_get_roles(ctx: Context) -> Dict[str, Any]:
     """
@@ -1399,14 +1563,14 @@ async def superset_user_get_roles(ctx: Context) -> Dict[str, Any]:
     Returns:
         A dictionary with user role information
     """
-    return await make_api_request(ctx, "get", "/api/v1/me/roles/")
+    return await superset_request(ctx, "get", "/api/v1/me/roles/")
 
 
 # ===== Tag Tools =====
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_tag_list(ctx: Context) -> Dict[str, Any]:
     """
@@ -1418,11 +1582,11 @@ async def superset_tag_list(ctx: Context) -> Dict[str, Any]:
     Returns:
         A dictionary containing tag information including id and name
     """
-    return await make_api_request(ctx, "get", "/api/v1/tag/")
+    return await superset_request(ctx, "get", "/api/v1/tag/")
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_tag_create(ctx: Context, name: str) -> Dict[str, Any]:
     """
@@ -1438,11 +1602,11 @@ async def superset_tag_create(ctx: Context, name: str) -> Dict[str, Any]:
         A dictionary with the created tag information
     """
     payload = {"name": name}
-    return await make_api_request(ctx, "post", "/api/v1/tag/", data=payload)
+    return await superset_request(ctx, "post", "/api/v1/tag/", data=payload)
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_tag_get_by_id(ctx: Context, tag_id: int) -> Dict[str, Any]:
     """
@@ -1457,11 +1621,11 @@ async def superset_tag_get_by_id(ctx: Context, tag_id: int) -> Dict[str, Any]:
     Returns:
         A dictionary with tag details
     """
-    return await make_api_request(ctx, "get", f"/api/v1/tag/{tag_id}")
+    return await superset_request(ctx, "get", f"/api/v1/tag/{tag_id}")
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_tag_objects(ctx: Context) -> Dict[str, Any]:
     """
@@ -1473,11 +1637,11 @@ async def superset_tag_objects(ctx: Context) -> Dict[str, Any]:
     Returns:
         A dictionary with tagged objects grouped by tag
     """
-    return await make_api_request(ctx, "get", "/api/v1/tag/get_objects/")
+    return await superset_request(ctx, "get", "/api/v1/tag/get_objects/")
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_tag_delete(ctx: Context, tag_id: int) -> Dict[str, Any]:
     """
@@ -1492,7 +1656,7 @@ async def superset_tag_delete(ctx: Context, tag_id: int) -> Dict[str, Any]:
     Returns:
         A dictionary with deletion confirmation message
     """
-    response = await make_api_request(ctx, "delete", f"/api/v1/tag/{tag_id}")
+    response = await superset_request(ctx, "delete", f"/api/v1/tag/{tag_id}")
 
     if not response.get("error"):
         return {"message": f"Tag {tag_id} deleted successfully"}
@@ -1501,7 +1665,7 @@ async def superset_tag_delete(ctx: Context, tag_id: int) -> Dict[str, Any]:
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_tag_object_add(
     ctx: Context, object_type: str, object_id: int, tag_name: str
@@ -1526,13 +1690,13 @@ async def superset_tag_object_add(
         "tag_name": tag_name,
     }
 
-    return await make_api_request(
+    return await superset_request(
         ctx, "post", "/api/v1/tag/tagged_objects", data=payload
     )
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_tag_object_remove(
     ctx: Context, object_type: str, object_id: int, tag_name: str
@@ -1550,7 +1714,7 @@ async def superset_tag_object_remove(
     Returns:
         A dictionary with the untagging confirmation message
     """
-    response = await make_api_request(
+    response = await superset_request(
         ctx,
         "delete",
         f"/api/v1/tag/{object_type}/{object_id}",
@@ -1569,7 +1733,7 @@ async def superset_tag_object_remove(
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_explore_form_data_create(
     ctx: Context, form_data: Dict[str, Any]
@@ -1586,13 +1750,13 @@ async def superset_explore_form_data_create(
     Returns:
         A dictionary with a key that can be used to retrieve the form data
     """
-    return await make_api_request(
+    return await superset_request(
         ctx, "post", "/api/v1/explore/form_data", data=form_data
     )
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_explore_form_data_get(ctx: Context, key: str) -> Dict[str, Any]:
     """
@@ -1607,11 +1771,11 @@ async def superset_explore_form_data_get(ctx: Context, key: str) -> Dict[str, An
     Returns:
         A dictionary with the stored chart configuration
     """
-    return await make_api_request(ctx, "get", f"/api/v1/explore/form_data/{key}")
+    return await superset_request(ctx, "get", f"/api/v1/explore/form_data/{key}")
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_explore_permalink_create(
     ctx: Context, state: Dict[str, Any]
@@ -1628,11 +1792,11 @@ async def superset_explore_permalink_create(
     Returns:
         A dictionary with a key that can be used to access the permalink
     """
-    return await make_api_request(ctx, "post", "/api/v1/explore/permalink", data=state)
+    return await superset_request(ctx, "post", "/api/v1/explore/permalink", data=state)
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_explore_permalink_get(ctx: Context, key: str) -> Dict[str, Any]:
     """
@@ -1647,14 +1811,14 @@ async def superset_explore_permalink_get(ctx: Context, key: str) -> Dict[str, An
     Returns:
         A dictionary with the stored exploration state
     """
-    return await make_api_request(ctx, "get", f"/api/v1/explore/permalink/{key}")
+    return await superset_request(ctx, "get", f"/api/v1/explore/permalink/{key}")
 
 
 # ===== Menu Tools =====
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_menu_get(ctx: Context) -> Dict[str, Any]:
     """
@@ -1666,7 +1830,7 @@ async def superset_menu_get(ctx: Context) -> Dict[str, Any]:
     Returns:
         A dictionary with menu items and their configurations
     """
-    return await make_api_request(ctx, "get", "/api/v1/menu/")
+    return await superset_request(ctx, "get", "/api/v1/menu/")
 
 
 # ===== Configuration Tools =====
@@ -1699,7 +1863,7 @@ async def superset_config_get_base_url(ctx: Context) -> Dict[str, Any]:
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_advanced_data_type_convert(
     ctx: Context, type_name: str, value: Any
@@ -1722,13 +1886,13 @@ async def superset_advanced_data_type_convert(
         "value": value,
     }
 
-    return await make_api_request(
+    return await superset_request(
         ctx, "get", "/api/v1/advanced_data_type/convert", params=params
     )
 
 
 @mcp.tool()
-@requires_auth
+
 @handle_api_errors
 async def superset_advanced_data_type_list(ctx: Context) -> Dict[str, Any]:
     """
@@ -1740,7 +1904,7 @@ async def superset_advanced_data_type_list(ctx: Context) -> Dict[str, Any]:
     Returns:
         A dictionary with available advanced data types and their configurations
     """
-    return await make_api_request(ctx, "get", "/api/v1/advanced_data_type/types")
+    return await superset_request(ctx, "get", "/api/v1/advanced_data_type/types")
 
 
 if __name__ == "__main__":
