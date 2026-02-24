@@ -547,6 +547,170 @@ async def superset_config_get_base_url(ctx: Context) -> Dict[str, Any]:
         "message": f"Connected to Superset instance at: {superset_ctx.base_url}",
     }
 
+# ===== Data Analysis Tools =====
+
+@mcp.tool()
+@handle_api_errors
+async def superset_analyze_data(ctx: Context, question: str) -> Dict[str, Any]:
+    """
+    RECOMMENDED: Analyze data by automatically discovering schema and executing appropriate queries.
+
+    This tool combines schema discovery with SQL execution to answer data questions efficiently.
+    It will:
+    1. Get available databases and datasets
+    2. Show detailed column information with data types
+
+    Use this when you want to explore and query data without manual schema lookup.
+
+    Args:
+        question: The data question to answer (e.g., 'What are the top 10 customers by revenue?')
+
+    Returns:
+        A dictionary with the formatted data catalog and schema information
+    """
+    # Step 1: Get databases
+    db_response = await superset_request(ctx, "get", "/api/v1/database/")
+    if "error" in db_response:
+        return {"error": f"Failed to fetch databases: {db_response['error']}"}
+
+    databases_raw = db_response.get("result", [])
+
+    # Step 2: Get datasets
+    ds_response = await superset_request(ctx, "get", "/api/v1/dataset/")
+    if "error" in ds_response:
+        return {"error": f"Failed to fetch datasets: {ds_response['error']}"}
+
+    datasets_raw = ds_response.get("result", [])
+
+    # Step 3: Build enriched catalog — fetch column details per dataset
+    # Group datasets by database id
+    datasets_by_db: Dict[int, list] = {}
+    for ds in datasets_raw:
+        db_id = ds.get("database", {}).get("id") if isinstance(ds.get("database"), dict) else ds.get("database_id")
+        if db_id is not None:
+            datasets_by_db.setdefault(db_id, []).append(ds)
+
+    catalog_databases = []
+    for db in databases_raw:
+        db_id = db.get("id")
+        db_entry = {
+            "name": db.get("database_name", "Unknown"),
+            "id": db_id,
+            "backend": db.get("backend", "Unknown"),
+            "allow_run_async": db.get("allow_run_async", False),
+            "datasets": [],
+        }
+
+        for ds in datasets_by_db.get(db_id, []):
+            ds_id = ds.get("id")
+            # Fetch detailed dataset info including columns
+            ds_detail = await superset_request(ctx, "get", f"/api/v1/dataset/{ds_id}")
+            detail_result = ds_detail.get("result", ds_detail) if not ds_detail.get("error") else {}
+
+            columns = []
+            for col in detail_result.get("columns", []):
+                columns.append({
+                    "name": col.get("column_name", col.get("name", "unknown")),
+                    "type": col.get("type", "UNKNOWN"),
+                    "is_dttm": col.get("is_dttm", False),
+                })
+
+            db_entry["datasets"].append({
+                "id": ds_id,
+                "table_name": ds.get("table_name", "unknown"),
+                "schema": ds.get("schema", ""),
+                "columns": columns,
+            })
+
+        catalog_databases.append(db_entry)
+
+    total_datasets = sum(len(db["datasets"]) for db in catalog_databases)
+
+    # Step 4: Format output
+    output = []
+    output.append("=" * 100)
+    output.append("📚 DATA CATALOG - Detailed Schema Information")
+    output.append("=" * 100)
+    output.append(f"\n🎯 QUESTION: {question}\n")
+    output.append(f"📊 Total Databases: {len(catalog_databases)}")
+    output.append(f"📊 Total Datasets: {total_datasets}\n")
+
+    for db in catalog_databases:
+        output.append("=" * 100)
+        output.append(f"🗄️  DATABASE: {db['name']} (ID: {db['id']})")
+        output.append(f"   Type: {db.get('backend', 'Unknown')}")
+        output.append(f"   Async queries: {db.get('allow_run_async', False)}")
+
+        datasets = db.get("datasets", [])
+        if datasets:
+            output.append(f"\n   📋 Available Datasets: {len(datasets)}\n")
+
+            for i, ds in enumerate(datasets, 1):
+                output.append(f"   {i}. TABLE: {ds['table_name']}")
+                if ds.get("schema"):
+                    output.append(f"      Schema: {ds['schema']}")
+                output.append(f"      Dataset ID: {ds['id']}")
+
+                columns = ds.get("columns", [])
+                if columns:
+                    output.append(f"      Columns ({len(columns)}):")
+
+                    datetime_cols = [c for c in columns if c.get("is_dttm")]
+                    numeric_cols = [
+                        c for c in columns
+                        if c.get("type") and any(
+                            t in c["type"].lower()
+                            for t in ["int", "float", "double", "decimal", "numeric", "number"]
+                        )
+                    ]
+                    text_cols = [
+                        c for c in columns
+                        if c.get("type") and any(
+                            t in c["type"].lower()
+                            for t in ["varchar", "char", "text", "string"]
+                        )
+                    ]
+                    other_cols = [
+                        c for c in columns
+                        if c not in datetime_cols + numeric_cols + text_cols
+                    ]
+
+                    if datetime_cols:
+                        output.append("         📅 Date/Time Columns:")
+                        for col in datetime_cols:
+                            output.append(f"            • {col['name']} ({col.get('type', 'UNKNOWN')})")
+
+                    if numeric_cols:
+                        output.append("         🔢 Numeric Columns:")
+                        for col in numeric_cols:
+                            output.append(f"            • {col['name']} ({col.get('type', 'UNKNOWN')})")
+
+                    if text_cols:
+                        output.append("         📝 Text Columns:")
+                        for col in text_cols:
+                            output.append(f"            • {col['name']} ({col.get('type', 'UNKNOWN')})")
+
+                    if other_cols:
+                        output.append("         ⚙️  Other Columns:")
+                        for col in other_cols:
+                            output.append(f"            • {col['name']} ({col.get('type', 'UNKNOWN')})")
+                else:
+                    output.append("      ⚠️  No column information available")
+
+                output.append("")
+        else:
+            output.append("   ⚠️  No datasets found in this database\n")
+
+    output.append("=" * 100)
+    output.append("\n💡 NEXT STEPS:")
+    output.append("-" * 100)
+    output.append("\n1. Review the schema above to understand available data")
+    output.append("2. Identify which table(s) contain the data needed for your question")
+    output.append("3. Use superset_sqllab_execute_query to run SQL against the appropriate database")
+
+    return {"catalog": "\n".join(output), "total_databases": len(catalog_databases), "total_datasets": total_datasets}
+
+
 if __name__ == "__main__":
     # Support both stdio (default, for Claude Desktop etc.) and streamable-http (for portal integration)
     transport = os.getenv("MCP_TRANSPORT", "streamable-http")
