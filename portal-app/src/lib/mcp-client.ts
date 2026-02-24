@@ -19,6 +19,41 @@ const MCP_HEADERS = {
   Accept: "application/json, text/event-stream",
 };
 
+let _cachedToken: string | null = null;
+let _tokenExpiry: number = 0;
+
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  // Si nous avons un token valide en cache, le réutiliser
+  if (_cachedToken && Date.now() < _tokenExpiry) {
+    return {
+      ...MCP_HEADERS,
+      Authorization: `Bearer ${_cachedToken}`,
+    };
+  }
+
+  // Sinon, créer un nouveau token
+  try {
+    const { getUserFromHeaders } = await import("./auth");
+    const { createMcpToken } = await import("./mcp-auth");
+    
+    const user = await getUserFromHeaders();
+    const token = createMcpToken(user.username, user.email, user.roles);
+    
+    // Mettre en cache le token pour 50 secondes (il expire en 60s)
+    _cachedToken = token;
+    _tokenExpiry = Date.now() + 50_000;
+    
+    return {
+      ...MCP_HEADERS,
+      Authorization: `Bearer ${token}`,
+    };
+  } catch (error) {
+    console.error("[mcp-client] Failed to create auth token:", error);
+    // Retourner les headers de base sans authentification
+    return MCP_HEADERS;
+  }
+}
+
 let _requestId = 1;
 function nextId() {
   return _requestId++;
@@ -32,9 +67,11 @@ async function mcpPost(method: string, params: Record<string, unknown> = {}): Pr
     params,
   });
 
+  const authHeaders = await getAuthHeaders();
+  
   const res = await fetch(MCP_URL, {
     method: "POST",
-    headers: MCP_HEADERS,
+    headers: authHeaders,
     body,
   });
 

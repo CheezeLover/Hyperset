@@ -62,8 +62,8 @@ export function getUserFromRequest(request: Request): HypersetUser {
   return { id, email, roles, isAdmin };
 }
 
-export function getUserFromHeaders(): UserContext {
-  const h = headers();
+export async function getUserFromHeaders(): Promise<UserContext> {
+  const h = await headers();
   const username = h.get("x-token-user-id");
 
   if (!username) {
