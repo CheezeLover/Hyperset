@@ -37,6 +37,7 @@ services:
     image: localhost/hyperset-superset-mcp:latest
     container_name: hyperset-superset-mcp
     environment:
+      - MCP_SERVICE_SECRET=${MCP_SERVICE_SECRET}
       # Internal address of the Superset instance
       - SUPERSET_UPSTREAM=${SUPERSET_UPSTREAM}
       # Service-account credentials for Superset DB auth
@@ -57,6 +58,7 @@ services:
     ports:
       - "3000:3000"
     environment:
+      - MCP_SERVICE_SECRET=${MCP_SERVICE_SECRET}
       - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
       # Use explicit vars from .env — compose doesn't expand nested ${} in values
       - SUPERSET_PUBLIC_URL=${SUPERSET_PUBLIC_URL}
