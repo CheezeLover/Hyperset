@@ -64,15 +64,17 @@ export function getUserFromRequest(request: Request): HypersetUser {
 
 export async function getUserFromHeaders(): Promise<UserContext> {
   const h = await headers();
-  const username = h.get("x-token-user-id");
+  // Utiliser l'email comme username car X-Token-User-Id n'est pas disponible
+  const email = h.get("x-token-user-email");
 
-  if (!username) {
-    throw new Error("Unauthenticated: missing X-Token-User-Id header");
+  if (!email) {
+    throw new Error("Unauthenticated: missing X-Token-User-Email header");
   }
 
-  const email = h.get("x-token-user-email") ?? "";
+  // Pour les roles, utiliser X-Token-User-Roles
   const rolesRaw = h.get("x-token-user-roles") ?? "";
   const roles = rolesRaw.split(",").map((r) => r.trim()).filter(Boolean);
 
-  return { username, email, roles };
+  // Retourner l'email comme username
+  return { username: email, email, roles };
 }
