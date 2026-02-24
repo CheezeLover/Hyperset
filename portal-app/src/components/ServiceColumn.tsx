@@ -85,12 +85,11 @@ function ServiceBtn({
           justifyContent: "center",
           background: bgColor,
           color: iconColor,
-          opacity: active || hovered ? 1 : 0.6,
+          opacity: 1, // Always show at full opacity
           position: "relative",
-          transition: "background 0.2s, opacity 0.2s",
-          boxShadow: active
-            ? "0 1px 4px rgba(0,0,0,.1), 0 2px 8px rgba(0,0,0,.06)"
-            : "none",
+          transition: "background 0.2s",
+          // Never show shadow
+          boxShadow: "none",
         }}
       >
         {/* Active indicator bar */}
