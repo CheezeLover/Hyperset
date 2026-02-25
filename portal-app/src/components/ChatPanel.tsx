@@ -1118,7 +1118,7 @@ export function ChatPanel({
       {/* Subtle gradient transition between chat and input */}
       <div style={{
         height: "16px",
-        background: "linear-gradient(to bottom, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.01) 50%, var(--md-surface-cont) 100%)",
+        background: "linear-gradient(to bottom, var(--md-surface-cont) 0%, rgba(0,0,0,0.01) 50%, transparent 100%)",
         flexShrink: 0,
         pointerEvents: "none",
       }} />
