@@ -676,6 +676,7 @@ export function ChatPanel({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const supersetOrigin = (() => { try { return new URL(supersetUrl).origin; } catch { return "*"; } })();
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Probe endpoint on mount
   useEffect(() => {
@@ -726,6 +727,10 @@ export function ChatPanel({
     setMessages((prev) => [...prev, userMsg]);
     setLoading(true);
 
+    // Create a new abort controller for this request
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
     // Build messages array for the API (only role+content for history)
     const history = [...messages, userMsg].map((m) => ({
       role: m.role === "tool" ? "user" : m.role, // collapse tool messages
@@ -740,6 +745,7 @@ export function ChatPanel({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: history }),
+        signal: abortController.signal,
       });
 
       if (!response.ok || !response.body) {
@@ -757,6 +763,15 @@ export function ChatPanel({
       let currentToolCallIndex: number | null = null;
 
       while (true) {
+        // Check if the request was aborted
+        if (abortController.signal.aborted) {
+          setMessages((prev) => prev.map((m) => m.id === assistantId
+            ? { ...m, content: m.content + "\n\n[Response interrupted]", streaming: false }
+            : m
+          ));
+          break;
+        }
+
         const { done, value } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
@@ -830,13 +845,22 @@ export function ChatPanel({
         }
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Network error";
-      setMessages((prev) => prev.map((m) => m.id === assistantId
-        ? { ...m, content: msg, streaming: false }
-        : m
-      ));
+      if (err instanceof Error && err.name === "AbortError") {
+        // Request was aborted by user
+        setMessages((prev) => prev.map((m) => m.id === assistantId
+          ? { ...m, content: m.content + "\n\n[Response interrupted]", streaming: false }
+          : m
+        ));
+      } else {
+        const msg = err instanceof Error ? err.message : "Network error";
+        setMessages((prev) => prev.map((m) => m.id === assistantId
+          ? { ...m, content: msg, streaming: false }
+          : m
+        ));
+      }
     } finally {
       setLoading(false);
+      abortControllerRef.current = null;
     }
   }, [input, loading, messages, supersetIframeRef, supersetOrigin]);
 
@@ -848,6 +872,13 @@ export function ChatPanel({
   };
 
   const handleClear = () => setMessages(() => []);
+  
+  const handleStopGenerating = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+  };
   
   const handleSuggestionClick = useCallback((suggestion: string) => {
     // Send the suggestion immediately without validation
@@ -874,11 +905,16 @@ export function ChatPanel({
     }]);
     setLoading(true);
 
+    // Create a new abort controller for this request
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
     // Call the API directly
     fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ messages: history }),
+      signal: abortController.signal,
     })
     .then(async (response) => {
       if (!response.ok || !response.body) {
@@ -896,6 +932,15 @@ export function ChatPanel({
       let currentToolCallIndex: number | null = null;
 
       while (true) {
+        // Check if the request was aborted
+        if (abortController.signal.aborted) {
+          setMessages((prev) => prev.map((m) => m.id === assistantId
+            ? { ...m, content: m.content + "\n\n[Response interrupted]", streaming: false }
+            : m
+          ));
+          break;
+        }
+
         const { done, value } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
@@ -966,14 +1011,23 @@ export function ChatPanel({
       }
     })
     .catch((err) => {
-      const msg = err instanceof Error ? err.message : "Network error";
-      setMessages((prev) => prev.map((m) => m.id === assistantId
-        ? { ...m, content: msg, streaming: false }
-        : m
-      ));
+      if (err instanceof Error && err.name === "AbortError") {
+        // Request was aborted by user
+        setMessages((prev) => prev.map((m) => m.id === assistantId
+          ? { ...m, content: m.content + "\n\n[Response interrupted]", streaming: false }
+          : m
+        ));
+      } else {
+        const msg = err instanceof Error ? err.message : "Network error";
+        setMessages((prev) => prev.map((m) => m.id === assistantId
+          ? { ...m, content: msg, streaming: false }
+          : m
+        ));
+      }
     })
     .finally(() => {
       setLoading(false);
+      abortControllerRef.current = null;
     });
   }, [messages, supersetIframeRef, supersetOrigin]);
 
@@ -1118,35 +1172,54 @@ export function ChatPanel({
             opacity: input.trim() ? 1 : 0.3,
             transition: "opacity 0.2s, transform 0.1s",
           }}>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                if (input.trim() && !loading && !chatError) sendMessage();
-              }}
-              disabled={!input.trim() || loading || !!chatError}
-              title="Send"
-              style={{
-                border: "none",
-                background: "transparent",
-                cursor: (!input.trim() || loading || !!chatError) ? "default" : "pointer",
-                padding: "4px",
-                borderRadius: "50%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                pointerEvents: "auto",
-              }}
-            >
-              {loading ? (
-                <svg viewBox="0 0 24 24" width={20} height={20} fill="var(--md-primary)" style={{ animation: "spin 1s linear infinite" }}>
-                  <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/>
+            {loading ? (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleStopGenerating();
+                }}
+                title="Stop generating"
+                style={{
+                  border: "none",
+                  background: "transparent",
+                  cursor: "pointer",
+                  padding: "4px",
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  pointerEvents: "auto",
+                }}
+              >
+                <svg viewBox="0 0 24 24" width={20} height={20} fill="#ef5350">
+                  <path d="M18 18H6V6h12v12z"/>
                 </svg>
-              ) : (
+              </button>
+            ) : (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (input.trim() && !loading && !chatError) sendMessage();
+                }}
+                disabled={!input.trim() || loading || !!chatError}
+                title="Send"
+                style={{
+                  border: "none",
+                  background: "transparent",
+                  cursor: (!input.trim() || loading || !!chatError) ? "default" : "pointer",
+                  padding: "4px",
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  pointerEvents: "auto",
+                }}
+              >
                 <svg viewBox="0 0 24 24" width={20} height={20} fill="var(--md-primary)">
                   <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" transform="rotate(-45 12 12)" />
                 </svg>
-              )}
-            </button>
+              </button>
+            )}
           </div>
         </div>
       </div>
