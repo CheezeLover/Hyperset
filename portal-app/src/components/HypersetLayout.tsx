@@ -364,6 +364,10 @@ export function HypersetLayout({
               "secondary"
             )
           }
+          onDisconnect={() => {
+            // Redirect to our logout API endpoint
+            window.location.href = "/api/auth/logout";
+          }}
         />
       </div>
   );
