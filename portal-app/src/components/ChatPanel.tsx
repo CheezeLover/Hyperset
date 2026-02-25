@@ -1129,11 +1129,9 @@ export function ChatPanel({
           borderRadius: 24,
           background: "var(--md-surface)",
           border: "1px solid var(--md-outline-var)",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
           transition: "all 0.2s ease",
           ...(input.trim() && {
             borderColor: "var(--md-primary)",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
           })
         }}>
           <textarea
