@@ -36,7 +36,8 @@ export async function GET(request: NextRequest) {
     apiKey: session.llmSettings?.apiKey ? "***" : "",
     model: session.llmSettings?.model ?? process.env.LLM_MODEL ?? "gpt-4o",
     systemPrompt: session.llmSettings?.systemPrompt ?? process.env.LLM_SYSTEM_PROMPT ?? "",
-    isCustom: !!(session.llmSettings?.apiUrl || session.llmSettings?.apiKey || session.llmSettings?.model || session.llmSettings?.systemPrompt),
+    modelParams: session.llmSettings?.modelParams ?? "",
+    isCustom: !!(session.llmSettings?.apiUrl || session.llmSettings?.apiKey || session.llmSettings?.model || session.llmSettings?.systemPrompt || session.llmSettings?.modelParams),
   });
 }
 
@@ -55,6 +56,7 @@ export async function POST(request: NextRequest) {
     apiKey: body.apiKey && body.apiKey !== "***" ? body.apiKey : prev.apiKey,
     model: body.model !== undefined ? body.model : prev.model,
     systemPrompt: body.systemPrompt !== undefined ? body.systemPrompt : prev.systemPrompt,
+    modelParams: body.modelParams !== undefined ? body.modelParams : prev.modelParams,
   };
 
   await session.save();

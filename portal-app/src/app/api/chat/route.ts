@@ -212,6 +212,16 @@ export const POST = async (req: NextRequest) => {
     ...userMessages,
   ];
 
+  // Parse model parameters if provided
+  let modelParams = {};
+  try {
+    if (session.llmSettings?.modelParams) {
+      modelParams = JSON.parse(session.llmSettings.modelParams);
+    }
+  } catch (e) {
+    console.error("Invalid JSON in modelParams:", e);
+  }
+
   const openai = new OpenAI({ apiKey, baseURL: apiUrl });
 
   // Agentic loop: keep calling the model until it stops requesting tool calls
@@ -241,6 +251,7 @@ export const POST = async (req: NextRequest) => {
             tools: tools.length > 0 ? tools : undefined,
             tool_choice: tools.length > 0 ? "auto" : undefined,
             stream: true,
+            ...modelParams, // Spread additional model parameters
           });
 
           // Accumulate this turn's response

@@ -11,6 +11,7 @@ interface LlmSettings {
   apiKey: string;
   model: string;
   systemPrompt: string;
+  modelParams?: string;
   isCustom: boolean;
 }
 
@@ -205,6 +206,27 @@ export function AdminModal({ onClose }: AdminModalProps) {
                   placeholder={`You are Hyperset, an intelligent assistant for Apache Superset analytics…\n\n(Leave blank to use the default built-in prompt)`}
                   rows={6}
                   style={{ ...inputStyle, resize: "vertical", fontFamily: "monospace", fontSize: 12, lineHeight: 1.5 }}
+                  disabled={saving}
+                />
+              </label>
+            </div>
+
+            {/* ── Model parameters ── */}
+            <div style={{ marginTop: 12, borderTop: "1px solid var(--md-outline-var)", paddingTop: 12 }}>
+              <p style={{ fontSize: 11, fontWeight: 600, opacity: 0.45, textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 8px" }}>
+                Model Parameters (JSON)
+              </p>
+              <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                <span style={labelStyle}>Additional model parameters — optional JSON object with any valid model parameters</span>
+                <span style={{ fontSize: 11, opacity: 0.5, marginBottom: 4 }}>
+                  Example: {"temperature": 0.7, "max_tokens": 1024, "top_p": 0.9}
+                </span>
+                <textarea
+                  value={settings.modelParams || ""}
+                  onChange={(e) => setSettings((s) => ({ ...s, modelParams: e.target.value }))}
+                  placeholder={`{\n  \"temperature\": 0.7,\n  \"max_tokens\": 1024,\n  \"top_p\": 0.9\n}`}
+                  rows={4}
+                  style={{ ...inputStyle, resize: "vertical", fontFamily: "monospace", fontSize: 11, lineHeight: 1.4 }}
                   disabled={saving}
                 />
               </label>
