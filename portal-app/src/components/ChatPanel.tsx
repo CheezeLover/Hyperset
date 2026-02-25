@@ -1115,17 +1115,9 @@ export function ChatPanel({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Subtle gradient transition between chat and input */}
-      <div style={{
-        height: "16px",
-        background: "linear-gradient(to bottom, var(--md-surface-cont) 0%, rgba(0,0,0,0.01) 50%, transparent 100%)",
-        flexShrink: 0,
-        pointerEvents: "none",
-      }} />
-
       {/* Floating Input area */}
       <div style={{
-        padding: "8px 12px 12px 16px",
+        padding: "6px 10px 10px 14px",
         display: "flex", 
         flexShrink: 0,
         background: "transparent",
@@ -1157,7 +1149,7 @@ export function ChatPanel({
               flex: 1, resize: "none", 
               border: "none",
               borderRadius: 24, 
-              padding: "8px 48px 8px 16px", 
+              padding: "6px 46px 6px 14px", 
               fontSize: 14,
               background: "transparent", 
               color: "var(--md-on-surface)",
@@ -1167,13 +1159,13 @@ export function ChatPanel({
               overflowY: "hidden",
               opacity: (loading || !!chatError) ? 0.6 : 1,
               transition: "height 0.1s ease",
-              minHeight: 40,
+              minHeight: 38,
               width: "100%",
             }}
           />
           <div style={{
             position: "absolute",
-            right: 14,
+            right: 12,
             top: "50%",
             transform: input.trim() ? "translateY(-50%) scale(1)" : "translateY(-50%) scale(0.9)",
             pointerEvents: "none",

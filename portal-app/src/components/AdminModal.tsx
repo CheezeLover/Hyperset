@@ -219,7 +219,7 @@ export function AdminModal({ onClose }: AdminModalProps) {
               <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                 <span style={labelStyle}>Additional model parameters — optional JSON object with any valid model parameters</span>
                 <span style={{ fontSize: 11, opacity: 0.5, marginBottom: 4 }}>
-                  Example: {"temperature": 0.7, "max_tokens": 1024, "top_p": 0.9}
+                  Example: {`{"temperature": 0.7, "max_tokens": 1024, "top_p": 0.9}`}
                 </span>
                 <textarea
                   value={settings.modelParams || ""}
