@@ -673,6 +673,7 @@ export function ChatPanel({
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [chatError, setChatError] = useState<{ error: string; detail?: string } | null>(null);
   const [mcpWarning, setMcpWarning] = useState<string | null>(null);
+  const [hasSentMessage, setHasSentMessage] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const supersetOrigin = (() => { try { return new URL(supersetUrl).origin; } catch { return "*"; } })();
@@ -726,6 +727,7 @@ export function ChatPanel({
     const userMsg: Message = { id: Date.now().toString(), role: "user", content: text };
     setMessages((prev) => [...prev, userMsg]);
     setLoading(true);
+    setHasSentMessage(true);
 
     // Create a new abort controller for this request
     const abortController = new AbortController();
@@ -904,6 +906,7 @@ export function ChatPanel({
       toolCalls: [] 
     }]);
     setLoading(true);
+    setHasSentMessage(true);
 
     // Create a new abort controller for this request
     const abortController = new AbortController();
