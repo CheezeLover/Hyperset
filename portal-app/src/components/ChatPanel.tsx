@@ -1133,9 +1133,11 @@ export function ChatPanel({
           background: "var(--md-surface)",
           border: "1px solid var(--md-outline-var)",
           transition: "all 0.2s ease",
-          ...(input.trim() && {
+          ...(input.trim() ? {
             borderColor: "var(--md-primary)",
-          })
+          } : hasSentMessage ? {
+            borderColor: "var(--md-outline-var)",
+          } : {})
         }}>
           <textarea
             ref={textareaRef}
@@ -1162,6 +1164,11 @@ export function ChatPanel({
               transition: "height 0.1s ease",
               minHeight: 38,
               width: "100%",
+              WebkitAppearance: "none",
+              MozAppearance: "none",
+              // Ensure no focus outline overrides our border
+              outlineOffset: 0,
+              WebkitTapHighlightColor: "transparent",
             }}
           />
           <div style={{
