@@ -1192,7 +1192,7 @@ export function ChatPanel({
                 }}
               >
                 <svg viewBox="0 0 24 24" width={20} height={20} fill="#ef5350">
-                  <path d="M8 5v14l11-7z"/>
+                  <path d="M18 18H6V6h12v12z"/>
                 </svg>
               </button>
             ) : (
