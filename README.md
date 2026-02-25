@@ -6,378 +6,553 @@ It runs entirely in containers (Podman), requires no cloud services, and is desi
 
 ---
 
-## What's inside
+## 🚀 Quick Start (User-Friendly)
 
-| Component | Role |
-|-----------|------|
-| **Caddy** | Reverse proxy + authentication gateway. Handles HTTPS, login, and routes traffic to the right service. |
-| **Portal** | The main page you land on. A Next.js app with a resizable multi-panel layout, built-in AI chat, and dynamic side panels for custom pages. |
-| **Superset** | Data exploration and dashboarding — shown as the main panel. Runs anywhere; Caddy proxies to it, injects auth headers, and injects the Hyperset bridge script. |
-| **Superset MCP** | A Model Context Protocol server that gives the AI chat programmatic access to Superset — query SQL, create/list dashboards and charts, explore datasets. |
-| **Pages service** | A lightweight FastAPI server that auto-discovers custom pages you drop into the `Pages/` folder. |
+### Get up and running in 5 minutes
 
----
+**Prerequisites:**
+- Debian 12+ machine (physical, VM, or LXC)
+- Ports 80 and 443 open
+- Domain name or local hostname (e.g., `hyperset.internal`)
+- OpenAI-compatible LLM API endpoint and key
 
-## Architecture overview
-
-```
-Browser
-  └─► Caddy (HTTPS + auth)
-        ├─► hyperset.{domain}      → Portal (Next.js — chat + layout)
-        ├─► superset.{domain}      → Superset + bridge.js injection
-        ├─► pages.{domain}         → Pages service (FastAPI)
-        └─► auth.{domain}          → Login portal
-
-Portal (server-side)
-  └─► Superset MCP (port 8000)    → Superset API (SQL, dashboards, charts…)
-
-Superset iframe
-  └─► bridge.js (injected by Caddy)
-        ├─► Right-click chart → sends context to chat panel
-        └─► Receives navigate commands from chat → routes within Superset
-```
-
-Everything sits on an internal Podman network (`hyperset-net`). Caddy is the only container that exposes ports to the outside world. Superset can live on the same machine, on a different server, or anywhere reachable by Caddy.
-
----
-
-## Key features
-
-### AI chat that controls Superset
-The built-in chat panel (powered by [CopilotKit](https://copilotkit.ai)) has access to the full Superset API via MCP. You can ask it to:
-- List, create, or modify dashboards and charts
-- Run SQL queries against any connected database
-- Navigate the Superset panel directly ("open dashboard Sales Overview")
-
-Tool calls are shown as collapsible steps in the chat so you always see what's happening.
-
-### Right-click → Inspect in chatbot
-A lightweight bridge script is injected into the Superset iframe by Caddy. Right-clicking any chart gives you an **"Inspect in chatbot"** option that sends the chart title and datasource directly into the chat panel.
-
-### Role-based LLM routing
-Two LLM configurations can be set independently via environment variables — one for regular users, one for admins. Admins also get a runtime settings modal (gear icon in the chat header) to override the API URL, key, and model for their session without restarting anything.
-
-### Drop-in custom pages
-Drop a folder into `Pages/` and a button for it appears in the sidebar within seconds — no config changes required. Pages can be static HTML or include a FastAPI backend.
-
----
-
-## Getting started
-
-### Prerequisites
-
-- A fresh **Debian 12+** machine (physical, VM, or LXC)
-- `git` installed
-- Ports **80** and **443** open on your firewall
-- A domain name or a local hostname (e.g. `hyperset.internal` works fine on a home network)
-- An OpenAI-compatible LLM API endpoint and key (for the chat)
-
-### 1. Clone and configure
-
+**1. Clone and configure:**
 ```bash
 git clone https://github.com/CheezeLover/Hyperset.git
 cd Hyperset
+cp .env.example .env
+# Edit .env with your settings
 ```
 
-Edit `.env` — at minimum, set your domain, Superset address, secret keys, and LLM API details:
+**2. Generate keys:**
+```bash
+# For AUTH_CRYPTO_KEY (32-byte hex)
+openssl rand -hex 32
 
-```env
-# Domain
-HYPERSET_DOMAIN=hyperset.internal
-
-# Where Caddy can reach your Superset instance
-SUPERSET_UPSTREAM=http://my-server:8088
-
-# Auth key — generate with: openssl rand -hex 32
-AUTH_CRYPTO_KEY=<32-byte hex>
-
-# Session encryption for admin settings — generate with: openssl rand -base64 32
-SESSION_SECRET=<min 32 chars>
-
-# LLM for regular users
-CHAT_API_URL=https://api.openai.com/v1
-CHAT_API_KEY=sk-...
-CHAT_MODEL=gpt-4o
-
-# LLM for admins (can differ from the user one)
-ADMIN_API_URL=https://api.openai.com/v1
-ADMIN_API_KEY=sk-...
-ADMIN_MODEL=gpt-4o
-
-# Superset MCP service account (must be a Superset admin username)
-SUPERSET_MCP_USER=admin
+# For SESSION_SECRET (min 32 chars)
+openssl rand -base64 32
 ```
 
-> **Tip:** Run `openssl rand -hex 32` to generate `AUTH_CRYPTO_KEY` and `openssl rand -base64 32` for `SESSION_SECRET`. Never reuse placeholder values.
-
-### 2. Add DNS / hosts entries
-
-On every machine that will access the portal, add these lines to the hosts file — all pointing to the same server IP:
-
-**Windows** → `C:\Windows\System32\drivers\etc\hosts` (open as Administrator)
-**Linux/Mac** → `/etc/hosts`
-
+**3. Set up DNS/hosts:**
 ```
+# Add to /etc/hosts or Windows hosts file
 <server-ip>  hyperset.internal
 <server-ip>  auth.hyperset.internal
 <server-ip>  superset.hyperset.internal
 <server-ip>  pages.hyperset.internal
 ```
 
-Replace `hyperset.internal` with whatever you set as `HYPERSET_DOMAIN`.
-
-### 3. Run the setup script
-
+**4. Deploy:**
 ```bash
 chmod +x setup_podman.sh
 ./setup_podman.sh
 ```
 
-This installs Podman, creates the internal network, builds all images, and starts every service.
+**5. Create admin user:**
+- Visit `https://auth.hyperset.internal`
+- First user automatically gets admin rights
 
-### 4. Create your first user
-
-Navigate to `https://auth.{HYPERSET_DOMAIN}` and register an account. The first account automatically gets admin rights.
-
-### 5. Open the portal
-
-Go to `https://{HYPERSET_DOMAIN}` — you'll be redirected to login, then land on the portal. The **Chat** button in the sidebar opens the AI assistant. Any custom pages you've added appear below it.
+**6. Open portal:**
+- Go to `https://hyperset.internal`
+- Click **Chat** in sidebar to talk to your data
 
 ---
 
-## Connecting Superset
+## 📦 Deploying a Superset Test Instance
 
-Hyperset proxies `superset.{HYPERSET_DOMAIN}` to your existing Superset instance, injects the logged-in user's identity as HTTP headers, and injects the bridge script into every Superset page.
+Hyperset includes everything you need to deploy a **production-ready Superset instance** configured for Hyperset SSO.
 
-### Where Superset runs
+### Using the included setup script
 
-Set `SUPERSET_UPSTREAM` in `.env` to whatever address **Caddy** can reach:
+```bash
+cd Superset-Instance
+chmod +x superset_test_setup.sh
+./superset_test_setup.sh
+```
 
-| Scenario | Example value |
-|----------|---------------|
-| Same Podman network | `http://hyperset-superset:8088` |
-| Different machine on the same LAN | `http://192.168.1.50:8088` |
-| External HTTPS server | `https://superset.mycompany.com` |
+**What it does:**
+1. Clones official Superset 6.0.0
+2. Configures header-based auth (AUTH_REMOTE_USER)
+3. Sets up Redis caching
+4. Creates admin user automatically
+5. Starts on port 8088
 
-### Configuring Superset for header-based auth
+**Configuration:**
+- Edit `superset_config_docker.py` for auth settings
+- Edit `superset_config.py` for full customization
+- Set environment variables before running:
+  ```bash
+  SUPERSET_PORT=8088 SUPERSET_SECRET_KEY=$(openssl rand -hex 32) ./superset_test_setup.sh
+  ```
 
-Superset needs to be told to trust the `X-Webauth-User` header that Caddy injects. Add (or merge) the following into your Superset `superset_config.py`:
+**Connect to Hyperset:**
+```env
+# In your Hyperset .env
+SUPERSET_UPSTREAM=http://localhost:8088
+```
 
-```python
-from flask_appbuilder.security.manager import AUTH_REMOTE_USER
+---
 
+## 🔧 Technical Architecture & Security
+
+### System Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                                                                     │
+│   ┌─────────────┐    ┌─────────────┐    ┌───────────────────────┐   │
+│   │             │    │             │    │                       │   │
+│   │  Browser    │───▶│   Caddy     │───▶│    Portal (Next.js)    │   │
+│   │             │    │             │    │  ┌───────────────────┐  │   │
+│   └─────────────┘    └─────────────┘    │  │  Chat Panel       │  │   │
+│           ▲              ▲              │  │  ┌─────────────┐  │  │   │
+│           │              │              │  │  │  AI Chat    │  │  │   │
+│           │              │              │  │  └─────────────┘  │  │   │
+│           │              │              │  │  ┌─────────────┐  │  │   │
+│           │              │              │  │  │  MCP Client │◀─┼──┘   │
+│           │              │              │  └───────────────────┘  │   │
+│           │              │              └───────────────────────┘   │   │
+│           │              │                                      │   │
+│   ┌─────────────┐    ┌─────────────┐    ┌───────────────────────┐   │   │
+│   │             │    │             │    │                       │   │   │
+│   │  Browser    │───▶│   Caddy     │───▶│   Superset iframe   │   │   │
+│   │             │    │             │    │  ┌───────────────────┐  │   │   │
+│   └─────────────┘    └─────────────┘    │  │  Bridge.js       │  │   │   │
+│           ▲              ▲              │  │  (injected)       │  │   │   │
+│           │              │              │  └───────────────────┘  │   │   │
+│           │              │              └───────────────────────┘   │   │
+│           │              │                                      │   │
+│   ┌─────────────┐    ┌─────────────┐    ┌───────────────────────┐   │   │
+│   │             │    │             │    │                       │   │   │
+│   │  Browser    │───▶│   Caddy     │───▶│   Pages Service     │   │   │
+│   │             │    │             │    │  (FastAPI)           │   │   │
+│   └─────────────┘    └─────────────┘    └───────────────────────┘   │   │
+│                                                                     │   │
+│   ┌─────────────┐    ┌─────────────┐    ┌───────────────────────┐   │   │
+│   │             │    │             │    │                       │   │   │
+│   │  Browser    │───▶│   Caddy     │───▶│   Auth Portal       │   │   │
+│   │             │    │             │    │  (login/registration)│   │   │
+│   └─────────────┘    └─────────────┘    └───────────────────────┘   │   │
+│                                                                     │   │
+└─────────────────────────────────────────────────────────────────────┘   │   │
+                                                                         │   │
+┌─────────────────────────────────────────────────────────────────────┐   │   │
+│                                                                     │   │   │
+│   ┌───────────────────────────────────────────────────────────────┐  │   │   │
+│   │                                                               │  │   │   │
+│   │                        Superset MCP                         │  │   │   │
+│   │                   (Model Context Protocol)                  │  │   │   │
+│   │                                                               │  │   │   │
+│   └───────────────────────────────────────────────────────────────┘  │   │   │
+│                         ▲                                      ▲    │   │   │
+└─────────────────────────┼──────────────────────────────────────┼────┘   │   │
+                          │                                      │      │   │
+                          │                                      │      │   │
+                          ▼                                      ▼      │   │
+                  ┌─────────────────────┐            ┌─────────────┐  │   │
+                  │                     │            │             │  │   │
+                  │   Superset Instance │◄───────────│  Caddy     │  │   │
+                  │  (Docker/Podman)    │            │  (reverse   │  │   │
+                  │                     │            │  proxy)     │  │   │
+                  └─────────────────────┘            └─────────────┘  │   │
+                                                                         │   │
+└─────────────────────────────────────────────────────────────────────┘   │   │
+                                                                         │   │
+┌─────────────────────────────────────────────────────────────────────┐   │   │
+│                                                                     │   │   │
+│   Network: hyperset-net (internal Podman network)                  │   │   │
+│   - Caddy is the ONLY container exposing ports to host            │   │   │
+│   - All inter-service traffic stays on internal network            │   │   │
+│   - Superset can be on same machine, different server, or cloud   │   │   │
+│                                                                     │   │   │
+└─────────────────────────────────────────────────────────────────────┘   │   │
+                                                                         │   │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Security Constraints & Best Practices
+
+#### 🔒 Authentication Flow
+```
+User Browser → Caddy (HTTPS) → Header Injection → Superset (AUTH_REMOTE_USER)
+                    ▲                                      ▲
+                    │                                      │
+               Auth Cookie                          Trusts Header
+               (JWT signed)                          (No password check)
+```
+
+**Critical Security Rules:**
+1. **Superset MUST NOT be directly internet-accessible**
+   - Only Caddy should reach Superset
+   - Bind Superset to `127.0.0.1` or use firewall rules
+   - `AUTH_REMOTE_USER` trusts the header setter (Caddy)
+
+2. **Header-based auth configuration:**
+   ```python
+   # In superset_config.py
+   AUTH_TYPE = AUTH_REMOTE_USER
+   REMOTE_USER_ENV_VAR = "HTTP_X_WEBAUTH_USER"
+   AUTH_ROLES_MAPPING = {
+       "hyperset/admin": ["Admin"],
+       "hyperset/user": ["Gamma"],
+   }
+   ```
+
+3. **Role assignment:**
+   - Roles set ONLY at user creation from `X-Webauth-Groups` header
+   - After creation, manage roles in Superset UI
+   - First user to register becomes admin
+
+#### 🛡️ Network Security
+
+**Container Networking:**
+- `hyperset-net`: Internal Podman network (RFC1918 space)
+- Caddy: Only container with host port bindings (80, 443)
+- Superset: Accessible only via `hyperset-superset:8088` on internal network
+
+**Firewall Rules (Recommended):**
+```bash
+# Allow only Caddy to talk to Superset
+sudo ufw allow from 172.20.0.0/16 to any port 8088
+sudo ufw deny 8088
+```
+
+#### 🔐 Data Security
+
+**Session Storage:**
+- Admin LLM settings: Encrypted in iron-session cookies (AES-256)
+- User sessions: JWT signed with `AUTH_CRYPTO_KEY` (32+ byte)
+- Session secret: `SESSION_SECRET` (32+ char base64)
+
+**Database:**
+- Superset uses PostgreSQL (included in docker compose)
+- MCP server: Stateless (no database)
+- Pages service: Ephemeral (no persistent storage)
+
+---
+
+## 🎛️ Advanced Configuration
+
+### Model Parameters (JSON)
+
+Admins can now pass additional model parameters via the settings modal:
+
+```json
+{
+  "temperature": 0.7,
+  "max_tokens": 1024,
+  "top_p": 0.9,
+  "frequency_penalty": 0.1,
+  "presence_penalty": 0.1
+}
+```
+
+**Supported parameters:** Any parameter accepted by your LLM provider's API
+**Validation:** Admin responsibility to ensure compatibility with chosen model
+**Storage:** Saved in encrypted session cookie (24h TTL)
+
+### Customizing Superset
+
+**Environment variables for Superset container:**
+```env
+# In Superset-Instance/docker/.env-local
+SUPERSET_PORT=8088
+SECRET_KEY=your-32-byte-hex-key
+TAG=6.0.0
+HYPERSET_ORIGIN=https://hyperset.internal
+```
+
+**Role mapping:**
+```env
+# In superset_config_docker.py
+HYPERSET_ADMIN_ROLE_HEADER="hyperset/admin"  # Maps to Superset Admin
+HYPERSET_USER_ROLE_HEADER="hyperset/user"    # Maps to Superset Gamma
+```
+
+---
+
+## 🔧 Deployment Scenarios
+
+### Scenario 1: All-in-One (Recommended for testing)
+```
+┌───────────────────────────────────────────────────────┐
+│  Single Machine                                         │
+│  ┌───────────┐  ┌───────────┐  ┌─────────────────────┐  │
+│  │  Caddy    │  │  Portal  │  │   Superset         │  │
+│  └───────────┘  └───────────┘  │  (Docker)          │  │
+│        ▲          ▲             └─────────────────────┘  │
+│        │          │                                  │  │
+│  ┌─────┴──────┐  │                                  │  │
+│  │            │  │                                  │  │
+│  │  Browser   │  └──────────────────────────────────┘  │
+│  │            │                                          │
+│  └────────────┘                                          │
+└───────────────────────────────────────────────────────┘
+```
+
+**Setup:**
+```bash
+# In Hyperset directory
+./setup_podman.sh
+
+# In Superset-Instance directory  
+./superset_test_setup.sh
+```
+
+### Scenario 2: Separate Superset Server
+```
+┌─────────────────┐       ┌─────────────────────────────────┐
+│  Hyperset       │       │  Superset Server                │
+│  ┌───────────┐  │       │  ┌───────────────────────────┐  │
+│  │  Caddy    │◄───────▶│  │   Superset (AUTH_REMOTE) │  │
+│  └───────────┘  │       │  └───────────────────────────┘  │
+│  ┌───────────┐  │       │                                │
+│  │  Portal   │  │       │                                │
+│  └───────────┘  │       └─────────────────────────────────┘
+│  ┌───────────┐  │
+│  │  MCP      │◄─┘
+│  └───────────┘  │
+└─────────────────┘
+```
+
+**Configuration:**
+```env
+# In Hyperset .env
+SUPERSET_UPSTREAM=https://superset.yourcompany.com
+
+# On Superset server
 AUTH_TYPE = AUTH_REMOTE_USER
 REMOTE_USER_ENV_VAR = "HTTP_X_WEBAUTH_USER"
-
-AUTH_USER_REGISTRATION = True
-AUTH_USER_REGISTRATION_ROLE = "Gamma"   # default role for new users
-
-AUTH_ROLES_MAPPING = {
-    "hyperset/admin": ["Admin"],
-    "hyperset/user":  ["Gamma"],
-}
-AUTH_ROLES_SYNC_AT_LOGIN = True
 ```
 
-> **Note:** `AUTH_REMOTE_USER` trusts whoever sets the header, so Superset must **not** be directly reachable from the internet — only from Caddy. Bind it to `127.0.0.1` or an internal interface, or use a firewall rule.
-
-### Restart Superset
-
-After updating `superset_config.py`, restart Superset:
-
-```bash
-podman-compose restart superset   # if on the same compose stack
+### Scenario 3: Cloud LLM with Local Superset
+```
+┌───────────────────────────────────────────────────────┐
+│  Your Infrastructure                                    │
+│  ┌───────────┐  ┌───────────┐  ┌─────────────────────┐  │
+│  │  Caddy    │  │  Portal  │  │   Superset         │  │
+│  └───────────┘  └───────────┘  │  (Local Docker)     │  │
+│        ▲          ▲             └─────────────────────┘  │
+│        │          │                                  │  │
+│  ┌─────┴──────┐  │                                  │  │
+│  │            │  │                                  │  │
+│  │  Browser   │  └──────────────────────────────────┘  │
+│  │            │                                          │
+│  └────────────┘                                          │
+└───────────────────────────────────────────────────────┘
+        ▲
+        │  HTTPS
+        │
+┌───────────────────────────────────────────────────────┐
+│  Cloud Provider                                        │
+│  ┌─────────────────────────────────────────────────┐  │
+│  │  LLM API (Mistral/Ollama/OpenAI)                │  │
+│  └─────────────────────────────────────────────────┘  │
+└───────────────────────────────────────────────────────┘
 ```
 
-From that point on, any user authenticated by Hyperset will be logged into Superset automatically when they open the main panel.
-
----
-
-## AI chat and MCP
-
-The chat panel calls the Superset MCP server on the backend to run queries, list and create dashboards/charts, and explore your data model.
-
-### MCP service account
-
-The MCP server authenticates to Superset using a service account. Set it in `.env`:
-
+**Configuration:**
 ```env
-SUPERSET_MCP_USER=admin        # a Superset admin username
-SUPERSET_MCP_PASSWORD=         # leave empty if using AUTH_REMOTE_USER (recommended)
-```
-
-If Superset uses `AUTH_REMOTE_USER` (recommended), no password is needed — the MCP server sends the username in the same `X-Webauth-User` header that Caddy uses for browser sessions.
-
-### Admin LLM override
-
-Admins see a gear icon (⚙) in the chat panel header. Clicking it opens a settings modal where the API URL, key, and model can be changed at runtime. These overrides are stored in an encrypted session cookie and apply only to that session — they don't affect other users.
-
----
-
-## Adding custom pages
-
-Drop folders into `Pages/` and they appear in the portal sidebar within 10 seconds — no config changes, no restarts.
-
-### Static page (docs, dashboards, embeds…)
-
-```
-Pages/
-  my-docs/
-    index.html
-```
-
-### Page with a Python backend
-
-```
-Pages/
-  my-tool/
-    index.html       ← your UI
-    backend.py       ← your API
-```
-
-`backend.py` must expose a FastAPI `router` object:
-
-```python
-from fastapi import APIRouter
-
-router = APIRouter()
-
-@router.get("/hello")
-async def hello():
-    return {"message": "Hello from my-tool!"}
-```
-
-Your backend is automatically mounted at `https://pages.{domain}/my-tool/api/`. Call it from your `index.html`:
-
-```javascript
-const res = await fetch('/my-tool/api/hello');
-const data = await res.json();
-```
-
-No restart needed. The file watcher picks up new pages and backend changes automatically.
-
-### Removing a page
-
-Delete the subfolder. It disappears from the registry immediately and vanishes from the portal sidebar within 10 seconds.
-
----
-
-## Project structure
-
-```
-Hyperset/
-├── .env                    # Your secrets and domain config (never commit real values)
-├── podman-compose.yml      # All services defined here
-├── setup_podman.sh         # One-shot setup script
-│
-├── Caddy/
-│   ├── Caddyfile           # Routing, auth rules, bridge.js injection
-│   ├── Dockerfile          # Caddy + caddy-security + replace-response plugins
-│   ├── bridge.js           # Injected into Superset — enables chat↔Superset bridge
-│   └── users.json          # Local user database
-│
-├── portal-app/             # Next.js portal app (chat + layout)
-│   ├── src/
-│   │   ├── app/
-│   │   │   ├── page.tsx              # Main layout (server component)
-│   │   │   ├── layout.tsx            # Root layout
-│   │   │   └── api/
-│   │   │       ├── chat/route.ts     # CopilotKit AG-UI endpoint
-│   │   │       ├── config/route.ts   # Runtime config for client
-│   │   │       └── admin/route.ts    # Admin LLM settings (session cookie)
-│   │   ├── components/
-│   │   │   ├── HypersetLayout.tsx    # Resizable multi-panel layout
-│   │   │   ├── ChatPanel.tsx         # CopilotKit chat UI
-│   │   │   ├── AdminModal.tsx        # Admin LLM settings modal
-│   │   │   ├── ServiceColumn.tsx     # Icon strip sidebar
-│   │   │   └── SupersetPanel.tsx     # Superset iframe wrapper
-│   │   └── lib/
-│   │       ├── mcp-client.ts         # Server-side Superset MCP client
-│   │       ├── auth.ts               # Header-based user extraction
-│   │       ├── session.ts            # iron-session config
-│   │       └── superset-bridge.ts    # postMessage protocol types
-│   └── Dockerfile
-│
-├── Pages/                  # ← drop your custom pages here
-│   ├── docs/               # Example: static documentation page
-│   │   └── index.html
-│   └── hello/              # Example: page with a FastAPI backend
-│       ├── index.html
-│       └── backend.py
-│
-├── Pages-Service/          # Auto-discovery FastAPI service (don't touch this)
-│   ├── main.py
-│   ├── requirements.txt
-│   └── Dockerfile
-│
-└── Superset-MCP/           # MCP server — gives the AI access to Superset
-    ├── main.py
-    ├── pyproject.toml
-    └── Dockerfile
+# In Hyperset .env
+LLM_API_URL=https://api.mistral.ai/v1
+LLM_API_KEY=your-cloud-api-key
+LLM_MODEL=ministral-3b-2512
 ```
 
 ---
 
-## Useful commands
+## 🛠️ Maintenance & Updates
 
+### Updating Components
+
+**Portal:**
 ```bash
-# Start everything
-podman-compose up -d
+cd portal-app
+podman rm -f hyperset-portal
+podman-compose up --build -d portal
+```
 
-# View live logs for all services
+**MCP Server:**
+```bash
+cd Superset-MCP
+podman rm -f hyperset-superset-mcp
+podman-compose up --build -d superset-mcp
+```
+
+**Superset:**
+```bash
+cd Superset-Instance
+./superset_test_setup.sh  # Uses pinned version 6.0.0
+```
+
+### Backup & Restore
+
+**Superset Database:**
+```bash
+# Backup
+podman exec superset_db pg_dump -U superset superset > superset_backup.sql
+
+# Restore
+cat superset_backup.sql | podman exec -i superset_db psql -U superset superset
+```
+
+**Caddy Users:**
+```bash
+# Backup
+cp Caddy/users.json users_backup.json
+
+# Restore
+cp users_backup.json Caddy/users.json
+podman-compose restart caddy
+```
+
+---
+
+## 🚨 Troubleshooting Guide
+
+### Common Issues & Solutions
+
+**🔴 Chat not responding / API key error**
+- ✅ Verify `LLM_API_KEY` in `.env`
+- ✅ Check `LLM_API_URL` matches your provider
+- ✅ Test with: `curl $LLM_API_URL/v1/models -H "Authorization: Bearer $LLM_API_KEY"`
+
+**🔴 MCP connection errors**
+- ✅ Verify `SUPERSET_MCP_USER` is a Superset admin
+- ✅ Check `podman logs hyperset-superset-mcp`
+- ✅ Ensure `SUPERSET_UPSTREAM` is reachable from `hyperset-net`
+
+**🔴 Bridge.js not loading**
+- ✅ Rebuild Caddy: `podman-compose up --build -d caddy`
+- ✅ Check browser console for `[Hyperset Bridge] Loaded`
+- ✅ Verify Caddy strips CSP headers
+
+**🔴 Login loop / auth issues**
+- ✅ Check `AUTH_CRYPTO_KEY` is set (32+ bytes)
+- ✅ Verify `auth.{domain}` resolves correctly
+- ✅ Test auth: `curl -H "X-Webauth-User: test" http://localhost:8088/login/`
+
+**🔴 Pages not appearing**
+- ✅ Verify `pages.{domain}` in hosts file
+- ✅ Check browser console for `[Hyperset]` errors
+- ✅ See discovered pages: `curl https://pages.{domain}/__pages__`
+
+### Debugging Commands
+
+**Check service health:**
+```bash
+# Portal
+curl -I http://localhost:3000/api/config
+
+# MCP
+curl -I http://localhost:8000/mcp
+
+# Superset
+curl -I http://localhost:8088/health
+```
+
+**View logs:**
+```bash
+# All services
 podman-compose logs -f
 
-# View logs for a specific service
+# Specific service
 podman logs hyperset-portal -f
-podman logs hyperset-caddy -f
-podman logs hyperset-superset-mcp -f
 
-# Restart a single service after a config change
-podman-compose restart caddy
-podman-compose restart portal
+# With timestamps
+podman logs hyperset-caddy --format "{{.CreatedAt}} {{.Message}}"
+```
 
-# Rebuild and restart the portal (after updating portal-app/)
-podman rm -f hyperset-portal && podman-compose up --build -d portal
+**Test authentication:**
+```bash
+# Test Caddy auth
+curl -v https://auth.hyperset.internal
 
-# Rebuild and restart the pages service
-podman rm -f hyperset-pages && podman-compose up --build -d pages
+# Test Superset header auth
+curl -H "X-Webauth-User: admin" http://localhost:8088/api/v1/me/
 
-# Stop everything
-podman-compose down
+# Test MCP auth
+curl -H "Authorization: Bearer $(node -e "console.log(require('./portal-app/src/lib/mcp-auth').createMcpToken('admin', 'admin@example.com', ['hyperset/admin']))")" http://localhost:8000/mcp
 ```
 
 ---
 
-## Troubleshooting
+## 📚 Technical Reference
 
-**Chat panel shows no response / "placeholder" API key error**
-- Set `CHAT_API_KEY` (and `ADMIN_API_KEY` for admins) in `.env` to a valid key for your LLM provider
-- Check `CHAT_API_URL` matches your provider's base URL (e.g. `https://api.openai.com/v1`)
+### API Endpoints
 
-**Chat can't reach Superset (MCP errors)**
-- Ensure `SUPERSET_MCP_USER` is a valid Superset admin username
-- Check `podman logs hyperset-superset-mcp` for auth errors
-- Verify `SUPERSET_UPSTREAM` is reachable from inside the `hyperset-net` network
+**Portal API:**
+- `GET /api/config` - Configuration
+- `POST /api/chat` - Chat completion (streaming)
+- `GET/PATCH/POST/DELETE /api/admin` - Admin settings
 
-**bridge.js not loading / right-click menu not appearing**
-- Confirm the Caddy image was rebuilt after adding the `replace-response` module: `podman-compose up --build -d caddy`
-- Open browser DevTools on the Superset page and look for `[Hyperset Bridge] Loaded` in the console
-- Check that `Content-Security-Policy` isn't blocking inline scripts (Caddy should strip it)
+**Pages Service:**
+- `GET /__pages__` - List discovered pages
+- `GET /{page_name}` - Serve page HTML
+- `GET /{page_name}/api/*` - Page backend routes
 
-**Page buttons don't appear in the portal**
-- Check that `pages.{HYPERSET_DOMAIN}` is in your hosts file on the client machine
-- Open browser DevTools (F12 → Console) and look for `[Hyperset]` warnings
-- Run `podman logs hyperset-pages` to see which pages were discovered at startup
+**MCP Server:**
+- `POST /mcp` - MCP protocol endpoint
+- Supports `tools/list` and `tools/call` methods
 
-**Login loop / auth errors**
-- Make sure `auth.{HYPERSET_DOMAIN}` resolves to the server IP
-- Check that `AUTH_CRYPTO_KEY` is set and non-empty in `.env`
+### Environment Variables
 
-**TLS certificate warnings**
-- Caddy issues internal self-signed certificates — expected on a local network. Accept the browser warning once, or add the Caddy root CA to your system trust store.
+**Core:**
+- `HYPERSET_DOMAIN` - Base domain
+- `AUTH_CRYPTO_KEY` - Auth encryption (32-byte hex)
+- `SESSION_SECRET` - Session encryption (32+ char base64)
 
-**Backend changes not picked up after renaming/removing routes**
-- The file watcher reloads `backend.py` on modification, but FastAPI doesn't support removing old routes at runtime. Restart the pages container to get a clean slate:
-  ```bash
-  podman rm -f hyperset-pages && podman-compose up -d pages
-  ```
+**Superset:**
+- `SUPERSET_UPSTREAM` - Superset instance URL
+- `SUPERSET_MCP_USER` - Service account username
+- `SUPERSET_MCP_PASSWORD` - Service account password (optional)
+
+**LLM:**
+- `LLM_API_URL` - API base URL
+- `LLM_API_KEY` - API key
+- `LLM_MODEL` - Default model
+
+### Security Headers
+
+Caddy injects these headers into Superset:
+- `X-Webauth-User` - Username (email)
+- `X-Webauth-Email` - Email address
+- `X-Webauth-Groups` - Space-separated roles
+
+Superset configuration required:
+```python
+AUTH_TYPE = AUTH_REMOTE_USER
+REMOTE_USER_ENV_VAR = "HTTP_X_WEBAUTH_USER"
+```
+
+---
+
+## 🎯 Project Philosophy
+
+**Self-hosted first:** No cloud lock-in, no telemetry, no external dependencies
+
+**Container-native:** Everything runs in Podman/Docker with minimal host requirements
+
+**Extensible:** Add features without modifying shared code (drop-in pages, custom backends)
+
+**Secure by default:** Header-based auth, internal networking, TLS everywhere
+
+**Developer-friendly:** Hot-reload for pages, clear logs, TypeScript throughout
+
+---
+
+## 📞 Support & Community
+
+**Issues:** Report bugs and feature requests on GitHub
+
+**Contributing:** Pull requests welcome! Focus on:
+- Bug fixes
+- Documentation improvements
+- New page examples
+- MCP tool enhancements
+
+**License:** MIT
+
+---
+
+*Built with ❤️ for data teams who value privacy and control*
