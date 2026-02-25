@@ -364,6 +364,12 @@ export function HypersetLayout({
               "secondary"
             )
           }
+          onDisconnect={() => {
+            // Implement disconnect logic here
+            console.log("Disconnect button clicked");
+            // This would typically redirect to logout or clear session
+            window.location.href = "/api/auth/logout";
+          }}
         />
       </div>
   );
