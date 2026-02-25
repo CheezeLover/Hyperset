@@ -8,6 +8,8 @@ export interface LlmSettings {
   model?: string;
   /** System prompt prepended to every conversation */
   systemPrompt?: string;
+  /** Additional model parameters as JSON string */
+  modelParams?: string;
 }
 
 export interface SessionData {
