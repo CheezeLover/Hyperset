@@ -1117,7 +1117,7 @@ export function ChatPanel({
 
       {/* Floating Input area */}
       <div style={{
-        padding: "16px 20px 20px 24px",
+        padding: "6px 10px 10px 14px",
         display: "flex", 
         flexShrink: 0,
         background: "transparent",
@@ -1149,7 +1149,7 @@ export function ChatPanel({
               flex: 1, resize: "none", 
               border: "none",
               borderRadius: 24, 
-              padding: "12px 52px 12px 20px", 
+              padding: "6px 46px 6px 14px", 
               fontSize: 14,
               background: "transparent", 
               color: "var(--md-on-surface)",
@@ -1159,13 +1159,13 @@ export function ChatPanel({
               overflowY: "hidden",
               opacity: (loading || !!chatError) ? 0.6 : 1,
               transition: "height 0.1s ease",
-              minHeight: 48,
+              minHeight: 38,
               width: "100%",
             }}
           />
           <div style={{
             position: "absolute",
-            right: 16,
+            right: 12,
             top: "50%",
             transform: input.trim() ? "translateY(-50%) scale(1)" : "translateY(-50%) scale(0.9)",
             pointerEvents: "none",
