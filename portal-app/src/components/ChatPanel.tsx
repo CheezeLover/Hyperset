@@ -1130,7 +1130,7 @@ export function ChatPanel({
           flex: 1,
           position: "relative",
           borderRadius: 24,
-          background: "var(--md-surface)",
+          background: "transparent",
           border: "1px solid var(--md-outline-var)",
           transition: "all 0.2s ease",
           ...(input.trim() ? {
