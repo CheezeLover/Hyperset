@@ -797,4 +797,3 @@ if __name__ == "__main__":
     else:
         logger.info("Starting Superset MCP server (stdio)...")
         mcp.run()
-
