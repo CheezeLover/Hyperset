@@ -682,6 +682,12 @@ async def superset_analyze_data(ctx: Context, question: str) -> Dict[str, Any]:
 
 
 # ===== Embed / iframe Tools =====
+# NOTE: These tools return [iframe](url) format which creates an INLINE embedded
+# chart/dashboard directly inside the chat bubble.  Use them when the user wants
+# to see the chart right here in the conversation.
+#
+# For a simple clickable link that opens the chart in the Superset panel without
+# embedding it, use superset_get_chart_link / superset_get_dashboard_link below.
 
 @mcp.tool()
 @handle_api_errors
@@ -780,6 +786,114 @@ async def superset_get_dashboard_embed(
         "usage": (
             "Include embed_markdown verbatim in your response to display "
             "the dashboard inline in the chat."
+        ),
+    }
+
+
+# ===== Link Tools =====
+# These tools return a plain markdown [text](url) link — NOT an iframe embed.
+# Clicking the link in the chat opens the chart/dashboard in the main Superset
+# panel with the full Superset UI (navigation bar, sidebar, etc.).
+
+
+@mcp.tool()
+@handle_api_errors
+async def superset_get_chart_link(
+    ctx: Context,
+    chart_id: int,
+    title: str = "",
+) -> Dict[str, Any]:
+    """
+    Get a ready-to-use markdown link for a Superset chart that opens in the
+    Superset panel.
+
+    Use this when you want to reference a chart as a clickable hyperlink rather
+    than embedding it inline.  The returned link_markdown looks like:
+        [Sales Chart](https://superset.example.com/superset/explore/?slice_id=42)
+
+    Clicking the link in the chat navigates the main Superset panel to that chart
+    with the full Superset UI (not embedded/standalone mode).
+
+    Args:
+        chart_id: ID of the chart to link to
+        title: Link text shown to the user (fetched automatically if omitted)
+
+    Returns:
+        A dictionary with link_markdown (include this verbatim in your response)
+    """
+    if not title:
+        chart_resp = await superset_request(ctx, "get", f"/api/v1/chart/{chart_id}")
+        if "error" not in chart_resp:
+            title = chart_resp.get("result", {}).get("slice_name", f"Chart {chart_id}")
+        else:
+            title = f"Chart {chart_id}"
+
+    # No standalone param — loads the full Superset UI in the panel
+    link_url = f"{SUPERSET_PUBLIC_URL}/superset/explore/?slice_id={chart_id}"
+    link_markdown = f"[{title}]({link_url})"
+
+    return {
+        "chart_id": chart_id,
+        "title": title,
+        "link_url": link_url,
+        "link_markdown": link_markdown,
+        "usage": (
+            "Include link_markdown inline in your text to create a clickable link "
+            "that opens the chart in the Superset panel.  Unlike embed_markdown, "
+            "this does not create an inline iframe — it appears as a text hyperlink."
+        ),
+    }
+
+
+@mcp.tool()
+@handle_api_errors
+async def superset_get_dashboard_link(
+    ctx: Context,
+    dashboard_id: int,
+    title: str = "",
+) -> Dict[str, Any]:
+    """
+    Get a ready-to-use markdown link for a Superset dashboard that opens in the
+    Superset panel.
+
+    Use this when you want to reference a dashboard as a clickable hyperlink
+    rather than embedding it inline.  The returned link_markdown looks like:
+        [Sales Dashboard](https://superset.example.com/superset/dashboard/5/)
+
+    Clicking the link in the chat navigates the main Superset panel to that
+    dashboard with the full Superset UI (not embedded/standalone mode).
+
+    Args:
+        dashboard_id: ID of the dashboard to link to
+        title: Link text shown to the user (fetched automatically if omitted)
+
+    Returns:
+        A dictionary with link_markdown (include this verbatim in your response)
+    """
+    if not title:
+        dashboard_resp = await superset_request(
+            ctx, "get", f"/api/v1/dashboard/{dashboard_id}"
+        )
+        if "error" not in dashboard_resp:
+            title = dashboard_resp.get("result", {}).get(
+                "dashboard_title", f"Dashboard {dashboard_id}"
+            )
+        else:
+            title = f"Dashboard {dashboard_id}"
+
+    # No standalone param — loads the full Superset UI in the panel
+    link_url = f"{SUPERSET_PUBLIC_URL}/superset/dashboard/{dashboard_id}/"
+    link_markdown = f"[{title}]({link_url})"
+
+    return {
+        "dashboard_id": dashboard_id,
+        "title": title,
+        "link_url": link_url,
+        "link_markdown": link_markdown,
+        "usage": (
+            "Include link_markdown inline in your text to create a clickable link "
+            "that opens the dashboard in the Superset panel.  Unlike embed_markdown, "
+            "this does not create an inline iframe — it appears as a text hyperlink."
         ),
     }
 

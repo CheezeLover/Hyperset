@@ -140,7 +140,27 @@ function getHypersetDomain(supersetUrl: string): string {
   }
 }
 
-function renderMarkdown(text: string, supersetUrl: string): React.ReactNode {
+function renderMarkdown(
+  text: string,
+  supersetUrl: string,
+  onSupersetLinkClick?: (url: string) => void,
+): React.ReactNode {
+  // Build a domain-check helper (same logic as the iframe whitelist) and a
+  // bound inlineRender so every call site automatically gets the callbacks.
+  const supersetHostname = (() => { try { return new URL(supersetUrl).hostname; } catch { return ""; } })();
+  const hypersetDomain   = getHypersetDomain(supersetUrl);
+  const isSupersetUrl    = (url: string): boolean => {
+    try {
+      const { hostname } = new URL(url);
+      return (
+        (supersetHostname !== "" && (hostname === supersetHostname || hostname.endsWith("." + supersetHostname))) ||
+        (hypersetDomain   !== "" && (hostname === hypersetDomain   || hostname.endsWith("." + hypersetDomain)))
+      );
+    } catch { return false; }
+  };
+  // Convenience wrapper — keeps all call sites below identical in shape
+  const ir = (t: string) => inlineRender(t, onSupersetLinkClick, isSupersetUrl);
+
   const lines = text.split("\n");
   const nodes: React.ReactNode[] = [];
   let i = 0;
@@ -176,7 +196,7 @@ function renderMarkdown(text: string, supersetUrl: string): React.ReactNode {
     if (/^[\-\*] /.test(line)) {
       const items: React.ReactNode[] = [];
       while (i < lines.length && /^[\-\*] /.test(lines[i])) {
-        items.push(<li key={key()}>{inlineRender(lines[i].slice(2))}</li>);
+        items.push(<li key={key()}>{ir(lines[i].slice(2))}</li>);
         i++;
       }
       nodes.push(<ul key={key()} style={{ margin: "4px 0 4px 16px", padding: 0 }}>{items}</ul>);
@@ -187,7 +207,7 @@ function renderMarkdown(text: string, supersetUrl: string): React.ReactNode {
     if (/^\d+\. /.test(line)) {
       const items: React.ReactNode[] = [];
       while (i < lines.length && /^\d+\. /.test(lines[i])) {
-        items.push(<li key={key()}>{inlineRender(lines[i].replace(/^\d+\. /, ""))}</li>);
+        items.push(<li key={key()}>{ir(lines[i].replace(/^\d+\. /, ""))}</li>);
         i++;
       }
       nodes.push(<ol key={key()} style={{ margin: "4px 0 4px 16px", padding: 0 }}>{items}</ol>);
@@ -230,7 +250,7 @@ function renderMarkdown(text: string, supersetUrl: string): React.ReactNode {
                       fontWeight: 600,
                       color: "var(--md-on-surface)"
                     }}>
-                      {inlineRender(header.trim())}
+                      {ir(header.trim())}
                     </th>
                   ))}
                 </tr>
@@ -247,7 +267,7 @@ function renderMarkdown(text: string, supersetUrl: string): React.ReactNode {
                         border: "1px solid var(--md-outline-var)",
                         color: "var(--md-on-surface)"
                       }}>
-                        {inlineRender(cell.trim())}
+                        {ir(cell.trim())}
                       </td>
                     ))}
                   </tr>
@@ -267,7 +287,7 @@ function renderMarkdown(text: string, supersetUrl: string): React.ReactNode {
       const sizes = ["1.1em", "1.05em", "1em"];
       nodes.push(
         <p key={key()} style={{ fontWeight: 700, fontSize: sizes[level - 1] ?? "1em", margin: "8px 0 4px" }}>
-          {inlineRender(hMatch[2])}
+          {ir(hMatch[2])}
         </p>
       );
       i++;
@@ -361,7 +381,7 @@ function renderMarkdown(text: string, supersetUrl: string): React.ReactNode {
         }
       } catch {
         // Invalid URL - show as text
-        nodes.push(<p key={key()} style={{ margin: "2px 0", lineHeight: 1.6 }}>{inlineRender(line)}</p>);
+        nodes.push(<p key={key()} style={{ margin: "2px 0", lineHeight: 1.6 }}>{ir(line)}</p>);
       }
       i++;
       continue;
@@ -375,29 +395,37 @@ function renderMarkdown(text: string, supersetUrl: string): React.ReactNode {
     }
 
     // Normal paragraph line
-    nodes.push(<p key={key()} style={{ margin: "2px 0", lineHeight: 1.6 }}>{inlineRender(line)}</p>);
+    nodes.push(<p key={key()} style={{ margin: "2px 0", lineHeight: 1.6 }}>{ir(line)}</p>);
     i++;
   }
 
   return <>{nodes}</>;
 }
 
-function inlineRender(text: string): React.ReactNode {
-  // Split on **bold**, *italic*, `code`
+function inlineRender(
+  text: string,
+  onSupersetLink?: (url: string) => void,
+  isSupersetUrlFn?: (url: string) => boolean,
+): React.ReactNode {
+  // Handles **bold**, *italic*, `code`, and [text](url) links.
+  // [text](url) links pointing to the Superset domain open in the Superset
+  // iframe panel instead of a new browser tab.
   const parts: React.ReactNode[] = [];
   let remaining = text;
   let k = 0;
 
   while (remaining.length > 0) {
-    const boldIdx = remaining.indexOf("**");
+    const boldIdx  = remaining.indexOf("**");
     const italicIdx = remaining.indexOf("*");
-    const codeIdx = remaining.indexOf("`");
+    const codeIdx  = remaining.indexOf("`");
+    const linkIdx  = remaining.indexOf("[");
 
     // Find the earliest marker
     const candidates = [
-      boldIdx >= 0 ? boldIdx : Infinity,
-      italicIdx >= 0 && italicIdx !== boldIdx ? italicIdx : Infinity,
-      codeIdx >= 0 ? codeIdx : Infinity,
+      boldIdx  >= 0                              ? boldIdx  : Infinity,
+      italicIdx >= 0 && italicIdx !== boldIdx    ? italicIdx : Infinity,
+      codeIdx  >= 0                              ? codeIdx  : Infinity,
+      linkIdx  >= 0                              ? linkIdx  : Infinity,
     ];
     const minIdx = Math.min(...candidates);
 
@@ -447,6 +475,55 @@ function inlineRender(text: string): React.ReactNode {
           </code>
         );
         remaining = remaining.slice(end + 1);
+        continue;
+      }
+    }
+
+    // Link [text](url)
+    if (remaining.startsWith("[")) {
+      const linkMatch = remaining.match(/^\[([^\]]*)\]\(([^)\s]+)\)/);
+      if (linkMatch) {
+        const linkText = linkMatch[1];
+        const linkUrl  = linkMatch[2];
+        const isSuperset = isSupersetUrlFn?.(linkUrl) ?? false;
+
+        if (isSuperset && onSupersetLink) {
+          // Open in the Superset iframe panel instead of a new tab
+          parts.push(
+            <button
+              key={k++}
+              onClick={() => onSupersetLink(linkUrl)}
+              title="Open in Superset panel"
+              style={{
+                background: "none", border: "none",
+                color: "var(--md-primary)", cursor: "pointer",
+                padding: 0, textDecoration: "underline",
+                fontFamily: "inherit", fontSize: "inherit",
+                display: "inline", verticalAlign: "baseline",
+              }}
+            >
+              {linkText}
+              <svg viewBox="0 0 16 16" width={10} height={10}
+                fill="currentColor" style={{ marginLeft: 3, verticalAlign: "middle", opacity: 0.7 }}>
+                {/* "open in panel" icon — square with inward arrow */}
+                <path d="M2 2h5v1.5H3.5v9h9V11H14v4H2V2zm7 0h5v5h-1.5V4.56L7.28 9.78 6.22 8.72 11.44 3.5H9V2z"/>
+              </svg>
+            </button>
+          );
+        } else {
+          parts.push(
+            <a
+              key={k++}
+              href={linkUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: "var(--md-primary)" }}
+            >
+              {linkText}
+            </a>
+          );
+        }
+        remaining = remaining.slice(linkMatch[0].length);
         continue;
       }
     }
@@ -507,10 +584,12 @@ function ToolStep({ tc }: { tc: ToolCall }) {
 }
 
 // ── Message bubble ────────────────────────────────────────────────
-function MessageBubble({ msg, supersetUrl, onSuggestionClick }: { 
-  msg: Message; 
+function MessageBubble({ msg, supersetUrl, onSuggestionClick, onSupersetLinkClick }: {
+  msg: Message;
   supersetUrl: string;
   onSuggestionClick?: (suggestion: string) => void;
+  /** Called when a Superset-domain link in the message is clicked */
+  onSupersetLinkClick?: (url: string) => void;
 }) {
   const isUser = msg.role === "user";
   const isAssistant = msg.role === "assistant";
@@ -535,7 +614,7 @@ function MessageBubble({ msg, supersetUrl, onSuggestionClick }: {
           lineHeight: 1.55,
           wordBreak: "break-word",
         }}>
-          {isUser ? msg.content : renderMarkdown(msg.content, supersetUrl)}
+          {isUser ? msg.content : renderMarkdown(msg.content, supersetUrl, onSupersetLinkClick)}
           {msg.streaming && (
             <span style={{
               display: "inline-block", width: 6, height: 13,
@@ -899,6 +978,21 @@ export function ChatPanel({
   };
 
   const handleClear = () => setMessages(() => []);
+
+  // Navigate the Superset iframe to a URL when the user clicks a Superset link.
+  // Strip standalone/embedded-mode params so the main panel shows the full
+  // Superset UI even if the URL originally came from an embed tool.
+  const handleSupersetLinkClick = useCallback((url: string) => {
+    if (!supersetIframeRef.current) return;
+    try {
+      const u = new URL(url);
+      u.searchParams.delete("standalone");          // superset embedded mode
+      u.searchParams.delete("native_filters_key");  // may carry stale filter state
+      supersetIframeRef.current.src = u.toString();
+    } catch {
+      supersetIframeRef.current.src = url;
+    }
+  }, [supersetIframeRef]);
   
   const handleStopGenerating = () => {
     if (abortControllerRef.current) {
@@ -1133,11 +1227,12 @@ export function ChatPanel({
           </div>
         )}
         {messages.map((msg) => (
-          <MessageBubble 
-            key={msg.id} 
-            msg={msg} 
+          <MessageBubble
+            key={msg.id}
+            msg={msg}
             supersetUrl={supersetUrl}
             onSuggestionClick={handleSuggestionClick}
+            onSupersetLinkClick={handleSupersetLinkClick}
           />
         ))}
         <div ref={messagesEndRef} />
