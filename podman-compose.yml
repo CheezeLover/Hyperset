@@ -38,8 +38,10 @@ services:
     container_name: hyperset-superset-mcp
     environment:
       - MCP_SERVICE_SECRET=${MCP_SERVICE_SECRET}
-      # Internal address of the Superset instance
+      # Internal address of the Superset instance (used for API calls)
       - SUPERSET_UPSTREAM=${SUPERSET_UPSTREAM}
+      # Public URL used to build browser-accessible iframe embed links
+      - SUPERSET_PUBLIC_URL=${SUPERSET_PUBLIC_URL}
       # Service-account credentials for Superset DB auth
       - SUPERSET_MCP_USER=${SUPERSET_MCP_USER}
       - SUPERSET_MCP_PASSWORD=${SUPERSET_MCP_PASSWORD}

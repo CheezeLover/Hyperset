@@ -280,11 +280,18 @@ function renderMarkdown(text: string, supersetUrl: string): React.ReactNode {
       const iframeUrl = iframeMatch[1];
       const iframeTitle = iframeMatch[2].trim() || "Embedded Content";
       
-      // Security: Only allow HTTPS URLs from trusted domains.
-      // Third-party embeds are whitelisted by name; all subdomains of the
-      // configured HYPERSET_DOMAIN are whitelisted dynamically — no hardcoded
-      // internal hostnames.
+      // Security: Only allow URLs from trusted domains.
+      // Third-party embeds are whitelisted by name; Hyperset-internal URLs are
+      // whitelisted dynamically via two complementary checks — no hardcoded hostnames:
+      //   1. Exact match / subdomain of the configured supersetUrl hostname itself
+      //      (e.g. superset.acme.internal and *.superset.acme.internal)
+      //   2. Exact match / subdomain of the HYPERSET_DOMAIN base domain derived
+      //      from supersetUrl (e.g. acme.internal and *.acme.internal)
+      // Either check passing is sufficient.  HTTP is accepted for internal domains
+      // because local deployments often skip TLS; HTTPS is still required for
+      // third-party embeds.
       const thirdPartyDomains = ["youtube.com", "youtu.be", "vimeo.com"];
+      const supersetHostname = (() => { try { return new URL(supersetUrl).hostname; } catch { return ""; } })();
       const hypersetDomain = getHypersetDomain(supersetUrl);
 
       try {
@@ -292,13 +299,24 @@ function renderMarkdown(text: string, supersetUrl: string): React.ReactNode {
         const isThirdParty = thirdPartyDomains.some(d =>
           url.hostname === d || url.hostname.endsWith("." + d)
         );
-        const isHypersetSubdomain = hypersetDomain !== "" && (
-          url.hostname === hypersetDomain ||
-          url.hostname.endsWith("." + hypersetDomain)
-        );
+        const isHypersetSubdomain =
+          // Check 1: exact supersetUrl host or any of its subdomains
+          (supersetHostname !== "" && (
+            url.hostname === supersetHostname ||
+            url.hostname.endsWith("." + supersetHostname)
+          )) ||
+          // Check 2: base HYPERSET_DOMAIN or any subdomain of it
+          (hypersetDomain !== "" && (
+            url.hostname === hypersetDomain ||
+            url.hostname.endsWith("." + hypersetDomain)
+          ));
         const isAllowed = isThirdParty || isHypersetSubdomain;
-        
-        if (isAllowed && url.protocol === "https:") {
+        // Require HTTPS for third-party; allow HTTP/HTTPS for internal domains
+        const protocolOk = isHypersetSubdomain
+          ? (url.protocol === "https:" || url.protocol === "http:")
+          : url.protocol === "https:";
+
+        if (isAllowed && protocolOk) {
           nodes.push(
             <div key={key()} style={{ margin: "12px 0" }}>
               <div style={{ 
