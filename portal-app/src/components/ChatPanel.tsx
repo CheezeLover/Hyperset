@@ -979,9 +979,17 @@ export function ChatPanel({
 
   const handleClear = () => setMessages(() => []);
 
-  // Navigate the Superset iframe to a URL when the user clicks a Superset link
+  // Navigate the Superset iframe to a URL when the user clicks a Superset link.
+  // Strip standalone/embedded-mode params so the main panel shows the full
+  // Superset UI even if the URL originally came from an embed tool.
   const handleSupersetLinkClick = useCallback((url: string) => {
-    if (supersetIframeRef.current) {
+    if (!supersetIframeRef.current) return;
+    try {
+      const u = new URL(url);
+      u.searchParams.delete("standalone");          // superset embedded mode
+      u.searchParams.delete("native_filters_key");  // may carry stale filter state
+      supersetIframeRef.current.src = u.toString();
+    } catch {
       supersetIframeRef.current.src = url;
     }
   }, [supersetIframeRef]);
