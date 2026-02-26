@@ -127,7 +127,19 @@ function parseMarkdownTable(lines: string[]): ParsedTable | null {
 // Handles bold, italic, inline code, code blocks, bullet lists, numbered lists,
 // line breaks, tables, and iframe embeds. No external deps.
 // Iframe syntax: [iframe](https://url.com) Title
-// Note: Superset domain from config is automatically whitelisted for iframes
+// Any subdomain of HYPERSET_DOMAIN is automatically whitelisted for iframes.
+// HYPERSET_DOMAIN is derived from the configured supersetUrl (e.g.
+// "https://superset.acme.internal" → base domain "acme.internal").
+function getHypersetDomain(supersetUrl: string): string {
+  try {
+    const hostname = new URL(supersetUrl).hostname;
+    const dotIdx = hostname.indexOf(".");
+    return dotIdx !== -1 ? hostname.slice(dotIdx + 1) : hostname;
+  } catch {
+    return "";
+  }
+}
+
 function renderMarkdown(text: string, supersetUrl: string): React.ReactNode {
   const lines = text.split("\n");
   const nodes: React.ReactNode[] = [];
@@ -268,28 +280,23 @@ function renderMarkdown(text: string, supersetUrl: string): React.ReactNode {
       const iframeUrl = iframeMatch[1];
       const iframeTitle = iframeMatch[2].trim() || "Embedded Content";
       
-      // Security: Only allow HTTPS URLs from trusted domains
-      // Dynamically include the configured Superset domain
-      const allowedDomains = [
-        "youtube.com", "youtu.be",
-        "vimeo.com",
-        "pages.hyperset.internal" // Allow internal pages
-      ];
-      
-      // Add the configured Superset domain to the whitelist
-      try {
-        const supersetUrlObj = new URL(supersetUrl);
-        allowedDomains.push(supersetUrlObj.hostname);
-      } catch {
-        // If supersetUrl is invalid, fall back to default
-        allowedDomains.push("superset.hyperset.internal");
-      }
-      
+      // Security: Only allow HTTPS URLs from trusted domains.
+      // Third-party embeds are whitelisted by name; all subdomains of the
+      // configured HYPERSET_DOMAIN are whitelisted dynamically — no hardcoded
+      // internal hostnames.
+      const thirdPartyDomains = ["youtube.com", "youtu.be", "vimeo.com"];
+      const hypersetDomain = getHypersetDomain(supersetUrl);
+
       try {
         const url = new URL(iframeUrl);
-        const isAllowed = allowedDomains.some(domain => 
-          url.hostname === domain || url.hostname.endsWith("." + domain)
+        const isThirdParty = thirdPartyDomains.some(d =>
+          url.hostname === d || url.hostname.endsWith("." + d)
         );
+        const isHypersetSubdomain = hypersetDomain !== "" && (
+          url.hostname === hypersetDomain ||
+          url.hostname.endsWith("." + hypersetDomain)
+        );
+        const isAllowed = isThirdParty || isHypersetSubdomain;
         
         if (isAllowed && url.protocol === "https:") {
           nodes.push(

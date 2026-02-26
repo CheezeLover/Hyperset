@@ -51,6 +51,15 @@ SUPERSET_BASE_URL = (
     or "http://localhost:8088"
 )
 
+# Public URL used to build browser-accessible embed links.
+# Must be reachable by the end-user's browser (not an internal upstream address).
+# Falls back to SUPERSET_BASE_URL only as a last resort — set SUPERSET_PUBLIC_URL
+# explicitly in .env so embedded iframes resolve correctly.
+SUPERSET_PUBLIC_URL = (
+    os.getenv("SUPERSET_PUBLIC_URL")
+    or SUPERSET_BASE_URL
+)
+
 # ── Token verification ─────────────────────────────────────────
 _MCP_SECRET = os.getenv("MCP_SERVICE_SECRET", "")
 if not _MCP_SECRET or len(_MCP_SECRET) < 32:
@@ -669,6 +678,109 @@ async def superset_analyze_data(ctx: Context, question: str) -> Dict[str, Any]:
             "Review the schema above to identify relevant tables and columns",
             "Use superset_sqllab_execute_query(database_id, sql) to run SQL against the appropriate database",
         ],
+    }
+
+
+# ===== Embed / iframe Tools =====
+
+@mcp.tool()
+@handle_api_errors
+async def superset_get_chart_embed(
+    ctx: Context,
+    chart_id: int,
+    title: str = "",
+) -> Dict[str, Any]:
+    """
+    Get a ready-to-use iframe embed markdown string for a Superset chart.
+
+    Returns a string in the format:
+        [iframe](https://superset.example.com/superset/explore/?slice_id=42&standalone=1) My Chart
+
+    Paste this string verbatim into your response — the chat UI will render it as
+    an inline embedded chart.
+
+    Args:
+        chart_id: ID of the chart to embed
+        title: Display title shown above the iframe (fetched automatically if omitted)
+
+    Returns:
+        A dictionary with embed_markdown (the string to include in the response),
+        embed_url, chart_id, and title
+    """
+    if not title:
+        chart_resp = await superset_request(ctx, "get", f"/api/v1/chart/{chart_id}")
+        if "error" not in chart_resp:
+            title = chart_resp.get("result", {}).get("slice_name", f"Chart {chart_id}")
+        else:
+            title = f"Chart {chart_id}"
+
+    embed_url = (
+        f"{SUPERSET_PUBLIC_URL}/superset/explore/"
+        f"?slice_id={chart_id}&standalone=1"
+    )
+    embed_markdown = f"[iframe]({embed_url}) {title}"
+
+    return {
+        "chart_id": chart_id,
+        "title": title,
+        "embed_url": embed_url,
+        "embed_markdown": embed_markdown,
+        "usage": (
+            "Include embed_markdown verbatim in your response to display "
+            "the chart inline in the chat."
+        ),
+    }
+
+
+@mcp.tool()
+@handle_api_errors
+async def superset_get_dashboard_embed(
+    ctx: Context,
+    dashboard_id: int,
+    title: str = "",
+) -> Dict[str, Any]:
+    """
+    Get a ready-to-use iframe embed markdown string for a Superset dashboard.
+
+    Returns a string in the format:
+        [iframe](https://superset.example.com/superset/dashboard/5/?standalone=2) My Dashboard
+
+    Paste this string verbatim into your response — the chat UI will render it as
+    an inline embedded dashboard.
+
+    Args:
+        dashboard_id: ID of the dashboard to embed
+        title: Display title shown above the iframe (fetched automatically if omitted)
+
+    Returns:
+        A dictionary with embed_markdown (the string to include in the response),
+        embed_url, dashboard_id, and title
+    """
+    if not title:
+        dashboard_resp = await superset_request(
+            ctx, "get", f"/api/v1/dashboard/{dashboard_id}"
+        )
+        if "error" not in dashboard_resp:
+            title = dashboard_resp.get("result", {}).get(
+                "dashboard_title", f"Dashboard {dashboard_id}"
+            )
+        else:
+            title = f"Dashboard {dashboard_id}"
+
+    embed_url = (
+        f"{SUPERSET_PUBLIC_URL}/superset/dashboard/{dashboard_id}/?standalone=2"
+    )
+    embed_markdown = f"[iframe]({embed_url}) {title}"
+
+    return {
+        "dashboard_id": dashboard_id,
+        "title": title,
+        "embed_url": embed_url,
+        "embed_markdown": embed_markdown,
+        "usage": (
+            "Include embed_markdown verbatim in your response to display "
+            "the dashboard inline in the chat."
+        ),
     }
 
 
