@@ -678,6 +678,181 @@ async def superset_chart_get_viz_params_template(
     }
 
 
+# ===== Chart Validation Helpers =====
+
+def _extract_column_names(params: Dict[str, Any]) -> List[str]:
+    """
+    Walk a chart params dict and collect every column name that will be
+    sent to Superset's query engine.  Covers all chart types in the registry.
+    """
+    found: List[str] = []
+
+    def _from_metric(m: Any) -> None:
+        if isinstance(m, dict) and m.get("expressionType") == "SIMPLE":
+            col = m.get("column")
+            if isinstance(col, dict):
+                name = col.get("column_name")
+                if isinstance(name, str) and name:
+                    found.append(name)
+
+    # Single metric
+    if "metric" in params:
+        _from_metric(params["metric"])
+
+    # Metrics list
+    for m in params.get("metrics", []) if isinstance(params.get("metrics"), list) else []:
+        _from_metric(m)
+
+    # Scatter / bubble axis metrics
+    for key in ("x", "y", "size"):
+        if key in params:
+            _from_metric(params[key])
+
+    # Plain column lists
+    for key in ("groupby", "groupbyRows", "groupbyColumns", "columns", "all_columns",
+                "all_columns_x"):
+        val = params.get(key)
+        if isinstance(val, list):
+            found.extend(c for c in val if isinstance(c, str) and c)
+        elif isinstance(val, str) and val:
+            found.append(val)
+
+    # Single-string column fields
+    for key in ("x_axis", "all_columns_y", "series", "source", "target"):
+        val = params.get(key)
+        if isinstance(val, str) and val:
+            found.append(val)
+
+    # De-duplicate, preserve order
+    seen: set = set()
+    return [c for c in found if not (c in seen or seen.add(c))]  # type: ignore[func-returns-value]
+
+
+async def _validate_chart_params(
+    ctx: Context,
+    viz_type: str,
+    datasource_id: int,
+    datasource_type: str,
+    params: Dict[str, Any],
+) -> Optional[Dict[str, Any]]:
+    """
+    Pre-flight validation for superset_chart_create.
+    Returns an error dict the LLM can act on, or None when everything is fine.
+    """
+    errors: List[str] = []
+
+    # ── 1. viz_type must exist in the registry ──────────────────────────────
+    if viz_type not in VIZ_TYPES:
+        return {
+            "error": (
+                f"Invalid viz_type '{viz_type}'. "
+                f"Call superset_chart_list_viz_types to see valid options."
+            ),
+            "valid_viz_types": sorted(VIZ_TYPES.keys()),
+        }
+
+    # ── 2. viz_type inside params must match the argument ───────────────────
+    params_viz = params.get("viz_type")
+    if params_viz and params_viz != viz_type:
+        errors.append(
+            f"viz_type mismatch: argument is '{viz_type}' "
+            f"but params['viz_type'] is '{params_viz}'. They must be identical."
+        )
+
+    # ── 3. metric vs metrics: check against the template ────────────────────
+    template = _VIZ_PARAMS_TEMPLATES.get(viz_type, {})
+    tmpl_has_list   = "metrics" in template and "metric" not in template
+    tmpl_has_single = "metric"  in template and "metrics" not in template
+
+    if tmpl_has_single and "metrics" in params and "metric" not in params:
+        errors.append(
+            f"Chart type '{viz_type}' expects a single 'metric' object, "
+            f"not a 'metrics' list. "
+            f"Call superset_chart_get_viz_params_template(viz_type='{viz_type}') "
+            f"to see the correct structure."
+        )
+    if tmpl_has_list and "metric" in params and "metrics" not in params:
+        errors.append(
+            f"Chart type '{viz_type}' expects a 'metrics' list, "
+            f"not a single 'metric' object. "
+            f"Call superset_chart_get_viz_params_template(viz_type='{viz_type}') "
+            f"to see the correct structure."
+        )
+
+    # ── 4. Required template keys are present ───────────────────────────────
+    required_keys = [k for k in template if k not in ("viz_type", "adhoc_filters",
+                     "row_limit", "color_scheme", "show_legend", "time_range",
+                     "time_grain_sqla", "bar_stacked", "donut", "show_labels",
+                     "labels_outside", "stack", "stacked_style", "page_length",
+                     "include_time", "order_desc", "whisker_options",
+                     "compare_lag", "compare_suffix", "subheader",
+                     "orientation", "min_val", "max_val", "link_length",
+                     "x_axis_label")]
+    for rk in required_keys:
+        if rk not in params:
+            errors.append(
+                f"Required field '{rk}' is missing from params for viz_type '{viz_type}'."
+            )
+
+    # ── 5. Column existence check against the real dataset ──────────────────
+    if datasource_type == "table":
+        dataset_resp = await superset_request(
+            ctx, "get", f"/api/v1/dataset/{datasource_id}"
+        )
+        if "error" in dataset_resp:
+            errors.append(
+                f"Could not fetch dataset {datasource_id} to validate columns: "
+                f"{dataset_resp['error']}"
+            )
+        else:
+            result = dataset_resp.get("result", {})
+            dataset_columns: set = {
+                col["column_name"]
+                for col in result.get("columns", [])
+                if isinstance(col.get("column_name"), str)
+            }
+
+            referenced = _extract_column_names(params)
+            # Strip obvious placeholder names from the error list
+            _PLACEHOLDERS = {
+                "id", "dimension_column", "date_column", "value_column",
+                "x_column", "y_column", "size_column", "label_column",
+                "stage_column", "word_column", "source_column", "target_column",
+                "numeric_column", "x_dimension_column", "y_dimension_column",
+                "row_dimension_column", "col_dimension_column",
+                "outer_dimension_column", "inner_dimension_column",
+            }
+            missing = [c for c in referenced if c not in dataset_columns]
+            placeholders_used = [c for c in missing if c in _PLACEHOLDERS]
+            real_missing      = [c for c in missing if c not in _PLACEHOLDERS]
+
+            if placeholders_used:
+                errors.append(
+                    f"Placeholder column name(s) were used without being replaced: "
+                    f"{placeholders_used}. "
+                    f"You must substitute real column names from the dataset. "
+                    f"Available columns: {sorted(dataset_columns)}."
+                )
+            if real_missing:
+                errors.append(
+                    f"Column(s) not found in dataset {datasource_id}: {real_missing}. "
+                    f"Available columns: {sorted(dataset_columns)}."
+                )
+
+    if errors:
+        return {
+            "error": "Chart params validation failed — fix the issues below, then retry:",
+            "issues": errors,
+            "hint": (
+                "Call superset_chart_get_viz_params_template to get the correct "
+                "structure, then replace placeholder column names with real ones "
+                "from the dataset (use superset_dataset_get_by_id to list columns)."
+            ),
+        }
+
+    return None
+
+
 # ===== Chart Tools =====
 
 @mcp.tool()
@@ -750,6 +925,14 @@ async def superset_chart_create(
     Returns:
         A dictionary with the created chart information including its ID.
     """
+    # Pre-flight validation: checks viz_type, metric/metrics structure,
+    # required fields, and column existence against the real dataset.
+    validation_error = await _validate_chart_params(
+        ctx, viz_type, datasource_id, datasource_type, params
+    )
+    if validation_error:
+        return validation_error
+
     payload = {
         "slice_name": slice_name,
         "datasource_id": datasource_id,
