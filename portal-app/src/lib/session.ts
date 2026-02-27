@@ -10,6 +10,8 @@ export interface LlmSettings {
   systemPrompt?: string;
   /** Additional model parameters as JSON string */
   modelParams?: string;
+  /** System message used when generating follow-up question suggestions */
+  followupQuestionsPrompt?: string;
 }
 
 export interface SessionData {

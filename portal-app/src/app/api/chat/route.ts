@@ -61,10 +61,14 @@ export const GET = async (req: NextRequest) => {
 };
 
 // ── Follow-up suggestion generation ────────────────────────────
+const DEFAULT_FOLLOWUP_SYSTEM =
+  "You are a helpful assistant that generates follow-up questions based on conversation context. Always respond with only a valid JSON array of strings.";
+
 async function generateFollowupSuggestions(
   openai: OpenAI,
   model: string,
-  conversationHistory: OpenAI.Chat.ChatCompletionMessageParam[]
+  conversationHistory: OpenAI.Chat.ChatCompletionMessageParam[],
+  customSystemPrompt?: string,
 ): Promise<string[]> {
   try {
     // Create a prompt that asks the LLM to generate follow-up questions
@@ -72,7 +76,7 @@ async function generateFollowupSuggestions(
 Based on the conversation history below, generate 3-4 concise, relevant follow-up questions that would help the user explore this topic further. Respond only with a JSON array of strings containing the questions, with no additional text or explanation.
 
 Conversation history:
-${conversationHistory.map((msg, i) => `${msg.role}: ${msg.content}`).join("\n")}
+${conversationHistory.map((msg) => `${msg.role}: ${msg.content}`).join("\n")}
 
 Follow-up questions (JSON array only):`;
 
@@ -81,7 +85,7 @@ Follow-up questions (JSON array only):`;
       messages: [
         {
           role: "system",
-          content: "You are a helpful assistant that generates follow-up questions based on conversation context. Always respond with only a valid JSON array of strings."
+          content: customSystemPrompt || DEFAULT_FOLLOWUP_SYSTEM,
         },
         {
           role: "user",
@@ -138,6 +142,7 @@ export const POST = async (req: NextRequest) => {
   const apiKey = session.llmSettings?.apiKey ?? process.env.LLM_API_KEY ?? "";
   const model  = session.llmSettings?.model  ?? process.env.LLM_MODEL  ?? "gpt-4o";
   const systemPrompt = session.llmSettings?.systemPrompt ?? process.env.LLM_SYSTEM_PROMPT ?? "";
+  const followupQuestionsPrompt = session.llmSettings?.followupQuestionsPrompt ?? "";
 
   if (!apiKey) {
     return NextResponse.json({ error: "No API key configured" }, { status: 503 });
@@ -326,7 +331,7 @@ Examples:
             // Generate follow-up suggestions using the LLM
             if (assistantText) {
               try {
-                const suggestions = await generateFollowupSuggestions(openai, model, accumulated);
+                const suggestions = await generateFollowupSuggestions(openai, model, accumulated, followupQuestionsPrompt || undefined);
                 if (suggestions.length > 0) {
                   send({ type: "followup_suggestions", suggestions });
                 }
