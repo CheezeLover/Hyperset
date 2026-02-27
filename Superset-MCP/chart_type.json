@@ -91,9 +91,9 @@
       "opt": {"time_range":"str","whisker_options":"Tukey|Min/max|2/98 percentiles","adhoc_filters":"[]"}
     },
     "bubble_v2": {
-      "when": "Scatter plot with bubble size as third metric. Replaces legacy scatter.",
-      "req": {"x":"{...metric_obj...}","y":"{...metric_obj...}","size":"{...metric_obj...}","series":"str:column_name"},
-      "opt": {"time_range":"str","row_limit":"int","adhoc_filters":"[]"}
+      "when": "Scatter plot — x/y axes are metrics, bubble size is a third metric, entity labels each bubble. Use series for optional color grouping.",
+      "req": {"x":"{...metric_obj...}","y":"{...metric_obj...}","size":"{...metric_obj...}","entity":"str:column_name"},
+      "opt": {"series":"str:column_name","time_range":"str","row_limit":"int","color_scheme":"str","adhoc_filters":"[]"}
     },
     "heatmap": {
       "when": "Color-coded grid for two dimensions and a metric.",
