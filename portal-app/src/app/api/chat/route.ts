@@ -231,22 +231,24 @@ export const POST = async (req: NextRequest) => {
 
 SUPERSET CONTENT — two ways to reference charts and dashboards:
 
+CRITICAL URL RULE: NEVER construct or hardcode Superset URLs yourself.
+ALWAYS call the appropriate tool — it returns the real instance URL.
+Any manually written URL (including example.com or any other domain) will be wrong.
+
 1. INLINE EMBED (shows the chart/dashboard right inside the chat):
    - Call superset_get_chart_embed or superset_get_dashboard_embed.
-   - Output the embed_markdown value on its own plain line, with no surrounding text on that line.
-   - Format: [iframe](URL) Title
+   - Take the returned 'embed_markdown' value and paste it verbatim on its own plain line.
    - NEVER wrap it in backticks or a code block — it must be a raw standalone line.
    - Use this when the user explicitly asks to "show", "display", or "embed" a chart/dashboard.
 
 2. CLICKABLE LINK (opens in the Superset panel when clicked):
    - Call superset_get_chart_link or superset_get_dashboard_link.
-   - Output the link_markdown value inline in your sentence, just like a normal hyperlink.
-   - Format: [Title](URL)  — no [iframe] prefix.
-   - Use this when you want to reference a chart/dashboard without embedding it, e.g. "You can view the [Sales Dashboard](URL) for more details."
+   - Take the returned 'link_markdown' value and paste it verbatim inline in your sentence.
+   - Use this when you want to reference a chart/dashboard without embedding it.
 
-Examples:
-  Embed:  [iframe](https://superset.example.com/superset/explore/?slice_id=42&standalone=1) Sales Chart
-  Link:   [Sales Chart](https://superset.example.com/superset/explore/?slice_id=42)
+Format reference (URLs come from the tool, never from you):
+  Embed:  [iframe](<URL from tool>) <Title from tool>
+  Link:   [<Title from tool>](<URL from tool>)
 
 CHART CREATION — mandatory workflow (never skip steps):
 1. Call superset_chart_list_viz_types → pick the exact viz_type string.

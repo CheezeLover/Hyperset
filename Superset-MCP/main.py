@@ -1346,19 +1346,22 @@ async def superset_get_chart_embed(
     """
     Get a ready-to-use iframe embed markdown string for a Superset chart.
 
-    Returns a string in the format:
-        [iframe](https://superset.example.com/superset/explore/?slice_id=42&standalone=1) My Chart
+    IMPORTANT: NEVER construct embed URLs manually. ALWAYS call this tool —
+    it uses the real Superset instance URL. Hardcoding any domain (including
+    placeholder domains) will result in broken embeds.
 
-    Paste this string verbatim into your response — the chat UI will render it as
-    an inline embedded chart.
+    The tool returns 'embed_markdown' which looks like:
+        [iframe](<real-superset-url>/superset/explore/?slice_id=<id>&standalone=1) <title>
+
+    Copy 'embed_markdown' verbatim into your response — the chat UI renders it
+    as an inline embedded chart.
 
     Args:
         chart_id: ID of the chart to embed
         title: Display title shown above the iframe (fetched automatically if omitted)
 
     Returns:
-        A dictionary with embed_markdown (the string to include in the response),
-        embed_url, chart_id, and title
+        A dictionary with embed_markdown (paste verbatim), embed_url, chart_id, title
     """
     if not title:
         chart_resp = await superset_request(ctx, "get", f"/api/v1/chart/{chart_id}")
@@ -1395,19 +1398,22 @@ async def superset_get_dashboard_embed(
     """
     Get a ready-to-use iframe embed markdown string for a Superset dashboard.
 
-    Returns a string in the format:
-        [iframe](https://superset.example.com/superset/dashboard/5/?standalone=2) My Dashboard
+    IMPORTANT: NEVER construct embed URLs manually. ALWAYS call this tool —
+    it uses the real Superset instance URL. Hardcoding any domain (including
+    placeholder domains) will result in broken embeds.
 
-    Paste this string verbatim into your response — the chat UI will render it as
-    an inline embedded dashboard.
+    The tool returns 'embed_markdown' which looks like:
+        [iframe](<real-superset-url>/superset/dashboard/<id>/?standalone=2) <title>
+
+    Copy 'embed_markdown' verbatim into your response — the chat UI renders it
+    as an inline embedded dashboard.
 
     Args:
         dashboard_id: ID of the dashboard to embed
         title: Display title shown above the iframe (fetched automatically if omitted)
 
     Returns:
-        A dictionary with embed_markdown (the string to include in the response),
-        embed_url, dashboard_id, and title
+        A dictionary with embed_markdown (paste verbatim), embed_url, dashboard_id, title
     """
     if not title:
         dashboard_resp = await superset_request(
@@ -1454,19 +1460,22 @@ async def superset_get_chart_link(
     Get a ready-to-use markdown link for a Superset chart that opens in the
     Superset panel.
 
-    Use this when you want to reference a chart as a clickable hyperlink rather
-    than embedding it inline.  The returned link_markdown looks like:
-        [Sales Chart](https://superset.example.com/superset/explore/?slice_id=42)
+    IMPORTANT: NEVER construct chart URLs manually. ALWAYS call this tool —
+    it uses the real Superset instance URL. Hardcoding any domain (including
+    placeholder domains) will produce broken links.
 
-    Clicking the link in the chat navigates the main Superset panel to that chart
-    with the full Superset UI (not embedded/standalone mode).
+    The tool returns 'link_markdown' which looks like:
+        [<title>](<real-superset-url>/superset/explore/?slice_id=<id>)
+
+    Include link_markdown verbatim in your text — clicking it navigates the
+    Superset panel to the chart (full UI, not standalone mode).
 
     Args:
         chart_id: ID of the chart to link to
         title: Link text shown to the user (fetched automatically if omitted)
 
     Returns:
-        A dictionary with link_markdown (include this verbatim in your response)
+        A dictionary with link_markdown (paste verbatim), link_url, chart_id, title
     """
     if not title:
         chart_resp = await superset_request(ctx, "get", f"/api/v1/chart/{chart_id}")
@@ -1503,19 +1512,22 @@ async def superset_get_dashboard_link(
     Get a ready-to-use markdown link for a Superset dashboard that opens in the
     Superset panel.
 
-    Use this when you want to reference a dashboard as a clickable hyperlink
-    rather than embedding it inline.  The returned link_markdown looks like:
-        [Sales Dashboard](https://superset.example.com/superset/dashboard/5/)
+    IMPORTANT: NEVER construct dashboard URLs manually. ALWAYS call this tool —
+    it uses the real Superset instance URL. Hardcoding any domain (including
+    placeholder domains) will produce broken links.
 
-    Clicking the link in the chat navigates the main Superset panel to that
-    dashboard with the full Superset UI (not embedded/standalone mode).
+    The tool returns 'link_markdown' which looks like:
+        [<title>](<real-superset-url>/superset/dashboard/<id>/)
+
+    Include link_markdown verbatim in your text — clicking it navigates the
+    Superset panel to the dashboard (full UI, not standalone mode).
 
     Args:
         dashboard_id: ID of the dashboard to link to
         title: Link text shown to the user (fetched automatically if omitted)
 
     Returns:
-        A dictionary with link_markdown (include this verbatim in your response)
+        A dictionary with link_markdown (paste verbatim), link_url, dashboard_id, title
     """
     if not title:
         dashboard_resp = await superset_request(
