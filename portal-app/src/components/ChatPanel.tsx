@@ -536,7 +536,7 @@ function inlineRender(
   return <>{parts}</>;
 }
 
-// ── Tool call step component ─────────────────────────────────────
+// ── Tool call step component (used inside ToolCallsZone) ────────
 function ToolStep({ tc }: { tc: ToolCall }) {
   const [open, setOpen] = useState(false);
   const isPending = tc.result === undefined;
@@ -544,40 +544,120 @@ function ToolStep({ tc }: { tc: ToolCall }) {
 
   return (
     <div style={{
-      border: "1px solid var(--md-outline-var)", borderRadius: 10,
-      margin: "4px 0", overflow: "hidden",
-      background: "var(--md-surface)",
+      border: "1px solid var(--md-outline-var)", borderRadius: 8,
+      overflow: "hidden", background: "var(--md-surface-cont)",
     }}>
       <button
         onClick={() => setOpen((o) => !o)}
         style={{
           width: "100%", display: "flex", alignItems: "center", gap: 6,
-          padding: "6px 10px", background: "var(--md-primary-cont)",
-          border: "none", cursor: "pointer", color: "var(--md-on-primary-cont)",
-          fontSize: 12, fontWeight: 500, textAlign: "left",
+          padding: "5px 9px", background: "transparent",
+          border: "none", cursor: "pointer", color: "var(--md-on-surface)",
+          fontSize: 11, fontWeight: 500, textAlign: "left", opacity: 0.85,
         }}
       >
-        <span style={{ fontSize: 9, transition: "transform 0.2s", display: "inline-block", transform: open ? "rotate(90deg)" : "none" }}>▶</span>
+        <span style={{ fontSize: 8, transition: "transform 0.15s", display: "inline-block", transform: open ? "rotate(90deg)" : "none", opacity: 0.5 }}>▶</span>
         {isPending ? (
           <>
-            <span style={{ opacity: 0.6 }}>⋯</span>
-            <span>{tc.name.replace(/_/g, " ")}</span>
+            <span style={{
+              width: 9, height: 9, border: "1.5px solid currentColor",
+              borderTopColor: "transparent", borderRadius: "50%",
+              display: "inline-block", animation: "spin 0.8s linear infinite",
+              flexShrink: 0,
+            }} />
+            <span style={{ opacity: 0.7 }}>{tc.name.replace(/_/g, " ")}</span>
           </>
         ) : isNav ? (
           <span>↗ {tc.name === "navigate_superset_dashboard" ? `Dashboard ${tc.args.dashboardId ?? ""}` : `Chart ${tc.args.chartId ?? ""}`}</span>
         ) : (
-          <span>🔧 {tc.name.replace(/_/g, " ")}</span>
+          <span>✓ {tc.name.replace(/_/g, " ")}</span>
         )}
       </button>
       {open && (
         <pre style={{
-          padding: "8px 12px", fontSize: 11, overflowX: "auto",
+          padding: "7px 11px", fontSize: 10.5, overflowX: "auto",
           whiteSpace: "pre-wrap", wordBreak: "break-all",
-          color: "var(--md-on-surface)", opacity: 0.8, margin: 0,
+          color: "var(--md-on-surface)", opacity: 0.75, margin: 0,
+          borderTop: "1px solid var(--md-outline-var)",
         }}>
           {`args: ${JSON.stringify(tc.args, null, 2)}`}
           {tc.result !== undefined ? `\n\nresult: ${tc.result}` : ""}
         </pre>
+      )}
+    </div>
+  );
+}
+
+// ── Tool calls zone (single collapsible that groups all tool calls) ──
+function ToolCallsZone({ toolCalls, streaming }: { toolCalls: ToolCall[]; streaming?: boolean }) {
+  const [open, setOpen] = useState(false);
+  if (!toolCalls || toolCalls.length === 0) return null;
+
+  const pendingCount = toolCalls.filter(tc => tc.result === undefined).length;
+  const isDone = pendingCount === 0 && !streaming;
+  const label = !isDone
+    ? `${pendingCount > 0 ? pendingCount : toolCalls.length} tool${toolCalls.length !== 1 ? "s" : ""} running…`
+    : `${toolCalls.length} tool${toolCalls.length !== 1 ? "s" : ""} used`;
+
+  return (
+    <div style={{
+      maxWidth: "88%",
+      border: "1px solid var(--md-primary-cont)",
+      borderRadius: 10,
+      marginBottom: 6,
+      overflow: "hidden",
+    }}>
+      {/* Zone header — always visible */}
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: "100%", display: "flex", alignItems: "center", gap: 6,
+          padding: "6px 10px",
+          background: "var(--md-primary-cont)",
+          border: "none", cursor: "pointer",
+          color: "var(--md-on-primary-cont)",
+          fontSize: 12, fontWeight: 500, textAlign: "left",
+        }}
+      >
+        {/* Chevron */}
+        <span style={{
+          fontSize: 8, display: "inline-block",
+          transform: open ? "rotate(90deg)" : "none",
+          transition: "transform 0.15s", opacity: 0.6, flexShrink: 0,
+        }}>▶</span>
+        {/* Wrench icon */}
+        <svg viewBox="0 0 24 24" width={12} height={12} fill="currentColor"
+          style={{ flexShrink: 0, opacity: 0.75 }}>
+          <path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/>
+        </svg>
+        {/* Label */}
+        <span style={{ flex: 1 }}>{label}</span>
+        {/* Spinner while pending */}
+        {!isDone && (
+          <span style={{
+            width: 10, height: 10,
+            border: "1.5px solid var(--md-on-primary-cont)",
+            borderTopColor: "transparent",
+            borderRadius: "50%", display: "inline-block",
+            animation: "spin 0.8s linear infinite",
+            opacity: 0.55, flexShrink: 0,
+          }} />
+        )}
+        {/* Expand/collapse hint */}
+        <span style={{ fontSize: 11, opacity: 0.4, marginLeft: 4, flexShrink: 0, lineHeight: 1 }}>
+          {open ? "▴" : "▾"}
+        </span>
+      </button>
+
+      {/* Expanded body — each tool step */}
+      {open && (
+        <div style={{
+          padding: "5px 6px 6px",
+          background: "var(--md-surface)",
+          display: "flex", flexDirection: "column", gap: 3,
+        }}>
+          {toolCalls.map((tc, i) => <ToolStep key={i} tc={tc} />)}
+        </div>
       )}
     </div>
   );
@@ -601,7 +681,9 @@ function MessageBubble({ msg, supersetUrl, onSuggestionClick, onSupersetLinkClic
       alignItems: isUser ? "flex-end" : "flex-start",
       padding: "2px 12px",
     }}>
-      {msg.toolCalls?.map((tc, i) => <ToolStep key={i} tc={tc} />)}
+      {msg.toolCalls && msg.toolCalls.length > 0 && (
+        <ToolCallsZone toolCalls={msg.toolCalls} streaming={msg.streaming} />
+      )}
 
       {msg.content && (
         <div style={{
