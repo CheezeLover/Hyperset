@@ -233,7 +233,7 @@ SUPERSET CONTENT — CRITICAL RULES (violations break the UI):
 
 RULE 1 — NEVER construct or hardcode Superset URLs. Always call the tool; it returns the real URL.
 
-RULE 2 — DEFAULT IS EMBED. After creating a chart, always call superset_get_chart_embed and output the result as an embed (not a link), unless the user specifically asks for a link only.
+RULE 2 — ALWAYS USE THE EMBED TOOL. For EVERY chart or dashboard you reference — whether newly created OR found via a list/search — you MUST call superset_get_chart_embed (or superset_get_dashboard_embed) to get the URL. Never derive or construct a URL from a chart ID yourself. This applies equally to existing charts retrieved with superset_chart_list.
 
 RULE 3 — EMBED FORMAT: call superset_get_chart_embed → take the 'embed_markdown' string → output it EXACTLY as returned, on its own line, with NOTHING else on that line.
   Correct:   [iframe](https://real-url/...) Chart Title
