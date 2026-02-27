@@ -301,34 +301,61 @@ async def superset_dashboard_delete(ctx: Context, dashboard_id: int) -> Dict[str
 # ===== Chart Viz-Type Registry & Params Templates =====
 
 # Maps viz_type string → human description.
-# These are the ONLY valid viz_type values recognised by Superset.
+# These are the ONLY valid viz_type values recognised by modern Superset (4.x+).
+# Legacy types 'bar', 'line', 'area', 'scatter' have been REMOVED — they are
+# not supported in Superset 4.x and will produce "This visualization type is
+# not supported." Use the ECharts equivalents listed below instead.
 VIZ_TYPES: Dict[str, str] = {
-    "bar":                       "Bar Chart (legacy) – vertical bars grouped by a dimension",
-    "dist_bar":                  "Distribution Bar Chart (legacy) – bars with optional stacking by a second dimension",
-    "echarts_timeseries_bar":    "Bar Chart (ECharts) – time-series bar, richer styling; preferred over 'bar' for time data",
-    "line":                      "Line Chart (legacy) – trend over time or ordered dimension",
-    "echarts_timeseries_line":   "Line Chart (ECharts) – time-series line; preferred over 'line' for time data",
-    "echarts_timeseries_smooth": "Smooth Line Chart (ECharts) – line with Bezier curves",
-    "echarts_area":              "Area Chart (ECharts) – filled area below a line, optional stacking",
-    "area":                      "Area Chart (legacy) – stacked or overlapping filled areas",
-    "pie":                       "Pie / Donut Chart – part-to-whole proportions",
-    "big_number":                "Big Number with Trendline – single KPI with a sparkline",
-    "big_number_total":          "Big Number – single KPI value, no trendline",
-    "table":                     "Data Table – rows and columns with optional conditional formatting",
-    "pivot_table_v2":            "Pivot Table – cross-tabulation of two dimensions and a metric",
-    "histogram":                 "Histogram – frequency distribution of a numeric column",
-    "scatter":                   "Scatter Plot (legacy) – x/y scatter with optional groupby",
-    "bubble_v2":                 "Bubble Chart – scatter with bubble size representing a third metric",
-    "heatmap":                   "Heatmap – color-coded grid for two dimensions and a metric",
-    "treemap_v2":                "Treemap – hierarchical part-to-whole rectangles",
-    "funnel":                    "Funnel Chart – ordered conversion/flow stages",
-    "gauge_chart":               "Gauge Chart – circular gauge for a single value vs. a range",
-    "word_cloud":                "Word Cloud – text size proportional to a metric",
-    "sunburst_v2":               "Sunburst – hierarchical radial chart (drill-down)",
-    "sankey_v2":                 "Sankey Diagram – flow/quantity between named nodes",
-    "box_plot":                  "Box Plot – statistical distribution (median, quartiles, outliers)",
-    "rose":                      "Nightingale Rose Chart – polar bar chart",
-    "cal_heatmap":               "Calendar Heatmap – daily metric values on a calendar grid",
+    # ── Bar charts ──────────────────────────────────────────────────────────
+    "echarts_timeseries_bar": (
+        "Bar Chart (ECharts) — works for BOTH time-series AND categorical bars. "
+        "For time data set x_axis to a date/time column and add time_grain_sqla. "
+        "For ranked/top-N categorical bars (e.g. top 10 countries) set x_axis to "
+        "the category column and omit time_grain_sqla. "
+        "DO NOT use the legacy 'bar' type — it is not supported."
+    ),
+    "dist_bar": (
+        "Distribution Bar Chart — categorical bar chart driven by 'groupby' (no x_axis). "
+        "Use for ranked/top-N bars when a groupby-only approach is preferred. "
+        "Supports stacking via a second 'columns' groupby."
+    ),
+    # ── Line / area charts ──────────────────────────────────────────────────
+    "echarts_timeseries_line": (
+        "Line Chart (ECharts) — trend over time or ordered dimension. "
+        "Requires x_axis. DO NOT use the legacy 'line' type."
+    ),
+    "echarts_timeseries_smooth": "Smooth Line Chart (ECharts) — same as echarts_timeseries_line with Bezier curves.",
+    "echarts_area": (
+        "Area Chart (ECharts) — filled area below a line, optional stacking. "
+        "Requires x_axis. DO NOT use the legacy 'area' type."
+    ),
+    # ── Single-value KPIs ───────────────────────────────────────────────────
+    "big_number":       "Big Number with Trendline — single KPI with a sparkline. Requires a time column.",
+    "big_number_total": "Big Number — single KPI value, no trendline.",
+    # ── Tables ──────────────────────────────────────────────────────────────
+    "table":          "Data Table — rows and columns, optional conditional formatting.",
+    "pivot_table_v2": "Pivot Table — cross-tabulation of two dimensions and a metric.",
+    # ── Part-to-whole ───────────────────────────────────────────────────────
+    "pie":        "Pie / Donut Chart — part-to-whole proportions.",
+    "treemap_v2": "Treemap — hierarchical part-to-whole rectangles.",
+    "funnel":     "Funnel Chart — ordered conversion/flow stages.",
+    "sunburst_v2":"Sunburst — hierarchical radial drill-down chart.",
+    # ── Distribution / statistics ───────────────────────────────────────────
+    "histogram": "Histogram — frequency distribution of a numeric column.",
+    "box_plot":  "Box Plot — statistical distribution (median, quartiles, outliers).",
+    # ── X-Y relationships ───────────────────────────────────────────────────
+    "bubble_v2": (
+        "Bubble / Scatter Chart — x/y scatter with bubble size as a third metric. "
+        "DO NOT use the legacy 'scatter' type."
+    ),
+    # ── Spatial / grid ──────────────────────────────────────────────────────
+    "heatmap":    "Heatmap — color-coded grid for two dimensions and a metric.",
+    "cal_heatmap":"Calendar Heatmap — daily metric values on a calendar grid.",
+    # ── Other ───────────────────────────────────────────────────────────────
+    "gauge_chart": "Gauge Chart — circular gauge for a single value vs. a range.",
+    "word_cloud":  "Word Cloud — text size proportional to a metric.",
+    "rose":        "Nightingale Rose Chart — polar bar chart.",
+    "sankey_v2":   "Sankey Diagram — flow/quantity between named nodes.",
 }
 
 def _simple_metric(column: str, agg: str = "COUNT") -> Dict[str, Any]:
@@ -344,17 +371,10 @@ def _simple_metric(column: str, agg: str = "COUNT") -> Dict[str, Any]:
 # Per-viz_type params templates.  Placeholder column names are descriptive
 # so the LLM knows what kind of column to substitute.
 _VIZ_PARAMS_TEMPLATES: Dict[str, Dict[str, Any]] = {
-    "bar": {
-        "viz_type": "bar",
-        "metrics": [_simple_metric("id", "COUNT")],
-        "groupby": ["dimension_column"],
-        "time_range": "No filter",
-        "row_limit": 50,
-        "bar_stacked": False,
-        "show_legend": True,
-        "color_scheme": "supersetColors",
-        "adhoc_filters": [],
-    },
+    # NOTE: legacy 'bar', 'line', 'area', 'scatter' have been intentionally
+    # omitted — they are not supported in Superset 4.x.  Use the ECharts
+    # equivalents: echarts_timeseries_bar, echarts_timeseries_line,
+    # echarts_area, bubble_v2.
     "dist_bar": {
         "viz_type": "dist_bar",
         "metrics": [_simple_metric("id", "COUNT")],
@@ -375,17 +395,6 @@ _VIZ_PARAMS_TEMPLATES: Dict[str, Dict[str, Any]] = {
         "time_grain_sqla": "P1M",
         "row_limit": 10000,
         "orientation": "vertical",
-        "show_legend": True,
-        "color_scheme": "supersetColors",
-        "adhoc_filters": [],
-    },
-    "line": {
-        "viz_type": "line",
-        "metrics": [_simple_metric("id", "COUNT")],
-        "groupby": [],
-        "time_range": "Last year",
-        "time_grain_sqla": "P1M",
-        "row_limit": 10000,
         "show_legend": True,
         "color_scheme": "supersetColors",
         "adhoc_filters": [],
@@ -422,18 +431,6 @@ _VIZ_PARAMS_TEMPLATES: Dict[str, Dict[str, Any]] = {
         "time_range": "Last year",
         "time_grain_sqla": "P1M",
         "stack": False,
-        "row_limit": 10000,
-        "show_legend": True,
-        "color_scheme": "supersetColors",
-        "adhoc_filters": [],
-    },
-    "area": {
-        "viz_type": "area",
-        "metrics": [_simple_metric("id", "COUNT")],
-        "groupby": [],
-        "time_range": "Last year",
-        "time_grain_sqla": "P1M",
-        "stacked_style": "stack",
         "row_limit": 10000,
         "show_legend": True,
         "color_scheme": "supersetColors",
@@ -495,15 +492,6 @@ _VIZ_PARAMS_TEMPLATES: Dict[str, Dict[str, Any]] = {
         "time_range": "No filter",
         "link_length": 5,
         "x_axis_label": "",
-        "adhoc_filters": [],
-    },
-    "scatter": {
-        "viz_type": "scatter",
-        "x": _simple_metric("x_column", "SUM"),
-        "y": _simple_metric("y_column", "SUM"),
-        "groupby": ["label_column"],
-        "time_range": "No filter",
-        "row_limit": 5000,
         "adhoc_filters": [],
     },
     "bubble_v2": {
@@ -794,7 +782,81 @@ async def _validate_chart_params(
                 f"Required field '{rk}' is missing from params for viz_type '{viz_type}'."
             )
 
-    # ── 5. Column existence check against the real dataset ──────────────────
+    # ── 5. x_axis must NOT also appear in groupby ───────────────────────────
+    # Superset automatically includes x_axis in the query; adding it to groupby
+    # as well creates a duplicate label and causes "Duplicate column/metric labels".
+    x_axis_val = params.get("x_axis")
+    groupby_val = params.get("groupby", [])
+    if (
+        isinstance(x_axis_val, str)
+        and x_axis_val
+        and isinstance(groupby_val, list)
+        and x_axis_val in groupby_val
+    ):
+        errors.append(
+            f"Column '{x_axis_val}' is used as 'x_axis' AND also appears in 'groupby': {groupby_val}. "
+            f"Remove '{x_axis_val}' from 'groupby' — Superset uses x_axis as the X dimension "
+            f"automatically. 'groupby' should only contain extra dimension columns used to "
+            f"split series (e.g. country, category), not the time/x column itself."
+        )
+
+    # ── 6. metrics / metric presence, type, and non-emptiness ───────────────
+    # An empty, null, or wrongly-typed metrics value produces "Error: Empty query?".
+    metrics_val = params.get("metrics")
+    metric_val  = params.get("metric")
+    _tmpl = f"Call superset_chart_get_viz_params_template(viz_type='{viz_type}') for the correct format."
+
+    if "metrics" in template:
+        if "metrics" not in params:
+            errors.append(
+                f"'metrics' is missing from params entirely for viz_type '{viz_type}'. {_tmpl}"
+            )
+        elif not isinstance(metrics_val, list):
+            errors.append(
+                f"'metrics' must be a JSON array (list), got {type(metrics_val).__name__}. {_tmpl}"
+            )
+        elif len(metrics_val) == 0:
+            errors.append(
+                f"'metrics' is an empty list — at least one metric object is required. {_tmpl}"
+            )
+
+    if "metric" in template:
+        if "metric" not in params or metric_val is None:
+            errors.append(
+                f"'metric' is required for viz_type '{viz_type}' but is absent or null. {_tmpl}"
+            )
+        elif not isinstance(metric_val, dict):
+            errors.append(
+                f"'metric' must be a JSON object (dict), got {type(metric_val).__name__}. {_tmpl}"
+            )
+
+    # ── 7. Metric label / optionName uniqueness ──────────────────────────────
+    # Duplicate labels across metrics (or between a metric and x_axis) trigger
+    # "Duplicate column/metric labels" in Superset.
+    all_metric_objs: List[Dict[str, Any]] = []
+    if isinstance(metrics_val, list):
+        all_metric_objs = [m for m in metrics_val if isinstance(m, dict)]
+    elif isinstance(metric_val, dict):
+        all_metric_objs = [metric_val]
+
+    labels     = [m.get("label")      for m in all_metric_objs if m.get("label")]
+    opt_names  = [m.get("optionName") for m in all_metric_objs if m.get("optionName")]
+
+    dup_labels = [lbl for lbl in labels if labels.count(lbl) > 1]
+    if dup_labels:
+        errors.append(
+            f"Duplicate metric 'label' values detected: {list(set(dup_labels))}. "
+            f"Every metric must have a unique 'label' string."
+        )
+
+    dup_opts = [o for o in opt_names if opt_names.count(o) > 1]
+    if dup_opts:
+        errors.append(
+            f"Duplicate metric 'optionName' values detected: {list(set(dup_opts))}. "
+            f"Every metric must have a unique 'optionName' string."
+        )
+
+    # ── 8. Column existence check against the real dataset ──────────────────
     if datasource_type == "table":
         dataset_resp = await superset_request(
             ctx, "get", f"/api/v1/dataset/{datasource_id}"
