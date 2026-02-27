@@ -82,7 +82,10 @@ async function generateFollowupSuggestions(
     // The custom system prompt controls style/tone/language/topic — it does
     // NOT need to re-state format requirements; those live in the user turn.
     const suggestionPrompt = customSystemPrompt
-      ? `Conversation history:\n${historyText}\n\nGenerate the top 4 complete questions the user is most likely to ask next. Each must be a full, natural-language question. Respond with only a valid JSON array of 4 strings, no other text.`
+      // When a custom system prompt is active it fully owns style/tone/length.
+      // The user message ONLY enforces count and format — do NOT add natural-
+      // language or other style constraints here that would override the prompt.
+      ? `Conversation history:\n${historyText}\n\nUsing the style and tone from your instructions, generate 4 follow-up questions. Respond with only a valid JSON array of exactly 4 strings, no other text.`
       : `Based on the conversation history below, generate the top 4 complete, relevant follow-up questions the user is most likely to ask next. Each question must be a full sentence (not a single word or short phrase). Respond only with a valid JSON array of 4 strings, with no additional text or explanation.\n\nConversation history:\n${historyText}\n\nTop 4 follow-up questions (JSON array only):`;
 
     // NOTE: Do NOT use response_format:"json_object" here — that forces the
