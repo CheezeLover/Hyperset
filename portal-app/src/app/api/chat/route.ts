@@ -63,30 +63,19 @@ export const GET = async (req: NextRequest) => {
 // ── Follow-up suggestion generation ────────────────────────────
 const DEFAULT_FOLLOWUP_SYSTEM =
   "You are a helpful assistant that generates follow-up questions based on conversation context. " +
-  "Always respond with only a valid JSON array of exactly 4 strings. Each string must be a complete, " +
-  "natural-language question — never a single word or short phrase. No additional text or explanation.";
+  "Always respond with only a valid JSON array of strings, with no additional text or explanation.";
 
 async function generateFollowupSuggestions(
   openai: OpenAI,
   model: string,
   conversationHistory: OpenAI.Chat.ChatCompletionMessageParam[],
-  customSystemPrompt?: string,
 ): Promise<string[]> {
   try {
     const historyText = conversationHistory
       .map((msg) => `${msg.role}: ${msg.content}`)
       .join("\n");
 
-    // The user message always anchors the key output requirements (4 full
-    // questions, JSON array) so the model never produces one-word fragments.
-    // The custom system prompt controls style/tone/language/topic — it does
-    // NOT need to re-state format requirements; those live in the user turn.
-    const suggestionPrompt = customSystemPrompt
-      // When a custom system prompt is active it fully owns style/tone/length.
-      // The user message ONLY enforces count and format — do NOT add natural-
-      // language or other style constraints here that would override the prompt.
-      ? `Conversation history:\n${historyText}\n\nUsing the style and tone from your instructions, generate 4 follow-up questions. Respond with only a valid JSON array of exactly 4 strings, no other text.`
-      : `Based on the conversation history below, generate the top 4 complete, relevant follow-up questions the user is most likely to ask next. Each question must be a full sentence (not a single word or short phrase). Respond only with a valid JSON array of 4 strings, with no additional text or explanation.\n\nConversation history:\n${historyText}\n\nTop 4 follow-up questions (JSON array only):`;
+    const suggestionPrompt = `Based on the conversation history below, generate 3-4 concise, relevant follow-up questions that would help the user explore this topic further. Respond only with a valid JSON array of strings, with no additional text or explanation.\n\nConversation history:\n${historyText}\n\nFollow-up questions (JSON array only):`;
 
     // NOTE: Do NOT use response_format:"json_object" here — that forces the
     // root value to be a JSON *object* ({…}), which means Array.isArray()
@@ -94,10 +83,10 @@ async function generateFollowupSuggestions(
     const response = await openai.chat.completions.create({
       model: model,
       messages: [
-        { role: "system", content: customSystemPrompt || DEFAULT_FOLLOWUP_SYSTEM },
+        { role: "system", content: DEFAULT_FOLLOWUP_SYSTEM },
         { role: "user",   content: suggestionPrompt },
       ],
-      max_tokens: 500,
+      max_tokens: 300,
       temperature: 0.7,
     });
 
@@ -167,7 +156,6 @@ export const POST = async (req: NextRequest) => {
   const apiKey = session.llmSettings?.apiKey ?? process.env.LLM_API_KEY ?? "";
   const model  = session.llmSettings?.model  ?? process.env.LLM_MODEL  ?? "gpt-4o";
   const systemPrompt = session.llmSettings?.systemPrompt ?? process.env.LLM_SYSTEM_PROMPT ?? "";
-  const followupQuestionsPrompt = session.llmSettings?.followupQuestionsPrompt ?? "";
 
   if (!apiKey) {
     return NextResponse.json({ error: "No API key configured" }, { status: 503 });
@@ -356,7 +344,7 @@ Examples:
             // Generate follow-up suggestions using the LLM
             if (assistantText) {
               try {
-                const suggestions = await generateFollowupSuggestions(openai, model, accumulated, followupQuestionsPrompt || undefined);
+                const suggestions = await generateFollowupSuggestions(openai, model, accumulated);
                 if (suggestions.length > 0) {
                   send({ type: "followup_suggestions", suggestions });
                 }

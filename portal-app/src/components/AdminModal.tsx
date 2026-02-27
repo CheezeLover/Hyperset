@@ -12,7 +12,6 @@ interface LlmSettings {
   model: string;
   systemPrompt: string;
   modelParams: string;
-  followupQuestionsPrompt: string;
   isCustom: boolean;
 }
 
@@ -53,7 +52,7 @@ function TestResultBanner({ result }: { result: TestResult }) {
 
 export function AdminModal({ onClose }: AdminModalProps) {
   const [settings, setSettings] = useState<LlmSettings>({
-    apiUrl: "", apiKey: "", model: "", systemPrompt: "", modelParams: "", followupQuestionsPrompt: "", isCustom: false,
+    apiUrl: "", apiKey: "", model: "", systemPrompt: "", modelParams: "", isCustom: false,
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -102,7 +101,6 @@ export function AdminModal({ onClose }: AdminModalProps) {
           model: settings.model,
           systemPrompt: settings.systemPrompt,
           modelParams: settings.modelParams,
-          followupQuestionsPrompt: settings.followupQuestionsPrompt,
         }),
       });
       if (!res.ok) throw new Error("Save failed");
@@ -208,27 +206,6 @@ export function AdminModal({ onClose }: AdminModalProps) {
                   onChange={(e) => setSettings((s) => ({ ...s, systemPrompt: e.target.value }))}
                   placeholder={`You are Hyperset, an intelligent assistant for Apache Superset analytics…\n\n(Leave blank to use the default built-in prompt)`}
                   rows={6}
-                  style={{ ...inputStyle, resize: "vertical", fontFamily: "monospace", fontSize: 12, lineHeight: 1.5 }}
-                  disabled={saving}
-                />
-              </label>
-            </div>
-
-            {/* ── Followup questions prompt ── */}
-            <div style={{ marginTop: 8, borderTop: "1px solid var(--md-outline-var)", paddingTop: 12 }}>
-              <p style={{ fontSize: 11, fontWeight: 600, opacity: 0.45, textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 8px" }}>
-                Follow-up Questions Prompt
-              </p>
-              <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                <span style={labelStyle}>System message for follow-up suggestions — controls count, tone, language, topic focus, etc.</span>
-                <span style={{ fontSize: 11, opacity: 0.5, marginBottom: 2 }}>
-                  Must include a JSON output instruction (e.g. "Always respond with only a valid JSON array of strings"). Leave blank to use the built-in default.
-                </span>
-                <textarea
-                  value={settings.followupQuestionsPrompt}
-                  onChange={(e) => setSettings((s) => ({ ...s, followupQuestionsPrompt: e.target.value }))}
-                  placeholder={`You are a helpful assistant that generates follow-up questions based on conversation context. Always respond with only a valid JSON array of strings.`}
-                  rows={4}
                   style={{ ...inputStyle, resize: "vertical", fontFamily: "monospace", fontSize: 12, lineHeight: 1.5 }}
                   disabled={saving}
                 />

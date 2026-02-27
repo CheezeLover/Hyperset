@@ -37,14 +37,12 @@ export async function GET(request: NextRequest) {
     model: session.llmSettings?.model ?? process.env.LLM_MODEL ?? "gpt-4o",
     systemPrompt: session.llmSettings?.systemPrompt ?? process.env.LLM_SYSTEM_PROMPT ?? "",
     modelParams: session.llmSettings?.modelParams ?? "",
-    followupQuestionsPrompt: session.llmSettings?.followupQuestionsPrompt ?? "",
     isCustom: !!(
       session.llmSettings?.apiUrl ||
       session.llmSettings?.apiKey ||
       session.llmSettings?.model ||
       session.llmSettings?.systemPrompt ||
-      session.llmSettings?.modelParams ||
-      session.llmSettings?.followupQuestionsPrompt
+      session.llmSettings?.modelParams
     ),
   });
 }
@@ -65,7 +63,6 @@ export async function POST(request: NextRequest) {
     model: body.model !== undefined ? body.model : prev.model,
     systemPrompt: body.systemPrompt !== undefined ? body.systemPrompt : prev.systemPrompt,
     modelParams: body.modelParams !== undefined ? body.modelParams : prev.modelParams,
-    followupQuestionsPrompt: body.followupQuestionsPrompt !== undefined ? body.followupQuestionsPrompt : prev.followupQuestionsPrompt,
   };
 
   await session.save();
