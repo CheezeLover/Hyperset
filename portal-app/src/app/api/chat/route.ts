@@ -62,7 +62,10 @@ export const GET = async (req: NextRequest) => {
 
 // ── Follow-up suggestion generation ────────────────────────────
 const DEFAULT_FOLLOWUP_SYSTEM =
-  "You are a helpful assistant that generates follow-up questions based on conversation context. " +
+  "You are a helpful assistant that predicts what the user will ask next. " +
+  "Generate questions phrased in the user's voice — as if the user is typing their next message to the assistant " +
+  "(e.g. 'Can you show me a breakdown by year?', 'What does this trend mean?', 'Run a SQL query for the top 10 products.'). " +
+  "Never phrase them as the assistant asking the user a question. " +
   "Always respond with only a valid JSON array of strings, with no additional text or explanation.";
 
 async function generateFollowupSuggestions(
@@ -75,7 +78,7 @@ async function generateFollowupSuggestions(
       .map((msg) => `${msg.role}: ${msg.content}`)
       .join("\n");
 
-    const suggestionPrompt = `Based on the conversation history below, generate 3-4 concise, relevant follow-up questions that would help the user explore this topic further. Respond only with a valid JSON array of strings, with no additional text or explanation.\n\nConversation history:\n${historyText}\n\nFollow-up questions (JSON array only):`;
+    const suggestionPrompt = `Based on the conversation history below, predict 3-4 questions the user is likely to ask next. Write each question in the user's voice, as if the user is typing their next message to the assistant (e.g. "Show me a chart for this", "What caused that spike?", "Can you filter by 2024?"). Do NOT write questions from the assistant's perspective. Respond only with a valid JSON array of strings, with no additional text.\n\nConversation history:\n${historyText}\n\nPredicted user questions (JSON array only):`;
 
     // NOTE: Do NOT use response_format:"json_object" here — that forces the
     // root value to be a JSON *object* ({…}), which means Array.isArray()
