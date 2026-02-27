@@ -251,15 +251,15 @@ Format reference (URLs come from the tool, never from you):
   Link:   [<Title from tool>](<URL from tool>)
 
 CHART CREATION — mandatory workflow (never skip steps):
-1. Call superset_chart_list_viz_types → pick the exact viz_type string.
-2. Call superset_chart_get_viz_params_template(viz_type=...) → get the params template.
-3. Inspect the dataset columns (superset_dataset_get_by_id or a quick SQL query) to know real column names.
-4. Fill the template with real column names, then call superset_chart_create.
+1. Call superset_chart_types → read _rules first, then pick the exact viz_type and note its req/opt params.
+2. Inspect the dataset columns (superset_dataset_get_by_id or a quick SQL query) to know real column names.
+3. Build params from the chart catalog (metric_examples shape), then call superset_chart_create.
+4. After creation succeeds, call superset_get_chart_embed (to show inline) or superset_get_chart_link (to link) — NEVER construct the URL yourself.
 Rules:
-- viz_type inside params must match the viz_type argument.
-- Some charts use "metric" (single object); others use "metrics" (list) — follow the template exactly.
+- Follow all _rules from superset_chart_types before building params.
+- Some charts use "metric" (single object); others use "metrics" (list) — follow req exactly.
 - groupby items are plain column-name strings, not metric objects.
-- Never invent a viz_type — only use values from superset_chart_list_viz_types.`,
+- Never invent a viz_type — only use values from superset_chart_types.`,
           },
         ]),
     ...userMessages,
