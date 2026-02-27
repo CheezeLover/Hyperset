@@ -51,12 +51,12 @@
       "opt": {"groupby":"[str]","time_range":"str","time_grain_sqla":"str","stack":"bool","row_limit":"int","adhoc_filters":"[]"}
     },
     "big_number_total": {
-      "when": "Single KPI value — no trendline, no time axis.",
+      "when": "Single KPI value — no trendline, no time axis. PREFERRED over big_number for PostgreSQL datasources — big_number generates window-function SQL that PostgreSQL rejects.",
       "req": {"metric":"{...metric_obj...}"},
       "opt": {"subheader":"str","time_range":"str","adhoc_filters":"[]"}
     },
     "big_number": {
-      "when": "Single KPI with trendline sparkline. Requires a time granularity.",
+      "when": "Single KPI with trendline sparkline. Requires a time granularity. WARNING: generates LAG() window-function SQL — causes 'aggregate function calls cannot contain window function calls' error on PostgreSQL. Use big_number_total instead when the datasource is PostgreSQL.",
       "req": {"metric":"{...metric_obj...}","time_grain_sqla":"str"},
       "opt": {"time_range":"str","compare_lag":"int","compare_suffix":"str","adhoc_filters":"[]"}
     },
