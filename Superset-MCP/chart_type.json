@@ -4,7 +4,8 @@
     "For 'metrics' (array): pass [{...metric object...}]. For 'metric' (single): pass {...metric object...}.",
     "Always replace example column names with real column names from the dataset.",
     "optionName must be unique across all metrics in the same chart.",
-    "x_axis column must NOT appear in groupby — Superset uses it automatically as the X dimension."
+    "x_axis MUST be a raw column name string (e.g. 'ds', 'MONTH'). NEVER a SQL expression like 'MONTH(ds)'. For time granularity, use time_grain_sqla.",
+    "x_axis column must NOT appear in groupby — putting the same column in both causes 'Duplicate column/metric labels' error."
   ],
   "metric_examples": {
     "_how_to_use": "Copy the matching shape, replace 'my_col' with the real column name, set a unique optionName.",
