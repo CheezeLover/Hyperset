@@ -359,13 +359,15 @@ def _validate_chart_params(viz_type: str, params: Dict[str, Any]) -> Optional[st
     missing = [k for k in types[viz_type].get("req", {}) if k not in params]
     if missing:
         return f"Missing required params for '{viz_type}': {missing}"
-    # Validate metric objects — reject plain strings
+    # Validate metrics — reject plain strings and empty arrays
     examples = _CHART_CATALOG.get("metric_examples", {})
     hint = f"See metric_examples: {examples}"
     for key in ("metric", "metrics"):
         val = params.get(key)
         if val is None:
             continue
+        if key == "metrics" and isinstance(val, list) and len(val) == 0:
+            return f"'metrics' is empty — add at least one metric object. {hint}"
         items = [val] if key == "metric" else (val if isinstance(val, list) else [val])
         for item in items:
             if isinstance(item, str):
@@ -374,6 +376,14 @@ def _validate_chart_params(viz_type: str, params: Dict[str, Any]) -> Optional[st
                     f"Metrics must be objects with expressionType/column/aggregate/label/optionName. "
                     f"{hint}"
                 )
+    # Validate x_axis not duplicated in groupby
+    x_axis = params.get("x_axis")
+    groupby = params.get("groupby", [])
+    if x_axis and isinstance(groupby, list) and x_axis in groupby:
+        return (
+            f"x_axis '{x_axis}' must NOT appear in groupby — Superset adds it automatically "
+            f"and will raise 'Duplicate column/metric labels'. Remove '{x_axis}' from groupby."
+        )
     return None
 
 
