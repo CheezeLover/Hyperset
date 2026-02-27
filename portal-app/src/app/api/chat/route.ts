@@ -246,7 +246,18 @@ SUPERSET CONTENT — two ways to reference charts and dashboards:
 
 Examples:
   Embed:  [iframe](https://superset.example.com/superset/explore/?slice_id=42&standalone=1) Sales Chart
-  Link:   [Sales Chart](https://superset.example.com/superset/explore/?slice_id=42)`,
+  Link:   [Sales Chart](https://superset.example.com/superset/explore/?slice_id=42)
+
+CHART CREATION — mandatory workflow (never skip steps):
+1. Call superset_chart_list_viz_types → pick the exact viz_type string.
+2. Call superset_chart_get_viz_params_template(viz_type=...) → get the params template.
+3. Inspect the dataset columns (superset_dataset_get_by_id or a quick SQL query) to know real column names.
+4. Fill the template with real column names, then call superset_chart_create.
+Rules:
+- viz_type inside params must match the viz_type argument.
+- Some charts use "metric" (single object); others use "metrics" (list) — follow the template exactly.
+- groupby items are plain column-name strings, not metric objects.
+- Never invent a viz_type — only use values from superset_chart_list_viz_types.`,
           },
         ]),
     ...userMessages,

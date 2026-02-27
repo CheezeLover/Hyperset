@@ -298,6 +298,386 @@ async def superset_dashboard_delete(ctx: Context, dashboard_id: int) -> Dict[str
 
     return response
 
+# ===== Chart Viz-Type Registry & Params Templates =====
+
+# Maps viz_type string → human description.
+# These are the ONLY valid viz_type values recognised by Superset.
+VIZ_TYPES: Dict[str, str] = {
+    "bar":                       "Bar Chart (legacy) – vertical bars grouped by a dimension",
+    "dist_bar":                  "Distribution Bar Chart (legacy) – bars with optional stacking by a second dimension",
+    "echarts_timeseries_bar":    "Bar Chart (ECharts) – time-series bar, richer styling; preferred over 'bar' for time data",
+    "line":                      "Line Chart (legacy) – trend over time or ordered dimension",
+    "echarts_timeseries_line":   "Line Chart (ECharts) – time-series line; preferred over 'line' for time data",
+    "echarts_timeseries_smooth": "Smooth Line Chart (ECharts) – line with Bezier curves",
+    "echarts_area":              "Area Chart (ECharts) – filled area below a line, optional stacking",
+    "area":                      "Area Chart (legacy) – stacked or overlapping filled areas",
+    "pie":                       "Pie / Donut Chart – part-to-whole proportions",
+    "big_number":                "Big Number with Trendline – single KPI with a sparkline",
+    "big_number_total":          "Big Number – single KPI value, no trendline",
+    "table":                     "Data Table – rows and columns with optional conditional formatting",
+    "pivot_table_v2":            "Pivot Table – cross-tabulation of two dimensions and a metric",
+    "histogram":                 "Histogram – frequency distribution of a numeric column",
+    "scatter":                   "Scatter Plot (legacy) – x/y scatter with optional groupby",
+    "bubble_v2":                 "Bubble Chart – scatter with bubble size representing a third metric",
+    "heatmap":                   "Heatmap – color-coded grid for two dimensions and a metric",
+    "treemap_v2":                "Treemap – hierarchical part-to-whole rectangles",
+    "funnel":                    "Funnel Chart – ordered conversion/flow stages",
+    "gauge_chart":               "Gauge Chart – circular gauge for a single value vs. a range",
+    "word_cloud":                "Word Cloud – text size proportional to a metric",
+    "sunburst_v2":               "Sunburst – hierarchical radial chart (drill-down)",
+    "sankey_v2":                 "Sankey Diagram – flow/quantity between named nodes",
+    "box_plot":                  "Box Plot – statistical distribution (median, quartiles, outliers)",
+    "rose":                      "Nightingale Rose Chart – polar bar chart",
+    "cal_heatmap":               "Calendar Heatmap – daily metric values on a calendar grid",
+}
+
+def _simple_metric(column: str, agg: str = "COUNT") -> Dict[str, Any]:
+    """Build a simple aggregation metric object."""
+    return {
+        "expressionType": "SIMPLE",
+        "column": {"column_name": column},
+        "aggregate": agg,
+        "label": f"{agg}({column})",
+        "optionName": f"metric_{agg.lower()}_{column}",
+    }
+
+# Per-viz_type params templates.  Placeholder column names are descriptive
+# so the LLM knows what kind of column to substitute.
+_VIZ_PARAMS_TEMPLATES: Dict[str, Dict[str, Any]] = {
+    "bar": {
+        "viz_type": "bar",
+        "metrics": [_simple_metric("id", "COUNT")],
+        "groupby": ["dimension_column"],
+        "time_range": "No filter",
+        "row_limit": 50,
+        "bar_stacked": False,
+        "show_legend": True,
+        "color_scheme": "supersetColors",
+        "adhoc_filters": [],
+    },
+    "dist_bar": {
+        "viz_type": "dist_bar",
+        "metrics": [_simple_metric("id", "COUNT")],
+        "groupby": ["dimension_column"],
+        "columns": [],
+        "time_range": "No filter",
+        "row_limit": 50,
+        "bar_stacked": False,
+        "color_scheme": "supersetColors",
+        "adhoc_filters": [],
+    },
+    "echarts_timeseries_bar": {
+        "viz_type": "echarts_timeseries_bar",
+        "metrics": [_simple_metric("id", "COUNT")],
+        "groupby": [],
+        "x_axis": "date_column",
+        "time_range": "Last year",
+        "time_grain_sqla": "P1M",
+        "row_limit": 10000,
+        "orientation": "vertical",
+        "show_legend": True,
+        "color_scheme": "supersetColors",
+        "adhoc_filters": [],
+    },
+    "line": {
+        "viz_type": "line",
+        "metrics": [_simple_metric("id", "COUNT")],
+        "groupby": [],
+        "time_range": "Last year",
+        "time_grain_sqla": "P1M",
+        "row_limit": 10000,
+        "show_legend": True,
+        "color_scheme": "supersetColors",
+        "adhoc_filters": [],
+    },
+    "echarts_timeseries_line": {
+        "viz_type": "echarts_timeseries_line",
+        "metrics": [_simple_metric("id", "COUNT")],
+        "groupby": [],
+        "x_axis": "date_column",
+        "time_range": "Last year",
+        "time_grain_sqla": "P1M",
+        "row_limit": 10000,
+        "show_legend": True,
+        "color_scheme": "supersetColors",
+        "adhoc_filters": [],
+    },
+    "echarts_timeseries_smooth": {
+        "viz_type": "echarts_timeseries_smooth",
+        "metrics": [_simple_metric("id", "COUNT")],
+        "groupby": [],
+        "x_axis": "date_column",
+        "time_range": "Last year",
+        "time_grain_sqla": "P1M",
+        "row_limit": 10000,
+        "show_legend": True,
+        "color_scheme": "supersetColors",
+        "adhoc_filters": [],
+    },
+    "echarts_area": {
+        "viz_type": "echarts_area",
+        "metrics": [_simple_metric("id", "COUNT")],
+        "groupby": [],
+        "x_axis": "date_column",
+        "time_range": "Last year",
+        "time_grain_sqla": "P1M",
+        "stack": False,
+        "row_limit": 10000,
+        "show_legend": True,
+        "color_scheme": "supersetColors",
+        "adhoc_filters": [],
+    },
+    "area": {
+        "viz_type": "area",
+        "metrics": [_simple_metric("id", "COUNT")],
+        "groupby": [],
+        "time_range": "Last year",
+        "time_grain_sqla": "P1M",
+        "stacked_style": "stack",
+        "row_limit": 10000,
+        "show_legend": True,
+        "color_scheme": "supersetColors",
+        "adhoc_filters": [],
+    },
+    "pie": {
+        "viz_type": "pie",
+        "metric": _simple_metric("id", "COUNT"),
+        "groupby": ["dimension_column"],
+        "time_range": "No filter",
+        "row_limit": 25,
+        "donut": False,
+        "show_legend": True,
+        "show_labels": True,
+        "labels_outside": True,
+        "color_scheme": "supersetColors",
+        "adhoc_filters": [],
+    },
+    "big_number": {
+        "viz_type": "big_number",
+        "metric": _simple_metric("id", "COUNT"),
+        "time_range": "Last year",
+        "time_grain_sqla": "P1M",
+        "compare_lag": 1,
+        "compare_suffix": "over last period",
+        "adhoc_filters": [],
+    },
+    "big_number_total": {
+        "viz_type": "big_number_total",
+        "metric": _simple_metric("id", "COUNT"),
+        "time_range": "No filter",
+        "subheader": "Total count",
+        "adhoc_filters": [],
+    },
+    "table": {
+        "viz_type": "table",
+        "metrics": [_simple_metric("id", "COUNT")],
+        "groupby": ["dimension_column"],
+        "time_range": "No filter",
+        "row_limit": 100,
+        "page_length": 25,
+        "include_time": False,
+        "order_desc": True,
+        "adhoc_filters": [],
+        "all_columns": [],
+    },
+    "pivot_table_v2": {
+        "viz_type": "pivot_table_v2",
+        "metrics": [_simple_metric("id", "COUNT")],
+        "groupbyRows": ["row_dimension_column"],
+        "groupbyColumns": ["col_dimension_column"],
+        "time_range": "No filter",
+        "row_limit": 10000,
+        "adhoc_filters": [],
+    },
+    "histogram": {
+        "viz_type": "histogram",
+        "all_columns_x": ["numeric_column"],
+        "time_range": "No filter",
+        "link_length": 5,
+        "x_axis_label": "",
+        "adhoc_filters": [],
+    },
+    "scatter": {
+        "viz_type": "scatter",
+        "x": _simple_metric("x_column", "SUM"),
+        "y": _simple_metric("y_column", "SUM"),
+        "groupby": ["label_column"],
+        "time_range": "No filter",
+        "row_limit": 5000,
+        "adhoc_filters": [],
+    },
+    "bubble_v2": {
+        "viz_type": "bubble_v2",
+        "x": _simple_metric("x_column", "SUM"),
+        "y": _simple_metric("y_column", "SUM"),
+        "size": _simple_metric("size_column", "SUM"),
+        "series": "label_column",
+        "time_range": "No filter",
+        "row_limit": 5000,
+        "adhoc_filters": [],
+    },
+    "heatmap": {
+        "viz_type": "heatmap",
+        "all_columns_x": "x_dimension_column",
+        "all_columns_y": "y_dimension_column",
+        "metric": _simple_metric("value_column", "SUM"),
+        "time_range": "No filter",
+        "row_limit": 10000,
+        "adhoc_filters": [],
+    },
+    "treemap_v2": {
+        "viz_type": "treemap_v2",
+        "metric": _simple_metric("value_column", "SUM"),
+        "groupby": ["dimension_column"],
+        "time_range": "No filter",
+        "color_scheme": "supersetColors",
+        "adhoc_filters": [],
+    },
+    "funnel": {
+        "viz_type": "funnel",
+        "metric": _simple_metric("id", "COUNT"),
+        "groupby": ["stage_column"],
+        "time_range": "No filter",
+        "color_scheme": "supersetColors",
+        "adhoc_filters": [],
+    },
+    "gauge_chart": {
+        "viz_type": "gauge_chart",
+        "metric": _simple_metric("value_column", "SUM"),
+        "time_range": "No filter",
+        "min_val": 0,
+        "max_val": 100,
+        "adhoc_filters": [],
+    },
+    "word_cloud": {
+        "viz_type": "word_cloud",
+        "metric": _simple_metric("id", "COUNT"),
+        "series": "word_column",
+        "time_range": "No filter",
+        "row_limit": 100,
+        "adhoc_filters": [],
+    },
+    "sunburst_v2": {
+        "viz_type": "sunburst_v2",
+        "metric": _simple_metric("id", "COUNT"),
+        "groupby": ["outer_dimension_column", "inner_dimension_column"],
+        "time_range": "No filter",
+        "adhoc_filters": [],
+    },
+    "sankey_v2": {
+        "viz_type": "sankey_v2",
+        "source": "source_column",
+        "target": "target_column",
+        "metric": _simple_metric("value_column", "SUM"),
+        "time_range": "No filter",
+        "adhoc_filters": [],
+    },
+    "box_plot": {
+        "viz_type": "box_plot",
+        "metrics": [_simple_metric("value_column", "SUM")],
+        "groupby": ["dimension_column"],
+        "time_range": "No filter",
+        "whisker_options": "Tukey",
+        "adhoc_filters": [],
+    },
+    "rose": {
+        "viz_type": "rose",
+        "metrics": [_simple_metric("id", "COUNT")],
+        "groupby": ["dimension_column"],
+        "time_range": "No filter",
+        "color_scheme": "supersetColors",
+        "adhoc_filters": [],
+    },
+    "cal_heatmap": {
+        "viz_type": "cal_heatmap",
+        "metric": _simple_metric("id", "COUNT"),
+        "time_range": "Last year",
+        "adhoc_filters": [],
+    },
+}
+
+_METRIC_FORMAT_NOTE = (
+    "Each metric object must have these keys: "
+    '"expressionType" ("SIMPLE" or "SQL"), '
+    '"column" (object with "column_name" key, required for SIMPLE), '
+    '"aggregate" (one of COUNT, SUM, AVG, MIN, MAX, COUNT_DISTINCT — for SIMPLE only), '
+    '"label" (display string, e.g. "SUM(amount)"), '
+    '"optionName" (unique string key, e.g. "metric_sum_amount"). '
+    'For custom SQL: use "expressionType":"SQL", "sqlExpression":"COUNT(DISTINCT id)", '
+    'omit "column" and "aggregate".'
+)
+
+_TIME_RANGE_VALUES = [
+    "No filter", "Last day", "Last week", "Last 7 days", "Last 30 days",
+    "Last month", "Last quarter", "Last year", "Last 5 years",
+    "Previous week", "Previous month", "Previous quarter", "Previous year",
+]
+
+_TIME_GRAIN_VALUES = {
+    "PT1S": "second", "PT1M": "minute", "PT5M": "5 minutes",
+    "PT30M": "30 minutes", "PT1H": "hour",
+    "P1D": "day", "P1W": "week", "P1M": "month",
+    "P3M": "quarter", "P1Y": "year",
+}
+
+
+@mcp.tool()
+async def superset_chart_list_viz_types(ctx: Context) -> Dict[str, Any]:
+    """
+    List all valid Superset visualization types (viz_type values) for chart creation.
+
+    Call this FIRST when creating a chart to know which viz_type strings are accepted.
+    Returns a mapping of viz_type → description.
+
+    Returns:
+        A dictionary with key 'viz_types' mapping each valid viz_type string to a
+        human-readable description.
+    """
+    return {"viz_types": VIZ_TYPES}
+
+
+@mcp.tool()
+async def superset_chart_get_viz_params_template(
+    ctx: Context, viz_type: str
+) -> Dict[str, Any]:
+    """
+    Get a ready-to-customise params template for a specific Superset visualization type.
+
+    Call this BEFORE superset_chart_create to obtain the correct params structure.
+    Then replace ALL placeholder column names (e.g. 'id', 'dimension_column',
+    'date_column', 'value_column') with real column names from the target dataset.
+
+    Args:
+        viz_type: The visualization type string. Call superset_chart_list_viz_types
+            for the full list of valid values (e.g. 'bar', 'pie', 'big_number_total',
+            'echarts_timeseries_bar').
+
+    Returns:
+        'template': params dict to fill in and pass to superset_chart_create.
+        'notes': usage guidance including metric format, time_range values,
+                 time_grain_sqla values.
+        'error' + 'available_viz_types': returned when viz_type is unknown.
+    """
+    if viz_type not in _VIZ_PARAMS_TEMPLATES:
+        return {
+            "error": f"Unknown viz_type '{viz_type}'. Use superset_chart_list_viz_types to see valid options.",
+            "available_viz_types": sorted(_VIZ_PARAMS_TEMPLATES.keys()),
+        }
+
+    return {
+        "template": dict(_VIZ_PARAMS_TEMPLATES[viz_type]),
+        "notes": {
+            "metric_format": _METRIC_FORMAT_NOTE,
+            "time_range_examples": _TIME_RANGE_VALUES,
+            "time_grain_sqla_options": _TIME_GRAIN_VALUES,
+            "reminder": (
+                "Replace ALL placeholder column names with real column names from the dataset. "
+                "The 'viz_type' key inside 'params' must match the viz_type argument you pass to superset_chart_create."
+            ),
+        },
+    }
+
+
 # ===== Chart Tools =====
 
 @mcp.tool()
@@ -336,17 +716,39 @@ async def superset_chart_create(
     params: Dict[str, Any],
 ) -> Dict[str, Any]:
     """
-    Create a new chart in Superset
+    Create a new chart in Superset.
+
+    MANDATORY WORKFLOW — always follow these steps to avoid errors:
+    1. Call superset_chart_list_viz_types to pick a valid viz_type string.
+    2. Call superset_chart_get_viz_params_template(viz_type=<chosen_type>) to get
+       the correct params structure for that chart type.
+    3. Inspect the target dataset's columns (via superset_dataset_get_by_id or
+       superset_sql_execute) so you know real column names.
+    4. Fill the template: replace every placeholder column name, set correct
+       aggregates, then pass the completed dict as the 'params' argument here.
 
     Args:
-        slice_name: Name/title of the chart
-        datasource_id: ID of the dataset or SQL table
-        datasource_type: Type of datasource ('table' for datasets, 'query' for SQL)
-        viz_type: Visualization type (e.g., 'bar', 'line', 'pie', 'big_number', etc.)
-        params: Visualization parameters including metrics, groupby, time_range, etc.
+        slice_name: Human-readable chart title.
+        datasource_id: Numeric ID of the dataset (use superset_dataset_list to find it).
+        datasource_type: 'table' for regular datasets; 'query' for SQL Lab virtual datasets.
+        viz_type: Visualization type string — MUST be one of the values returned by
+            superset_chart_list_viz_types (e.g. 'bar', 'echarts_timeseries_bar', 'line',
+            'pie', 'big_number', 'big_number_total', 'table', 'heatmap', etc.).
+            Do NOT invent names; use the exact string from the registry.
+        params: Visualization parameters dict obtained from
+            superset_chart_get_viz_params_template and filled with real column names.
+            Critical rules:
+            - params['viz_type'] must equal the viz_type argument.
+            - Some charts use 'metric' (single object); others use 'metrics' (list).
+              Check the template — never swap these.
+            - 'groupby' items are plain column-name strings, NOT metric objects.
+            - Metric objects require: expressionType, column (with column_name),
+              aggregate, label, optionName.
+            - 'time_range' must be a string like "No filter" or "Last year".
+            - 'time_grain_sqla' must be one of: P1D, P1W, P1M, P3M, P1Y, PT1H, etc.
 
     Returns:
-        A dictionary with the created chart information including its ID
+        A dictionary with the created chart information including its ID.
     """
     payload = {
         "slice_name": slice_name,
