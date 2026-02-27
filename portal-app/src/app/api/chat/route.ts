@@ -61,56 +61,77 @@ export const GET = async (req: NextRequest) => {
 };
 
 // ── Follow-up suggestion generation ────────────────────────────
+const DEFAULT_FOLLOWUP_SYSTEM =
+  "You are a helpful assistant that predicts what the user will ask next. " +
+  "Generate questions phrased in the user's voice — as if the user is typing their next message to the assistant " +
+  "(e.g. 'Can you show me a breakdown by year?', 'What does this trend mean?', 'Run a SQL query for the top 10 products.'). " +
+  "Never phrase them as the assistant asking the user a question. " +
+  "Always respond with only a valid JSON array of strings, with no additional text or explanation.";
+
 async function generateFollowupSuggestions(
   openai: OpenAI,
   model: string,
-  conversationHistory: OpenAI.Chat.ChatCompletionMessageParam[]
+  conversationHistory: OpenAI.Chat.ChatCompletionMessageParam[],
 ): Promise<string[]> {
   try {
-    // Create a prompt that asks the LLM to generate follow-up questions
-    const suggestionPrompt = `
-Based on the conversation history below, generate 3-4 concise, relevant follow-up questions that would help the user explore this topic further. Respond only with a JSON array of strings containing the questions, with no additional text or explanation.
+    const historyText = conversationHistory
+      .map((msg) => `${msg.role}: ${msg.content}`)
+      .join("\n");
 
-Conversation history:
-${conversationHistory.map((msg, i) => `${msg.role}: ${msg.content}`).join("\n")}
+    const suggestionPrompt = `Based on the conversation history below, predict 3-4 questions the user is likely to ask next. Write each question in the user's voice, as if the user is typing their next message to the assistant (e.g. "Show me a chart for this", "What caused that spike?", "Can you filter by 2024?"). Do NOT write questions from the assistant's perspective. Respond only with a valid JSON array of strings, with no additional text.\n\nConversation history:\n${historyText}\n\nPredicted user questions (JSON array only):`;
 
-Follow-up questions (JSON array only):`;
-
+    // NOTE: Do NOT use response_format:"json_object" here — that forces the
+    // root value to be a JSON *object* ({…}), which means Array.isArray()
+    // will always be false and suggestions silently return empty.
     const response = await openai.chat.completions.create({
       model: model,
       messages: [
-        {
-          role: "system",
-          content: "You are a helpful assistant that generates follow-up questions based on conversation context. Always respond with only a valid JSON array of strings."
-        },
-        {
-          role: "user",
-          content: suggestionPrompt
-        }
+        { role: "system", content: DEFAULT_FOLLOWUP_SYSTEM },
+        { role: "user",   content: suggestionPrompt },
       ],
-      response_format: { type: "json_object" },
-      max_tokens: 200,
+      max_tokens: 300,
       temperature: 0.7,
     });
 
-    const result = response.choices[0]?.message?.content;
+    const result = response.choices[0]?.message?.content?.trim();
     if (!result) return [];
 
+    // Parse robustly: accept ["q1","q2"] OR {"questions":["q1","q2"]} OR
+    // any object that has exactly one array-valued property.
     try {
-      const parsed = JSON.parse(result);
+      const parsed: unknown = JSON.parse(result);
+      let arr: unknown[] | null = null;
+
       if (Array.isArray(parsed)) {
-        // Filter and clean the suggestions
-        return parsed
+        arr = parsed;
+      } else if (parsed !== null && typeof parsed === "object") {
+        // Find the first array-valued property (handles {"questions":[…]},
+        // {"followup":[…]}, {"0":"q1","1":"q2"} numeric-keyed objects, etc.)
+        for (const v of Object.values(parsed as Record<string, unknown>)) {
+          if (Array.isArray(v)) { arr = v; break; }
+        }
+      }
+
+      if (arr) {
+        return arr
           .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
           .slice(0, 4)
-          .map((s: string) => s.trim().replace(/^[\"']|[\"']$/g, ""));
+          .map((s) => s.trim().replace(/^["']|["']$/g, ""));
       }
-    } catch (parseError) {
-      console.error("Failed to parse follow-up suggestions:", parseError);
-      // Fallback: try to extract questions from text response
-      const matches = result.match(/\"(.*?)\"/g) ?? [];
-      return matches.slice(0, 4).map(m => m.replace(/\"|\\/g, "").trim());
+    } catch {
+      // JSON parse failed — model returned plain text.
+      // Try quoted strings first, then numbered/bulleted lines.
+      const quoted = result.match(/"([^"]+)"/g) ?? [];
+      if (quoted.length > 0) {
+        return quoted.slice(0, 4).map((m) => m.replace(/^"|"$/g, "").trim());
+      }
+      const lines = result
+        .split("\n")
+        .map((l) => l.replace(/^\s*[\d\-*•]+[.)]\s*/, "").trim())
+        .filter((l) => l.length > 8);
+      return lines.slice(0, 4);
     }
+
     return [];
   } catch (error) {
     console.error("Error generating follow-up suggestions:", error);

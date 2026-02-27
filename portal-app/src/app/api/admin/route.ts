@@ -37,7 +37,13 @@ export async function GET(request: NextRequest) {
     model: session.llmSettings?.model ?? process.env.LLM_MODEL ?? "gpt-4o",
     systemPrompt: session.llmSettings?.systemPrompt ?? process.env.LLM_SYSTEM_PROMPT ?? "",
     modelParams: session.llmSettings?.modelParams ?? "",
-    isCustom: !!(session.llmSettings?.apiUrl || session.llmSettings?.apiKey || session.llmSettings?.model || session.llmSettings?.systemPrompt || session.llmSettings?.modelParams),
+    isCustom: !!(
+      session.llmSettings?.apiUrl ||
+      session.llmSettings?.apiKey ||
+      session.llmSettings?.model ||
+      session.llmSettings?.systemPrompt ||
+      session.llmSettings?.modelParams
+    ),
   });
 }
 

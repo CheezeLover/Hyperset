@@ -11,7 +11,7 @@ interface LlmSettings {
   apiKey: string;
   model: string;
   systemPrompt: string;
-  modelParams?: string;
+  modelParams: string;
   isCustom: boolean;
 }
 
@@ -52,7 +52,7 @@ function TestResultBanner({ result }: { result: TestResult }) {
 
 export function AdminModal({ onClose }: AdminModalProps) {
   const [settings, setSettings] = useState<LlmSettings>({
-    apiUrl: "", apiKey: "", model: "", systemPrompt: "", isCustom: false,
+    apiUrl: "", apiKey: "", model: "", systemPrompt: "", modelParams: "", isCustom: false,
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -100,6 +100,7 @@ export function AdminModal({ onClose }: AdminModalProps) {
           apiKey: settings.apiKey !== "***" ? settings.apiKey : undefined,
           model: settings.model,
           systemPrompt: settings.systemPrompt,
+          modelParams: settings.modelParams,
         }),
       });
       if (!res.ok) throw new Error("Save failed");
@@ -212,19 +213,16 @@ export function AdminModal({ onClose }: AdminModalProps) {
             </div>
 
             {/* ── Model parameters ── */}
-            <div style={{ marginTop: 12, borderTop: "1px solid var(--md-outline-var)", paddingTop: 12 }}>
+            <div style={{ marginTop: 8, borderTop: "1px solid var(--md-outline-var)", paddingTop: 12 }}>
               <p style={{ fontSize: 11, fontWeight: 600, opacity: 0.45, textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 8px" }}>
                 Model Parameters (JSON)
               </p>
               <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                <span style={labelStyle}>Additional model parameters — optional JSON object with any valid model parameters</span>
-                <span style={{ fontSize: 11, opacity: 0.5, marginBottom: 4 }}>
-                  Example: {`{"temperature": 0.7, "max_tokens": 1024, "top_p": 0.9}`}
-                </span>
+                <span style={labelStyle}>Extra parameters merged into every chat completion request</span>
                 <textarea
-                  value={settings.modelParams || ""}
+                  value={settings.modelParams}
                   onChange={(e) => setSettings((s) => ({ ...s, modelParams: e.target.value }))}
-                  placeholder={`{\n  \"temperature\": 0.7,\n  \"max_tokens\": 1024,\n  \"top_p\": 0.9\n}`}
+                  placeholder={`{\n  "temperature": 0.7,\n  "max_tokens": 1024,\n  "top_p": 0.9\n}`}
                   rows={4}
                   style={{ ...inputStyle, resize: "vertical", fontFamily: "monospace", fontSize: 11, lineHeight: 1.4 }}
                   disabled={saving}
