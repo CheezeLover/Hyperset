@@ -220,7 +220,10 @@ export function AdminModal({ onClose }: AdminModalProps) {
                 Follow-up Questions Prompt
               </p>
               <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                <span style={labelStyle}>System message used when generating follow-up suggestions — controls tone, count, language, etc.</span>
+                <span style={labelStyle}>System message for follow-up suggestions — controls count, tone, language, topic focus, etc.</span>
+                <span style={{ fontSize: 11, opacity: 0.5, marginBottom: 2 }}>
+                  Must include a JSON output instruction (e.g. "Always respond with only a valid JSON array of strings"). Leave blank to use the built-in default.
+                </span>
                 <textarea
                   value={settings.followupQuestionsPrompt}
                   onChange={(e) => setSettings((s) => ({ ...s, followupQuestionsPrompt: e.target.value }))}
