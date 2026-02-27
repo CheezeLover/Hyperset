@@ -90,7 +90,7 @@
       "req": {"metric":"{...metric_obj...}","groupby":"[str]"},
       "opt": {"time_range":"str","adhoc_filters":"[]"}
     },
-    "histogram": {
+    "histogram_v2": {
       "when": "Frequency distribution of one or more numeric columns.",
       "req": {"all_columns_x":"[str]"},
       "opt": {"time_range":"str","link_length":"int","adhoc_filters":"[]"}
@@ -100,15 +100,20 @@
       "req": {"metrics":"[{...metric_obj...}]","groupby":"[str]"},
       "opt": {"time_range":"str","whisker_options":"Tukey|Min/max|2/98 percentiles","adhoc_filters":"[]"}
     },
+    "echarts_timeseries_scatter": {
+      "when": "Scatter plot — points plotted on a time or category X axis with one or more Y metrics. Use groupby for color series. Prefer bubble_v2 when you also need bubble size. NEVER put x_axis in groupby.",
+      "req": {"metrics":"[{...metric_obj...}]","x_axis":"str:column_name"},
+      "opt": {"groupby":"[str]","time_range":"str","time_grain_sqla":"str","row_limit":"int","color_scheme":"str","adhoc_filters":"[]"}
+    },
     "bubble_v2": {
       "when": "Scatter plot — x/y axes are metrics, bubble size is a third metric, entity labels each bubble. Use series for optional color grouping.",
       "req": {"x":"{...metric_obj...}","y":"{...metric_obj...}","size":"{...metric_obj...}","entity":"str:column_name"},
       "opt": {"series":"str:column_name","time_range":"str","row_limit":"int","color_scheme":"str","adhoc_filters":"[]"}
     },
-    "echarts_heatmap": {
+    "heatmap_v2": {
       "when": "Color-coded grid — X axis and Y axis are category columns, cell color intensity is a metric. NEVER put x_axis in groupby.",
       "req": {"x_axis":"str:column_name","groupby":"[str]","metric":"{...metric_obj...}"},
-      "opt": {"time_range":"str","row_limit":"int","color_scheme":"str","adhoc_filters":"[]"}
+      "opt": {"time_range":"str","row_limit":"int","color_scheme":"str","normalize_across":"heatmap|x|y","sort_x_axis":"alpha_asc|alpha_desc|value_asc|value_desc","sort_y_axis":"alpha_asc|alpha_desc|value_asc|value_desc","adhoc_filters":"[]"}
     },
     "radar": {
       "when": "Radar/spider chart — each metric is one spoke, each group (groupby) is one polygon overlay. Use multiple metrics for multi-dimensional comparison.",
