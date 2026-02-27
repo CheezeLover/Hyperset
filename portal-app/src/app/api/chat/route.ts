@@ -239,7 +239,7 @@ RULE 3 — EMBED FORMAT: call superset_get_chart_embed → take the 'embed_markd
   Correct:   [iframe](https://real-url/...) Chart Title
   Wrong:     [Chart Title](https://real-url/...)   ← this is a link, not an embed
   Wrong:     - [iframe](https://real-url/...) ...  ← never put embed inside a list item
-  Wrong:     `[iframe](https://real-url/...)...`   ← never wrap in backticks
+  Wrong:     \`[iframe](https://real-url/...)...\`  ← never wrap in backticks
 
 RULE 4 — LINK FORMAT (only when user asks for a link): call superset_get_chart_link → paste 'link_markdown' verbatim inline in the sentence.
 
