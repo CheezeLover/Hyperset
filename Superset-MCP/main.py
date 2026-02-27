@@ -389,11 +389,17 @@ _VIZ_PARAMS_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "echarts_timeseries_bar": {
         "viz_type": "echarts_timeseries_bar",
         "metrics": [_simple_metric("id", "COUNT")],
-        "groupby": [],
-        "x_axis": "date_column",
-        "time_range": "Last year",
-        "time_grain_sqla": "P1M",
-        "row_limit": 10000,
+        # x_axis is REQUIRED and is the sole X-dimension column.
+        # • Time-series chart  → set to a date/time column (e.g. "year", "ds")
+        #   and add time_grain_sqla (e.g. "P1Y").
+        # • Ranked / top-N categorical chart → set to the category column
+        #   (e.g. "country_name", "region") and REMOVE time_grain_sqla.
+        # NEVER put the x_axis column in groupby — that causes a duplicate-label error.
+        # groupby is ONLY for splitting the chart into multiple series (optional).
+        "x_axis": "x_axis_column",
+        "groupby": [],        # leave empty unless you need multiple series
+        "time_range": "No filter",
+        "row_limit": 25,
         "orientation": "vertical",
         "show_legend": True,
         "color_scheme": "supersetColors",
@@ -402,8 +408,10 @@ _VIZ_PARAMS_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "echarts_timeseries_line": {
         "viz_type": "echarts_timeseries_line",
         "metrics": [_simple_metric("id", "COUNT")],
-        "groupby": [],
-        "x_axis": "date_column",
+        # x_axis REQUIRED: set to the date/time column (e.g. "year", "ds").
+        # NEVER put this column in groupby — groupby is only for series splitting.
+        "x_axis": "x_axis_column",
+        "groupby": [],        # leave empty unless splitting into multiple series
         "time_range": "Last year",
         "time_grain_sqla": "P1M",
         "row_limit": 10000,
@@ -414,8 +422,10 @@ _VIZ_PARAMS_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "echarts_timeseries_smooth": {
         "viz_type": "echarts_timeseries_smooth",
         "metrics": [_simple_metric("id", "COUNT")],
+        # x_axis REQUIRED: set to the date/time column (e.g. "year", "ds").
+        # NEVER put this column in groupby — groupby is only for series splitting.
+        "x_axis": "x_axis_column",
         "groupby": [],
-        "x_axis": "date_column",
         "time_range": "Last year",
         "time_grain_sqla": "P1M",
         "row_limit": 10000,
@@ -426,8 +436,10 @@ _VIZ_PARAMS_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "echarts_area": {
         "viz_type": "echarts_area",
         "metrics": [_simple_metric("id", "COUNT")],
+        # x_axis REQUIRED: set to the date/time column (e.g. "year", "ds").
+        # NEVER put this column in groupby — groupby is only for series splitting.
+        "x_axis": "x_axis_column",
         "groupby": [],
-        "x_axis": "date_column",
         "time_range": "Last year",
         "time_grain_sqla": "P1M",
         "stack": False,
@@ -767,20 +779,62 @@ async def _validate_chart_params(
             f"to see the correct structure."
         )
 
-    # ── 4. Required template keys are present ───────────────────────────────
-    required_keys = [k for k in template if k not in ("viz_type", "adhoc_filters",
-                     "row_limit", "color_scheme", "show_legend", "time_range",
-                     "time_grain_sqla", "bar_stacked", "donut", "show_labels",
-                     "labels_outside", "stack", "stacked_style", "page_length",
-                     "include_time", "order_desc", "whisker_options",
-                     "compare_lag", "compare_suffix", "subheader",
-                     "orientation", "min_val", "max_val", "link_length",
-                     "x_axis_label")]
+    # ── 4. Required template keys are present AND have non-empty values ────────
+    _OPTIONAL_KEYS = {
+        "viz_type", "adhoc_filters", "row_limit", "color_scheme", "show_legend",
+        "time_range", "time_grain_sqla", "bar_stacked", "donut", "show_labels",
+        "labels_outside", "stack", "stacked_style", "page_length", "include_time",
+        "order_desc", "whisker_options", "compare_lag", "compare_suffix",
+        "subheader", "orientation", "min_val", "max_val", "link_length",
+        "x_axis_label", "groupby", "columns",
+    }
+    # String fields that must be non-empty when present in the template
+    _STRING_FIELDS = {"x_axis", "series", "source", "target", "all_columns_y",
+                      "all_columns_x"}
+    _PLACEHOLDER_STRINGS = {
+        "date_column", "dimension_column", "value_column", "x_column", "y_column",
+        "size_column", "label_column", "stage_column", "word_column",
+        "source_column", "target_column", "numeric_column", "x_dimension_column",
+        "y_dimension_column", "row_dimension_column", "col_dimension_column",
+        "outer_dimension_column", "inner_dimension_column",
+    }
+    required_keys = [k for k in template if k not in _OPTIONAL_KEYS]
     for rk in required_keys:
         if rk not in params:
+            hint = ""
+            if rk == "x_axis":
+                hint = (
+                    " For echarts_timeseries_* charts, 'x_axis' is REQUIRED and must "
+                    "be the column used for the X dimension (e.g. a date/time column "
+                    "for trends, or 'country_name' for a top-N ranking chart). "
+                    "Do NOT put that column in 'groupby' — set it as 'x_axis' instead."
+                )
             errors.append(
-                f"Required field '{rk}' is missing from params for viz_type '{viz_type}'."
+                f"Required field '{rk}' is missing from params for viz_type '{viz_type}'.{hint}"
             )
+        elif rk in _STRING_FIELDS:
+            val = params.get(rk)
+            if not isinstance(val, str) or not val.strip():
+                errors.append(
+                    f"Required field '{rk}' must be a non-empty string for viz_type "
+                    f"'{viz_type}', but got: {val!r}."
+                    + (
+                        f" Set 'x_axis' to the column that defines the X dimension "
+                        f"(e.g. a date column or 'country_name'). "
+                        f"Do NOT use 'groupby' for this — groupby is only for splitting series."
+                        if rk == "x_axis" else ""
+                    )
+                )
+            elif val in _PLACEHOLDER_STRINGS:
+                errors.append(
+                    f"'{rk}' still contains the placeholder value '{val}'. "
+                    f"Replace it with a real column name from the dataset."
+                    + (
+                        f" For a ranking chart use the category column (e.g. 'country_name'); "
+                        f"for a time-series chart use the date column (e.g. 'year')."
+                        if rk == "x_axis" else ""
+                    )
+                )
 
     # ── 5. x_axis must NOT also appear in groupby ───────────────────────────
     # Superset automatically includes x_axis in the query; adding it to groupby
@@ -883,6 +937,7 @@ async def _validate_chart_params(
                 "numeric_column", "x_dimension_column", "y_dimension_column",
                 "row_dimension_column", "col_dimension_column",
                 "outer_dimension_column", "inner_dimension_column",
+                "x_axis_column",   # echarts x_axis placeholder
             }
             missing = [c for c in referenced if c not in dataset_columns]
             placeholders_used = [c for c in missing if c in _PLACEHOLDERS]
