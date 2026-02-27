@@ -359,6 +359,21 @@ def _validate_chart_params(viz_type: str, params: Dict[str, Any]) -> Optional[st
     missing = [k for k in types[viz_type].get("req", {}) if k not in params]
     if missing:
         return f"Missing required params for '{viz_type}': {missing}"
+    # Validate metric objects — reject plain strings
+    examples = _CHART_CATALOG.get("metric_examples", {})
+    hint = f"See metric_examples: {examples}"
+    for key in ("metric", "metrics"):
+        val = params.get(key)
+        if val is None:
+            continue
+        items = [val] if key == "metric" else (val if isinstance(val, list) else [val])
+        for item in items:
+            if isinstance(item, str):
+                return (
+                    f"Invalid metric: '{item}' is a plain string. "
+                    f"Metrics must be objects with expressionType/column/aggregate/label/optionName. "
+                    f"{hint}"
+                )
     return None
 
 
