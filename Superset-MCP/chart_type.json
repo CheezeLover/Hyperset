@@ -1,0 +1,64 @@
+{
+  "types": {
+    "big_number_total": {
+      "name": "Big Number",
+      "when": "Single KPI with no time axis",
+      "req": {"metric": "metric_obj"},
+      "opt": {"subheader": "str", "time_range": "str"}
+    },
+    "big_number": {
+      "name": "Big Number + Trendline",
+      "when": "Single KPI with trend over time (requires date column)",
+      "req": {"metric": "metric_obj", "granularity_sqla": "str:date_column"},
+      "opt": {"time_range": "str"}
+    },
+    "table": {
+      "name": "Table",
+      "when": "Tabular display of rows/aggregations",
+      "req": {"all_columns": "array<str>"},
+      "opt": {"metrics": "array<metric_obj>", "groupby": "array<str>", "time_range": "str", "row_limit": "int", "page_length": "int"}
+    },
+    "bar": {
+      "name": "Bar Chart",
+      "when": "Compare values across discrete categories",
+      "req": {"metrics": "array<metric_obj>", "groupby": "array<str>"},
+      "opt": {"time_range": "str", "row_limit": "int", "bar_stacked": "bool", "color_scheme": "str"}
+    },
+    "dist_bar": {
+      "name": "Distribution Bar",
+      "when": "Grouped bars comparing multiple metrics across categories",
+      "req": {"metrics": "array<metric_obj>", "groupby": "array<str>"},
+      "opt": {"columns": "array<str>", "time_range": "str", "row_limit": "int", "bar_stacked": "bool"}
+    },
+    "line": {
+      "name": "Line Chart",
+      "when": "Trends over time (requires date column)",
+      "req": {"metrics": "array<metric_obj>", "granularity_sqla": "str:date_column"},
+      "opt": {"time_range": "str", "row_limit": "int", "color_scheme": "str"}
+    },
+    "area": {
+      "name": "Area Chart",
+      "when": "Cumulative or stacked trends over time (requires date column)",
+      "req": {"metrics": "array<metric_obj>", "granularity_sqla": "str:date_column"},
+      "opt": {"time_range": "str", "row_limit": "int", "stacked_style": "str:expand|stream|silhouette"}
+    },
+    "pie": {
+      "name": "Pie / Donut Chart",
+      "when": "Part-to-whole proportions, best with ≤10 slices",
+      "req": {"metric": "metric_obj", "groupby": "array<str>"},
+      "opt": {"time_range": "str", "row_limit": "int", "donut": "bool", "show_legend": "bool"}
+    }
+  },
+  "metric_examples": {
+    "count":   {"expressionType": "SIMPLE", "column": {"column_name": "id"}, "aggregate": "COUNT", "label": "COUNT"},
+    "count_distinct": {"expressionType": "SQL", "sqlExpression": "COUNT(DISTINCT id)", "label": "COUNT DISTINCT"},
+    "sum":     {"expressionType": "SIMPLE", "column": {"column_name": "<col>", "type": "DOUBLE"}, "aggregate": "SUM", "label": "SUM(<col>)"},
+    "avg":     {"expressionType": "SIMPLE", "column": {"column_name": "<col>", "type": "DOUBLE"}, "aggregate": "AVG", "label": "AVG(<col>)"},
+    "sql":     {"expressionType": "SQL", "sqlExpression": "<sql_expression>", "label": "<label>"}
+  },
+  "notes": {
+    "time_range": "e.g. 'Last 30 days', 'Last year', 'No filter'",
+    "color_scheme": "e.g. 'bnbColors', 'googleCategory10c', 'lyftViridis'",
+    "datasource_type": "always 'table' for datasets"
+  }
+}
