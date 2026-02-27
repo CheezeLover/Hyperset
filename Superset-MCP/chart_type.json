@@ -20,14 +20,9 @@
   "time_grain": {"PT1H":"hour","P1D":"day","P1W":"week","P1M":"month","P3M":"quarter","P1Y":"year"},
   "types": {
     "echarts_timeseries_bar": {
-      "when": "Bar chart for time-series OR top-N ranking. For time: set x_axis to date col + add time_grain_sqla. For ranking: set x_axis to category col, omit time_grain_sqla. NEVER put x_axis col in groupby.",
+      "when": "Bar chart — time-series OR categorical ranking. Time-series: set x_axis to a date column + add time_grain_sqla. Categorical: set x_axis to a category column (e.g. airline name), add groupby for further breakdown, omit time_grain_sqla. NEVER put x_axis col in groupby. Use this for all bar charts (replaces removed legacy dist_bar).",
       "req": {"metrics":"[{...metric_obj...}]","x_axis":"str:column_name"},
       "opt": {"groupby":"[str]","time_range":"str","time_grain_sqla":"str","row_limit":"int","orientation":"vertical|horizontal","bar_stacked":"bool","color_scheme":"str","adhoc_filters":"[]"}
-    },
-    "dist_bar": {
-      "when": "Categorical bar driven by groupby (no x_axis). Use for top-N when groupby-only is preferred.",
-      "req": {"metrics":"[{...metric_obj...}]","groupby":"[str]"},
-      "opt": {"columns":"[str]","time_range":"str","row_limit":"int","bar_stacked":"bool","color_scheme":"str","adhoc_filters":"[]"}
     },
     "echarts_timeseries_line": {
       "when": "Line chart — trend over time. Requires x_axis (date col). NEVER put x_axis in groupby.",
