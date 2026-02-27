@@ -231,7 +231,7 @@ export const POST = async (req: NextRequest) => {
 
 SUPERSET CONTENT — CRITICAL RULES (violations break the UI):
 
-RULE 1 — NEVER construct or hardcode Superset URLs. Always call the tool; it returns the real URL.
+RULE 1 — NEVER construct or hardcode Superset URLs. Always call the tool; it returns the real URL. "superset.example.com" is a non-existent placeholder — any embed using it is silently removed from the chat and the user sees nothing.
 
 RULE 2 — ALWAYS USE THE EMBED TOOL. For EVERY chart or dashboard you reference — whether newly created OR found via a list/search — you MUST call superset_get_chart_embed (or superset_get_dashboard_embed) to get the URL. Never derive or construct a URL from a chart ID yourself. This applies equally to existing charts retrieved with superset_chart_list.
 
