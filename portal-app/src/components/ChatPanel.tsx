@@ -339,16 +339,28 @@ function renderMarkdown(
         if (isAllowed && protocolOk) {
           nodes.push(
             <div key={key()} style={{ margin: "12px 0" }}>
-              <div style={{ 
-                fontSize: "11px", 
-                color: "var(--md-on-surface)", 
-                opacity: 0.7,
-                marginBottom: "4px",
-                fontWeight: 500 
-              }}>
+              {/* Clickable title — opens the chart/dashboard in the Superset panel */}
+              <button
+                onClick={() => onSupersetLinkClick?.(iframeUrl)}
+                title="Open in Superset"
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 4,
+                  background: "none", border: "none", padding: 0, marginBottom: 4,
+                  cursor: onSupersetLinkClick ? "pointer" : "default",
+                  fontSize: 11, fontWeight: 500,
+                  color: "var(--md-primary)", opacity: 0.85,
+                  textDecoration: "none",
+                }}
+                onMouseOver={e => { e.currentTarget.style.opacity = "1"; e.currentTarget.style.textDecoration = "underline"; }}
+                onMouseOut={e => { e.currentTarget.style.opacity = "0.85"; e.currentTarget.style.textDecoration = "none"; }}
+              >
                 {iframeTitle}
-              </div>
-              <div style={{ 
+                {/* "open in panel" icon */}
+                <svg viewBox="0 0 16 16" width={10} height={10} fill="currentColor" style={{ opacity: 0.7, flexShrink: 0 }}>
+                  <path d="M2 2h5v1.5H3.5v9h9V11H14v4H2V2zm7 0h5v5h-1.5V4.56L7.28 9.78 6.22 8.72 11.44 3.5H9V2z"/>
+                </svg>
+              </button>
+              <div style={{
                 border: "1px solid var(--md-outline-var)",
                 borderRadius: "8px",
                 overflow: "hidden",
@@ -357,7 +369,7 @@ function renderMarkdown(
                 <iframe
                   src={iframeUrl}
                   title={iframeTitle}
-                  style={{ 
+                  style={{
                     width: "100%",
                     height: "300px",
                     border: "none",
