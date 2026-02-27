@@ -25,6 +25,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 from dotenv import load_dotenv
 import json
 import logging
+from pathlib import Path
 
 logging.basicConfig(
     level=logging.INFO,
@@ -43,6 +44,16 @@ enabling AI assistants to interact with and control a Superset instance programm
 
 # Load environment variables from .env file
 load_dotenv()
+
+# Load chart type catalog
+_CHART_CATALOG: Dict[str, Any] = {}
+_CHART_CATALOG_PATH = Path(__file__).parent / "chart_type.json"
+try:
+    with open(_CHART_CATALOG_PATH) as _f:
+        _CHART_CATALOG = json.load(_f)
+    logger.info("Loaded chart catalog: %s types", len(_CHART_CATALOG.get("types", {})))
+except Exception as _e:
+    logger.warning("Could not load chart_type.json: %s", _e)
 
 # Constants
 SUPERSET_BASE_URL = (
@@ -998,18 +1009,45 @@ async def superset_chart_get_by_id(ctx: Context, chart_id: int) -> Dict[str, Any
     return await superset_request(ctx, "get", f"/api/v1/chart/{chart_id}")
 
 @mcp.tool()
+async def superset_chart_types(ctx: Context) -> Dict[str, Any]:
+    """
+    Return the chart type catalog: all supported viz_type values with required/optional
+    params and metric examples. Call this before superset_chart_create to know
+    exactly what to pass.
+
+    Returns:
+        The full chart_type.json catalog (types, metric_examples, notes)
+    """
+    if not _CHART_CATALOG:
+        return {"error": "Chart catalog not loaded (chart_type.json missing)"}
+    return _CHART_CATALOG
+
+
+def _validate_chart_params(viz_type: str, params: Dict[str, Any]) -> Optional[str]:
+    """Return an error string if params are invalid, else None."""
+    types = _CHART_CATALOG.get("types", {})
+    if viz_type not in types:
+        return f"Unknown viz_type '{viz_type}'. Valid types: {list(types.keys())}"
+    missing = [k for k in types[viz_type].get("req", {}) if k not in params]
+    if missing:
+        return f"Missing required params for '{viz_type}': {missing}"
+    return None
+
+
+@mcp.tool()
 @handle_api_errors
 async def superset_chart_create(
     ctx: Context,
     slice_name: str,
     datasource_id: int,
-    datasource_type: str,
     viz_type: str,
     params: Dict[str, Any],
+    datasource_type: str = "table",
 ) -> Dict[str, Any]:
     """
     Create a new chart in Superset.
 
+<<<<<<< Updated upstream
     MANDATORY WORKFLOW — always follow these steps to avoid errors:
     1. Call superset_chart_list_viz_types to pick a valid viz_type string.
     2. Call superset_chart_get_viz_params_template(viz_type=<chosen_type>) to get
@@ -1049,6 +1087,24 @@ async def superset_chart_create(
     )
     if validation_error:
         return validation_error
+=======
+    Call superset_chart_types first to get valid viz_type values and required params.
+    Chart creation will be rejected if viz_type is unknown or required params are missing.
+
+    Args:
+        slice_name: Chart title
+        datasource_id: Dataset ID (from superset_dataset_list)
+        viz_type: Chart type (must be a key from superset_chart_types)
+        params: Visualization params (keys/values per superset_chart_types definition)
+        datasource_type: Datasource kind — defaults to 'table'
+
+    Returns:
+        Created chart info including its ID, or an error with the validation failure
+    """
+    err = _validate_chart_params(viz_type, params)
+    if err:
+        return {"error": err}
+>>>>>>> Stashed changes
 
     payload = {
         "slice_name": slice_name,
