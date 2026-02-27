@@ -294,8 +294,8 @@ function renderMarkdown(
       continue;
     }
 
-    // Iframe embedding
-    const iframeMatch = line.match(/^\[iframe\]\(([^\s]+)\)\s*(.*)$/);
+    // Iframe embedding — allow optional space between ] and ( to handle LLM formatting variations
+    const iframeMatch = line.match(/^\[iframe\]\s*\(([^\s)]+)\)\s*(.*)$/);
     if (iframeMatch) {
       const iframeUrl = iframeMatch[1];
       const iframeTitle = iframeMatch[2].trim() || "Embedded Content";
@@ -382,18 +382,11 @@ function renderMarkdown(
             </div>
           );
         } else {
-          // Show URL as link if not allowed
-          nodes.push(
-            <p key={key()} style={{ margin: "2px 0", lineHeight: 1.6, color: "var(--md-primary)" }}>
-              🔒 <a href={iframeUrl} target="_blank" rel="noopener noreferrer" style={{ color: "var(--md-primary)" }}>
-                {iframeTitle || iframeUrl}
-              </a> (external content not embedded for security)
-            </p>
-          );
+          // Non-whitelisted URL (e.g. LLM hallucinated superset.example.com) — silently drop.
+          // The LLM should have called superset_get_chart_embed to get the real URL.
         }
       } catch {
-        // Invalid URL - show as text
-        nodes.push(<p key={key()} style={{ margin: "2px 0", lineHeight: 1.6 }}>{ir(line)}</p>);
+        // Invalid URL — silently drop rather than leaking raw iframe syntax into the chat.
       }
       i++;
       continue;

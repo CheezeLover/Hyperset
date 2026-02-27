@@ -25,6 +25,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 from dotenv import load_dotenv
 import json
 import logging
+from pathlib import Path
 
 logging.basicConfig(
     level=logging.INFO,
@@ -43,6 +44,16 @@ enabling AI assistants to interact with and control a Superset instance programm
 
 # Load environment variables from .env file
 load_dotenv()
+
+# Load chart type catalog
+_CHART_CATALOG: Dict[str, Any] = {}
+_CHART_CATALOG_PATH = Path(__file__).parent / "chart_type.json"
+try:
+    with open(_CHART_CATALOG_PATH) as _f:
+        _CHART_CATALOG = json.load(_f)
+    logger.info("Loaded chart catalog: %s types", len(_CHART_CATALOG.get("types", {})))
+except Exception as _e:
+    logger.warning("Could not load chart_type.json: %s", _e)
 
 # Constants
 SUPERSET_BASE_URL = (
@@ -326,28 +337,86 @@ async def superset_chart_get_by_id(ctx: Context, chart_id: int) -> Dict[str, Any
     return await superset_request(ctx, "get", f"/api/v1/chart/{chart_id}")
 
 @mcp.tool()
+async def superset_chart_types(ctx: Context) -> Dict[str, Any]:
+    """
+    Return the chart type catalog: all supported viz_type values with required/optional
+    params and metric examples. Call this before superset_chart_create to know
+    exactly what to pass.
+
+    Returns:
+        The full chart_type.json catalog (types, metric_examples, notes)
+    """
+    if not _CHART_CATALOG:
+        return {"error": "Chart catalog not loaded (chart_type.json missing)"}
+    return _CHART_CATALOG
+
+
+def _validate_chart_params(viz_type: str, params: Dict[str, Any]) -> Optional[str]:
+    """Return an error string if params are invalid, else None."""
+    types = _CHART_CATALOG.get("types", {})
+    if viz_type not in types:
+        return f"Unknown viz_type '{viz_type}'. Valid types: {list(types.keys())}"
+    missing = [k for k in types[viz_type].get("req", {}) if k not in params]
+    if missing:
+        return f"Missing required params for '{viz_type}': {missing}"
+    # Validate metrics — reject plain strings and empty arrays
+    examples = _CHART_CATALOG.get("metric_examples", {})
+    hint = f"See metric_examples: {examples}"
+    for key in ("metric", "metrics"):
+        val = params.get(key)
+        if val is None:
+            continue
+        if key == "metrics" and isinstance(val, list) and len(val) == 0:
+            return f"'metrics' is empty — add at least one metric object. {hint}"
+        items = [val] if key == "metric" else (val if isinstance(val, list) else [val])
+        for item in items:
+            if isinstance(item, str):
+                return (
+                    f"Invalid metric: '{item}' is a plain string. "
+                    f"Metrics must be objects with expressionType/column/aggregate/label/optionName. "
+                    f"{hint}"
+                )
+    # Validate x_axis not duplicated in groupby
+    x_axis = params.get("x_axis")
+    groupby = params.get("groupby", [])
+    if x_axis and isinstance(groupby, list) and x_axis in groupby:
+        return (
+            f"x_axis '{x_axis}' must NOT appear in groupby — Superset adds it automatically "
+            f"and will raise 'Duplicate column/metric labels'. Remove '{x_axis}' from groupby."
+        )
+    return None
+
+
+@mcp.tool()
 @handle_api_errors
 async def superset_chart_create(
     ctx: Context,
     slice_name: str,
     datasource_id: int,
-    datasource_type: str,
     viz_type: str,
     params: Dict[str, Any],
+    datasource_type: str = "table",
 ) -> Dict[str, Any]:
     """
-    Create a new chart in Superset
+    Create a new chart in Superset.
+
+    Call superset_chart_types first to get valid viz_type values and required params.
+    Chart creation will be rejected if viz_type is unknown or required params are missing.
 
     Args:
-        slice_name: Name/title of the chart
-        datasource_id: ID of the dataset or SQL table
-        datasource_type: Type of datasource ('table' for datasets, 'query' for SQL)
-        viz_type: Visualization type (e.g., 'bar', 'line', 'pie', 'big_number', etc.)
-        params: Visualization parameters including metrics, groupby, time_range, etc.
+        slice_name: Chart title
+        datasource_id: Dataset ID (from superset_dataset_list)
+        viz_type: Chart type (must be a key from superset_chart_types)
+        params: Visualization params (keys/values per superset_chart_types definition)
+        datasource_type: Datasource kind — defaults to 'table'
 
     Returns:
-        A dictionary with the created chart information including its ID
+        Created chart info including its ID, or an error with the validation failure
     """
+    err = _validate_chart_params(viz_type, params)
+    if err:
+        return {"error": err}
+
     payload = {
         "slice_name": slice_name,
         "datasource_id": datasource_id,
@@ -699,19 +768,22 @@ async def superset_get_chart_embed(
     """
     Get a ready-to-use iframe embed markdown string for a Superset chart.
 
-    Returns a string in the format:
-        [iframe](https://superset.example.com/superset/explore/?slice_id=42&standalone=1) My Chart
+    IMPORTANT: NEVER construct embed URLs manually. ALWAYS call this tool —
+    it uses the real Superset instance URL. Hardcoding any domain (including
+    placeholder domains) will result in broken embeds.
 
-    Paste this string verbatim into your response — the chat UI will render it as
-    an inline embedded chart.
+    The tool returns 'embed_markdown' which looks like:
+        [iframe](<real-superset-url>/superset/explore/?slice_id=<id>&standalone=1) <title>
+
+    Copy 'embed_markdown' verbatim into your response — the chat UI renders it
+    as an inline embedded chart.
 
     Args:
         chart_id: ID of the chart to embed
         title: Display title shown above the iframe (fetched automatically if omitted)
 
     Returns:
-        A dictionary with embed_markdown (the string to include in the response),
-        embed_url, chart_id, and title
+        A dictionary with embed_markdown (paste verbatim), embed_url, chart_id, title
     """
     if not title:
         chart_resp = await superset_request(ctx, "get", f"/api/v1/chart/{chart_id}")
@@ -748,19 +820,22 @@ async def superset_get_dashboard_embed(
     """
     Get a ready-to-use iframe embed markdown string for a Superset dashboard.
 
-    Returns a string in the format:
-        [iframe](https://superset.example.com/superset/dashboard/5/?standalone=2) My Dashboard
+    IMPORTANT: NEVER construct embed URLs manually. ALWAYS call this tool —
+    it uses the real Superset instance URL. Hardcoding any domain (including
+    placeholder domains) will result in broken embeds.
 
-    Paste this string verbatim into your response — the chat UI will render it as
-    an inline embedded dashboard.
+    The tool returns 'embed_markdown' which looks like:
+        [iframe](<real-superset-url>/superset/dashboard/<id>/?standalone=2) <title>
+
+    Copy 'embed_markdown' verbatim into your response — the chat UI renders it
+    as an inline embedded dashboard.
 
     Args:
         dashboard_id: ID of the dashboard to embed
         title: Display title shown above the iframe (fetched automatically if omitted)
 
     Returns:
-        A dictionary with embed_markdown (the string to include in the response),
-        embed_url, dashboard_id, and title
+        A dictionary with embed_markdown (paste verbatim), embed_url, dashboard_id, title
     """
     if not title:
         dashboard_resp = await superset_request(
@@ -807,19 +882,22 @@ async def superset_get_chart_link(
     Get a ready-to-use markdown link for a Superset chart that opens in the
     Superset panel.
 
-    Use this when you want to reference a chart as a clickable hyperlink rather
-    than embedding it inline.  The returned link_markdown looks like:
-        [Sales Chart](https://superset.example.com/superset/explore/?slice_id=42)
+    IMPORTANT: NEVER construct chart URLs manually. ALWAYS call this tool —
+    it uses the real Superset instance URL. Hardcoding any domain (including
+    placeholder domains) will produce broken links.
 
-    Clicking the link in the chat navigates the main Superset panel to that chart
-    with the full Superset UI (not embedded/standalone mode).
+    The tool returns 'link_markdown' which looks like:
+        [<title>](<real-superset-url>/superset/explore/?slice_id=<id>)
+
+    Include link_markdown verbatim in your text — clicking it navigates the
+    Superset panel to the chart (full UI, not standalone mode).
 
     Args:
         chart_id: ID of the chart to link to
         title: Link text shown to the user (fetched automatically if omitted)
 
     Returns:
-        A dictionary with link_markdown (include this verbatim in your response)
+        A dictionary with link_markdown (paste verbatim), link_url, chart_id, title
     """
     if not title:
         chart_resp = await superset_request(ctx, "get", f"/api/v1/chart/{chart_id}")
@@ -856,19 +934,22 @@ async def superset_get_dashboard_link(
     Get a ready-to-use markdown link for a Superset dashboard that opens in the
     Superset panel.
 
-    Use this when you want to reference a dashboard as a clickable hyperlink
-    rather than embedding it inline.  The returned link_markdown looks like:
-        [Sales Dashboard](https://superset.example.com/superset/dashboard/5/)
+    IMPORTANT: NEVER construct dashboard URLs manually. ALWAYS call this tool —
+    it uses the real Superset instance URL. Hardcoding any domain (including
+    placeholder domains) will produce broken links.
 
-    Clicking the link in the chat navigates the main Superset panel to that
-    dashboard with the full Superset UI (not embedded/standalone mode).
+    The tool returns 'link_markdown' which looks like:
+        [<title>](<real-superset-url>/superset/dashboard/<id>/)
+
+    Include link_markdown verbatim in your text — clicking it navigates the
+    Superset panel to the dashboard (full UI, not standalone mode).
 
     Args:
         dashboard_id: ID of the dashboard to link to
         title: Link text shown to the user (fetched automatically if omitted)
 
     Returns:
-        A dictionary with link_markdown (include this verbatim in your response)
+        A dictionary with link_markdown (paste verbatim), link_url, dashboard_id, title
     """
     if not title:
         dashboard_resp = await superset_request(

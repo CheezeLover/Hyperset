@@ -1,0 +1,129 @@
+{
+  "_rules": [
+    "metric/metrics values MUST be objects (see metric_examples). NEVER plain strings like 'col_name' or 'Metric Label'.",
+    "For 'metrics' (array): pass [{...metric object...}]. For 'metric' (single): pass {...metric object...}.",
+    "Always replace example column names with real column names from the dataset.",
+    "optionName must be unique across all metrics in the same chart.",
+    "x_axis MUST be a raw column name string (e.g. 'ds', 'MONTH'). NEVER a SQL expression like 'MONTH(ds)'. For time granularity, use time_grain_sqla.",
+    "x_axis column must NOT appear in groupby — putting the same column in both causes 'Duplicate column/metric labels' error."
+  ],
+  "metric_examples": {
+    "_how_to_use": "Copy the matching shape, replace 'my_col' with the real column name, set a unique optionName.",
+    "count":          {"expressionType":"SIMPLE","column":{"column_name":"my_col"},"aggregate":"COUNT","label":"COUNT(my_col)","optionName":"m_count_my_col"},
+    "count_distinct": {"expressionType":"SQL","sqlExpression":"COUNT(DISTINCT my_col)","label":"COUNT DISTINCT my_col","optionName":"m_countd_my_col"},
+    "sum":            {"expressionType":"SIMPLE","column":{"column_name":"my_col"},"aggregate":"SUM","label":"SUM(my_col)","optionName":"m_sum_my_col"},
+    "avg":            {"expressionType":"SIMPLE","column":{"column_name":"my_col"},"aggregate":"AVG","label":"AVG(my_col)","optionName":"m_avg_my_col"},
+    "min":            {"expressionType":"SIMPLE","column":{"column_name":"my_col"},"aggregate":"MIN","label":"MIN(my_col)","optionName":"m_min_my_col"},
+    "max":            {"expressionType":"SIMPLE","column":{"column_name":"my_col"},"aggregate":"MAX","label":"MAX(my_col)","optionName":"m_max_my_col"},
+    "custom_sql":     {"expressionType":"SQL","sqlExpression":"SUM(revenue) / COUNT(*)", "label":"Avg Revenue","optionName":"m_avg_revenue"}
+  },
+  "time_range": ["No filter","Last day","Last 7 days","Last 30 days","Last month","Last quarter","Last year"],
+  "time_grain": {"PT1H":"hour","P1D":"day","P1W":"week","P1M":"month","P3M":"quarter","P1Y":"year"},
+  "types": {
+    "echarts_timeseries_bar": {
+      "when": "Bar chart — time-series OR categorical ranking. Time-series: set x_axis to a date column + add time_grain_sqla. Categorical: set x_axis to a category column (e.g. airline name), add groupby for further breakdown, omit time_grain_sqla. NEVER put x_axis col in groupby. Use this for all bar charts (replaces removed legacy dist_bar).",
+      "req": {"metrics":"[{...metric_obj...}]","x_axis":"str:column_name"},
+      "opt": {"groupby":"[str]","time_range":"str","time_grain_sqla":"str","row_limit":"int","orientation":"vertical|horizontal","bar_stacked":"bool","color_scheme":"str","adhoc_filters":"[]"}
+    },
+    "echarts_timeseries_line": {
+      "when": "Line chart — trend over time. Requires x_axis (date col). NEVER put x_axis in groupby.",
+      "req": {"metrics":"[{...metric_obj...}]","x_axis":"str:date_column_name"},
+      "opt": {"groupby":"[str]","time_range":"str","time_grain_sqla":"str","row_limit":"int","color_scheme":"str","adhoc_filters":"[]"}
+    },
+    "echarts_timeseries_smooth": {
+      "when": "Smooth line chart (Bezier). Same as echarts_timeseries_line.",
+      "req": {"metrics":"[{...metric_obj...}]","x_axis":"str:date_column_name"},
+      "opt": {"groupby":"[str]","time_range":"str","time_grain_sqla":"str","row_limit":"int","adhoc_filters":"[]"}
+    },
+    "echarts_area": {
+      "when": "Filled area chart — trend over time. Requires x_axis (date col). NEVER put x_axis in groupby.",
+      "req": {"metrics":"[{...metric_obj...}]","x_axis":"str:date_column_name"},
+      "opt": {"groupby":"[str]","time_range":"str","time_grain_sqla":"str","stack":"bool","row_limit":"int","adhoc_filters":"[]"}
+    },
+    "big_number_total": {
+      "when": "Single KPI value — no trendline, no time axis.",
+      "req": {"metric":"{...metric_obj...}"},
+      "opt": {"subheader":"str","time_range":"str","adhoc_filters":"[]"}
+    },
+    "big_number": {
+      "when": "Single KPI with trendline sparkline. Requires a time granularity.",
+      "req": {"metric":"{...metric_obj...}","time_grain_sqla":"str"},
+      "opt": {"time_range":"str","compare_lag":"int","compare_suffix":"str","adhoc_filters":"[]"}
+    },
+    "table": {
+      "when": "Tabular display with optional aggregation.",
+      "req": {"metrics":"[{...metric_obj...}]","groupby":"[str]"},
+      "opt": {"all_columns":"[str]","time_range":"str","row_limit":"int","page_length":"int","order_desc":"bool","adhoc_filters":"[]"}
+    },
+    "pivot_table_v2": {
+      "when": "Cross-tabulation of two dimensions and a metric.",
+      "req": {"metrics":"[{...metric_obj...}]","groupbyRows":"[str]","groupbyColumns":"[str]"},
+      "opt": {"time_range":"str","row_limit":"int","adhoc_filters":"[]"}
+    },
+    "pie": {
+      "when": "Part-to-whole proportions. Best with ≤10 slices.",
+      "req": {"metric":"{...metric_obj...}","groupby":"[str]"},
+      "opt": {"time_range":"str","row_limit":"int","donut":"bool","show_legend":"bool","adhoc_filters":"[]"}
+    },
+    "treemap_v2": {
+      "when": "Hierarchical part-to-whole rectangles.",
+      "req": {"metric":"{...metric_obj...}","groupby":"[str]"},
+      "opt": {"time_range":"str","color_scheme":"str","adhoc_filters":"[]"}
+    },
+    "funnel": {
+      "when": "Ordered conversion or flow stages.",
+      "req": {"metric":"{...metric_obj...}","groupby":"[str]"},
+      "opt": {"time_range":"str","color_scheme":"str","adhoc_filters":"[]"}
+    },
+    "sunburst_v2": {
+      "when": "Hierarchical radial drill-down. groupby order = outer to inner.",
+      "req": {"metric":"{...metric_obj...}","groupby":"[str]"},
+      "opt": {"time_range":"str","adhoc_filters":"[]"}
+    },
+    "histogram": {
+      "when": "Frequency distribution of one or more numeric columns.",
+      "req": {"all_columns_x":"[str]"},
+      "opt": {"time_range":"str","link_length":"int","adhoc_filters":"[]"}
+    },
+    "box_plot": {
+      "when": "Statistical distribution — median, quartiles, outliers.",
+      "req": {"metrics":"[{...metric_obj...}]","groupby":"[str]"},
+      "opt": {"time_range":"str","whisker_options":"Tukey|Min/max|2/98 percentiles","adhoc_filters":"[]"}
+    },
+    "bubble_v2": {
+      "when": "Scatter plot with bubble size as third metric. Replaces legacy scatter.",
+      "req": {"x":"{...metric_obj...}","y":"{...metric_obj...}","size":"{...metric_obj...}","series":"str:column_name"},
+      "opt": {"time_range":"str","row_limit":"int","adhoc_filters":"[]"}
+    },
+    "heatmap": {
+      "when": "Color-coded grid for two dimensions and a metric.",
+      "req": {"all_columns_x":"str:column_name","all_columns_y":"str:column_name","metric":"{...metric_obj...}"},
+      "opt": {"time_range":"str","row_limit":"int","adhoc_filters":"[]"}
+    },
+    "gauge_chart": {
+      "when": "Circular gauge for a single value against a min/max range.",
+      "req": {"metric":"{...metric_obj...}"},
+      "opt": {"time_range":"str","min_val":"int","max_val":"int","adhoc_filters":"[]"}
+    },
+    "word_cloud": {
+      "when": "Text size proportional to a metric value.",
+      "req": {"metric":"{...metric_obj...}","series":"str:column_name"},
+      "opt": {"time_range":"str","row_limit":"int","adhoc_filters":"[]"}
+    },
+    "rose": {
+      "when": "Nightingale rose — polar bar chart.",
+      "req": {"metrics":"[{...metric_obj...}]","groupby":"[str]"},
+      "opt": {"time_range":"str","color_scheme":"str","adhoc_filters":"[]"}
+    },
+    "sankey_v2": {
+      "when": "Flow / quantity between named nodes.",
+      "req": {"source":"str:column_name","target":"str:column_name","metric":"{...metric_obj...}"},
+      "opt": {"time_range":"str","adhoc_filters":"[]"}
+    },
+    "cal_heatmap": {
+      "when": "Daily metric values on a calendar grid.",
+      "req": {"metric":"{...metric_obj...}"},
+      "opt": {"time_range":"str","adhoc_filters":"[]"}
+    }
+  }
+}
