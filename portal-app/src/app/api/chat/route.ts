@@ -499,6 +499,7 @@ Use \`navigate_superset_dashboard\` or \`navigate_superset_chart\` when the user
       }
 
       try {
+        let hitTurnLimit = true;
         for (let turn = 0; turn < MAX_TURNS; turn++) {
           const completion = await openai.chat.completions.create({
             model,
@@ -562,6 +563,7 @@ Use \`navigate_superset_dashboard\` or \`navigate_superset_chart\` when the user
 
           // If finish_reason is "stop" or no tool calls, we're done
           if (finishReason !== "tool_calls" || toolCalls.length === 0) {
+            hitTurnLimit = false;
             // Generate follow-up suggestions using the LLM
             if (assistantText) {
               try {
@@ -608,6 +610,55 @@ Use \`navigate_superset_dashboard\` or \`navigate_superset_chart\` when the user
               role: "tool",
               tool_call_id: tc.id,
               content: storedResult,
+            });
+          }
+        }
+
+        // If the turn limit was hit the model was cut off mid-task.
+        // Make one final tool-free call so it can summarise what was done
+        // and tell the user what still needs to happen.
+        if (hitTurnLimit) {
+          try {
+            const wrapUpCompletion = await openai.chat.completions.create({
+              model,
+              messages: [
+                ...windowedMessages(accumulated),
+                {
+                  role: "user" as const,
+                  content:
+                    "You have reached the maximum number of tool calls allowed per response. " +
+                    "Do NOT call any more tools. " +
+                    "Write a short summary of what was accomplished so far, " +
+                    "then clearly list any steps that still need to be done so the user can ask you to continue.",
+                },
+              ],
+              // No tools — force a plain text wrap-up
+              stream: true,
+            });
+            send({ type: "delta", content: "\n\n---\n" });
+            let wrapUpText = "";
+            for await (const chunk of wrapUpCompletion) {
+              const delta = chunk.choices[0]?.delta;
+              if (delta?.content) {
+                wrapUpText += delta.content;
+                send({ type: "delta", content: delta.content });
+              }
+            }
+            // Offer follow-up suggestions based on what remains
+            if (wrapUpText) {
+              try {
+                const suggestions = await generateFollowupSuggestions(
+                  openai, model,
+                  [...accumulated, { role: "assistant" as const, content: wrapUpText }],
+                );
+                if (suggestions.length > 0) send({ type: "followup_suggestions", suggestions });
+              } catch { /* non-fatal */ }
+            }
+          } catch (wrapErr) {
+            // If the wrap-up call itself fails, at least inform the user
+            send({
+              type: "delta",
+              content: "\n\n⚠️ The task reached the tool call limit and could not be completed in one response. Please ask me to continue.",
             });
           }
         }
