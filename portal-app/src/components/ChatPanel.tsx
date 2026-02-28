@@ -105,8 +105,38 @@ function AiChartEmbed({
 
   return (
     <div style={{ margin: "12px 0" }}>
-      {/* AI provenance badge + keep-permanently button */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
+      {/* Clickable title */}
+      <button
+        onClick={() => onSupersetLinkClick?.(iframeUrl)}
+        title="Open in Superset"
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 4,
+          background: "none", border: "none", padding: 0, marginBottom: 4,
+          cursor: onSupersetLinkClick ? "pointer" : "default",
+          fontSize: 11, fontWeight: 500, color: "var(--md-primary)", opacity: 0.85,
+        }}
+        onMouseOver={e => { e.currentTarget.style.opacity = "1"; e.currentTarget.style.textDecoration = "underline"; }}
+        onMouseOut={e => { e.currentTarget.style.opacity = "0.85"; e.currentTarget.style.textDecoration = "none"; }}
+      >
+        {iframeTitle}
+        <svg viewBox="0 0 16 16" width={10} height={10} fill="currentColor" style={{ opacity: 0.7, flexShrink: 0 }}>
+          <path d="M2 2h5v1.5H3.5v9h9V11H14v4H2V2zm7 0h5v5h-1.5V4.56L7.28 9.78 6.22 8.72 11.44 3.5H9V2z"/>
+        </svg>
+      </button>
+
+      {/* iframe */}
+      <div style={{ border: "1px solid var(--md-outline-var)", borderRadius: 8, overflow: "hidden", background: "var(--md-surface-cont)" }}>
+        <iframe
+          src={iframeUrl}
+          title={iframeTitle}
+          style={{ width: "100%", height: "300px", border: "none", display: "block" }}
+          sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+          allowFullScreen
+        />
+      </div>
+
+      {/* AI provenance badge + keep-permanently button — below the graph */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 5 }}>
         {status === "permanent" ? (
           <span style={{
             fontSize: 11, fontWeight: 600, color: "#4caf50",
@@ -141,36 +171,6 @@ function AiChartEmbed({
             </button>
           </>
         )}
-      </div>
-
-      {/* Clickable title */}
-      <button
-        onClick={() => onSupersetLinkClick?.(iframeUrl)}
-        title="Open in Superset"
-        style={{
-          display: "inline-flex", alignItems: "center", gap: 4,
-          background: "none", border: "none", padding: 0, marginBottom: 4,
-          cursor: onSupersetLinkClick ? "pointer" : "default",
-          fontSize: 11, fontWeight: 500, color: "var(--md-primary)", opacity: 0.85,
-        }}
-        onMouseOver={e => { e.currentTarget.style.opacity = "1"; e.currentTarget.style.textDecoration = "underline"; }}
-        onMouseOut={e => { e.currentTarget.style.opacity = "0.85"; e.currentTarget.style.textDecoration = "none"; }}
-      >
-        {iframeTitle}
-        <svg viewBox="0 0 16 16" width={10} height={10} fill="currentColor" style={{ opacity: 0.7, flexShrink: 0 }}>
-          <path d="M2 2h5v1.5H3.5v9h9V11H14v4H2V2zm7 0h5v5h-1.5V4.56L7.28 9.78 6.22 8.72 11.44 3.5H9V2z"/>
-        </svg>
-      </button>
-
-      {/* iframe */}
-      <div style={{ border: "1px solid var(--md-outline-var)", borderRadius: 8, overflow: "hidden", background: "var(--md-surface-cont)" }}>
-        <iframe
-          src={iframeUrl}
-          title={iframeTitle}
-          style={{ width: "100%", height: "300px", border: "none", display: "block" }}
-          sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
-          allowFullScreen
-        />
       </div>
     </div>
   );
