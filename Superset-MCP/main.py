@@ -430,6 +430,7 @@ def _validate_chart_params(viz_type: str, params: Dict[str, Any]) -> Optional[st
         if key == "metrics" and isinstance(val, list) and len(val) == 0:
             return f"'metrics' is empty — add at least one metric object. {hint}"
         items = [val] if key == "metric" else (val if isinstance(val, list) else [val])
+        _VALID_EXPR_TYPES = {"SIMPLE", "SAVED", "SQL"}
         for item in items:
             if isinstance(item, str):
                 return (
@@ -437,6 +438,15 @@ def _validate_chart_params(viz_type: str, params: Dict[str, Any]) -> Optional[st
                     f"Metrics must be objects with expressionType/column/aggregate/label/optionName. "
                     f"{hint}"
                 )
+            if isinstance(item, dict):
+                expr_type = item.get("expressionType")
+                if expr_type is not None and expr_type not in _VALID_EXPR_TYPES:
+                    return (
+                        f"Invalid metric expressionType '{expr_type}'. "
+                        f"Must be one of: {sorted(_VALID_EXPR_TYPES)}. "
+                        f"Use 'SIMPLE' for column+aggregate, 'SQL' for custom SQL expressions. "
+                        f"{hint}"
+                    )
     # Validate x_axis not duplicated in groupby
     x_axis = params.get("x_axis")
     groupby = params.get("groupby", [])
