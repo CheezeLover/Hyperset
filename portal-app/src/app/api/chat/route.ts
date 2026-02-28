@@ -76,7 +76,7 @@ async function generateFollowupSuggestions(
   try {
     // Only use the last 4 messages for suggestion context — sending the full
     // history wastes tokens on a small-context model.
-    const recentHistory = conversationHistory.slice(-4);
+    const recentHistory = conversationHistory.slice(-2);
     const historyText = recentHistory
       .map((msg) => `${msg.role}: ${typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content)}`)
       .join("\n");
@@ -177,6 +177,28 @@ export const POST = async (req: NextRequest) => {
 
   const userMessages: OpenAI.Chat.ChatCompletionMessageParam[] = body.messages ?? [];
 
+  // Strip nested property descriptions from a JSON schema to reduce token count.
+  // Keeps type/properties/required/items so the model still knows the shape.
+  function stripSchemaDescriptions(schema: Record<string, unknown>): Record<string, unknown> {
+    if (!schema || typeof schema !== "object") return schema;
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(schema)) {
+      if (k === "description") continue; // drop nested descriptions
+      if (k === "properties" && v && typeof v === "object") {
+        const props: Record<string, unknown> = {};
+        for (const [pk, pv] of Object.entries(v as Record<string, unknown>)) {
+          props[pk] = stripSchemaDescriptions(pv as Record<string, unknown>);
+        }
+        out[k] = props;
+      } else if (k === "items" && v && typeof v === "object") {
+        out[k] = stripSchemaDescriptions(v as Record<string, unknown>);
+      } else {
+        out[k] = v;
+      }
+    }
+    return out;
+  }
+
   // Build the MCP tool definitions
   let mcpTools: OpenAI.Chat.ChatCompletionTool[] = [];
   try {
@@ -184,9 +206,10 @@ export const POST = async (req: NextRequest) => {
     mcpTools = raw.map((t) => ({
       type: "function" as const,
       function: {
+        // Truncate top-level description to 120 chars — the name already conveys intent.
         name: t.name,
-        description: t.description,
-        parameters: t.inputSchema as Record<string, unknown>,
+        description: t.description?.slice(0, 120),
+        parameters: stripSchemaDescriptions(t.inputSchema as Record<string, unknown>),
       },
     }));
   } catch {
@@ -199,10 +222,10 @@ export const POST = async (req: NextRequest) => {
       type: "function",
       function: {
         name: "navigate_superset_dashboard",
-        description: "Navigate the Superset panel to show a specific dashboard. Use when user asks to open or navigate to a dashboard.",
+        description: "Open a dashboard in the Superset panel.",
         parameters: {
           type: "object",
-          properties: { dashboardId: { type: "string", description: "The dashboard ID or slug to navigate to" } },
+          properties: { dashboardId: { type: "string" } },
           required: ["dashboardId"],
         },
       },
@@ -211,10 +234,10 @@ export const POST = async (req: NextRequest) => {
       type: "function",
       function: {
         name: "navigate_superset_chart",
-        description: "Navigate the Superset panel to show a specific chart in Explore view.",
+        description: "Open a chart in the Superset Explore panel.",
         parameters: {
           type: "object",
-          properties: { chartId: { type: "string", description: "The chart ID to navigate to" } },
+          properties: { chartId: { type: "string" } },
           required: ["chartId"],
         },
       },
