@@ -246,6 +246,85 @@ export const POST = async (req: NextRequest) => {
 
   const tools = [...navTools, ...mcpTools];
 
+  // ── Intent-based tool filtering ───────────────────────────────────────────
+  // Sending all 20+ tools on every turn overwhelms small models (Ministral,
+  // Mistral, etc.) and wastes tokens on larger ones.  Analyse the last user
+  // message and only include tools relevant to the current intent.
+  // Core read / embed / navigate tools are always present.
+  function filterToolsForContext(
+    allTools: OpenAI.Chat.ChatCompletionTool[],
+    userMsgs: OpenAI.Chat.ChatCompletionMessageParam[]
+  ): OpenAI.Chat.ChatCompletionTool[] {
+    const lastUser = [...userMsgs].reverse().find((m) => m.role === "user");
+    const msg = (typeof lastUser?.content === "string" ? lastUser.content : "").toLowerCase();
+
+    // Always-on: navigation + listing + embed/link (model always needs these)
+    const include = new Set([
+      "navigate_superset_dashboard",
+      "navigate_superset_chart",
+      "superset_dashboard_list",
+      "superset_chart_list",
+      "superset_dataset_list",
+      "superset_database_list",
+      "superset_get_chart_embed",
+      "superset_get_dashboard_embed",
+      "superset_get_chart_link",
+      "superset_get_dashboard_link",
+      "superset_analyze_data",
+    ]);
+
+    // Chart creation flow
+    if (/creat|build|make|new chart|generat|visuali/.test(msg)) {
+      include.add("superset_chart_types");
+      include.add("superset_chart_create");
+      include.add("superset_dataset_get_by_id");
+    }
+
+    // Chart / dashboard editing or deleting
+    if (/updat|edit|modif|chang|delet|remov/.test(msg)) {
+      include.add("superset_chart_update");
+      include.add("superset_chart_delete");
+      include.add("superset_chart_get_by_id");
+      include.add("superset_dashboard_update");
+      include.add("superset_dashboard_delete");
+      include.add("superset_dashboard_get_by_id");
+    }
+
+    // Dashboard creation
+    if (/new dashboard|creat.*dashboard|dashboard.*creat/.test(msg)) {
+      include.add("superset_dashboard_create");
+      include.add("superset_dashboard_get_by_id");
+    }
+
+    // SQL / data queries
+    if (/sql|query|select|from |where |analyz|run.*query|execut/.test(msg)) {
+      include.add("superset_sqllab_execute_query");
+      include.add("superset_database_get_by_id");
+      include.add("superset_dataset_get_by_id");
+    }
+
+    // Schema / column inspection
+    if (/schema|column|field|dataset|table/.test(msg)) {
+      include.add("superset_dataset_get_by_id");
+      include.add("superset_database_get_by_id");
+    }
+
+    // User / config info
+    if (/user|role|who am|config|base.?url/.test(msg)) {
+      include.add("superset_user_get_current");
+      include.add("superset_user_get_roles");
+      include.add("superset_config_get_base_url");
+    }
+
+    return allTools.filter((t) => include.has(t.function.name));
+  }
+
+  // ── Ministral / Mistral model detection ──────────────────────────────────
+  // Ministral (3B / 8B) handles sequential tool calls reliably but struggles
+  // with parallel ones.  Disable parallel_tool_calls automatically.
+  const isMistral = /ministral|mistral/i.test(model);
+  const activeTools = filterToolsForContext(tools, userMessages);
+
   // Build message list with optional system prompt
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
     ...(systemPrompt
@@ -334,8 +413,11 @@ NAVIGATION: use navigate_superset_dashboard or navigate_superset_chart when user
           const completion = await openai.chat.completions.create({
             model,
             messages: windowedMessages(accumulated),
-            tools: tools.length > 0 ? tools : undefined,
-            tool_choice: tools.length > 0 ? "auto" : undefined,
+            tools: activeTools.length > 0 ? activeTools : undefined,
+            tool_choice: activeTools.length > 0 ? "auto" : undefined,
+            // Ministral/Mistral models handle sequential tool calls reliably
+            // but trip up on parallel ones — disable them automatically.
+            ...(isMistral ? { parallel_tool_calls: false } : {}),
             stream: true,
             ...modelParams, // Spread additional model parameters
           });
