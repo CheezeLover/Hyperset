@@ -276,7 +276,13 @@ NAVIGATION: use navigate_superset_dashboard or navigate_superset_chart when user
     const system = msgs.filter((m) => m.role === "system");
     const rest = msgs.filter((m) => m.role !== "system");
     const sliced = rest.slice(-MAX_HISTORY_MESSAGES);
-    return [...system, ...sliced];
+    // Never start the window in the middle of a tool-call sequence.
+    // An orphaned tool/assistant-tool_calls message (without its pair) causes
+    // the API to error and kills the stream.  Advance to the first user message
+    // so the window always starts at a clean conversation boundary.
+    const firstUserIdx = sliced.findIndex((m) => m.role === "user");
+    const trimmed = firstUserIdx > 0 ? sliced.slice(firstUserIdx) : sliced;
+    return [...system, ...trimmed];
   }
 
   const accumulated: OpenAI.Chat.ChatCompletionMessageParam[] = [...messages];
