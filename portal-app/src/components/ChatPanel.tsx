@@ -44,6 +44,136 @@ export interface Message {
   streaming?: boolean;
 }
 
+// ── AI chart embed component ─────────────────────────────────────
+// Renders an embedded Superset chart with a "Temporary / Keep permanently"
+// toggle badge.  State is managed per-instance so toggling one chart doesn't
+// affect others.
+function AiChartEmbed({
+  chartId,
+  iframeUrl,
+  iframeTitle,
+  supersetUrl,
+  onSupersetLinkClick,
+}: {
+  chartId: number;
+  iframeUrl: string;
+  iframeTitle: string;
+  supersetUrl: string;
+  onSupersetLinkClick?: (url: string) => void;
+}) {
+  const [status, setStatus] = useState<"temporary" | "saving" | "permanent">("temporary");
+
+  const handlePromote = async () => {
+    setStatus("saving");
+    try {
+      const res = await fetch("/api/chart-promote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chartId }),
+      });
+      setStatus(res.ok ? "permanent" : "temporary");
+    } catch {
+      setStatus("temporary");
+    }
+  };
+
+  // Security: reuse the same trusted-domain logic as the regular [iframe] renderer
+  const thirdPartyDomains = ["youtube.com", "youtu.be", "vimeo.com"];
+  const supersetHostname = (() => { try { return new URL(supersetUrl).hostname; } catch { return ""; } })();
+  const hypersetDomain = getHypersetDomain(supersetUrl);
+  let trusted = false;
+  try {
+    const u = new URL(iframeUrl);
+    const isThirdParty = thirdPartyDomains.some(d => u.hostname === d || u.hostname.endsWith("." + d));
+    const isInternal =
+      (supersetHostname !== "" && (u.hostname === supersetHostname || u.hostname.endsWith("." + supersetHostname))) ||
+      (hypersetDomain  !== "" && (u.hostname === hypersetDomain  || u.hostname.endsWith("." + hypersetDomain)));
+    const protocolOk = isInternal
+      ? (u.protocol === "https:" || u.protocol === "http:")
+      : u.protocol === "https:";
+    trusted = (isThirdParty || isInternal) && protocolOk;
+  } catch { /* invalid URL */ }
+
+  if (!trusted) {
+    return (
+      <a href={iframeUrl} target="_blank" rel="noopener noreferrer"
+        style={{ fontSize: 12, color: "var(--md-primary)", display: "block", margin: "4px 0" }}>
+        {iframeTitle || iframeUrl}
+      </a>
+    );
+  }
+
+  return (
+    <div style={{ margin: "12px 0" }}>
+      {/* AI provenance badge + keep-permanently button */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
+        {status === "permanent" ? (
+          <span style={{
+            fontSize: 11, fontWeight: 600, color: "#4caf50",
+            display: "inline-flex", alignItems: "center", gap: 3,
+          }}>
+            <svg viewBox="0 0 16 16" width={11} height={11} fill="currentColor"><path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 1 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"/></svg>
+            Saved permanently
+          </span>
+        ) : (
+          <>
+            <span style={{
+              fontSize: 11, fontWeight: 600, color: "#ff9800",
+              display: "inline-flex", alignItems: "center", gap: 3,
+            }}>
+              <svg viewBox="0 0 16 16" width={11} height={11} fill="currentColor"><path d="M8 1a7 7 0 1 1 0 14A7 7 0 0 1 8 1Zm0 1.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM8 4a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 4Zm0 8a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/></svg>
+              Temporary
+            </span>
+            <button
+              onClick={handlePromote}
+              disabled={status === "saving"}
+              title="Keep this chart permanently — it won't be auto-deleted"
+              style={{
+                fontSize: 11, padding: "2px 9px", borderRadius: 6,
+                background: "var(--md-surface)", border: "1px solid var(--md-outline-var)",
+                color: "var(--md-on-surface)", cursor: status === "saving" ? "default" : "pointer",
+                opacity: status === "saving" ? 0.55 : 1,
+              }}
+            >
+              {status === "saving" ? "Saving…" : "Keep permanently"}
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Clickable title */}
+      <button
+        onClick={() => onSupersetLinkClick?.(iframeUrl)}
+        title="Open in Superset"
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 4,
+          background: "none", border: "none", padding: 0, marginBottom: 4,
+          cursor: onSupersetLinkClick ? "pointer" : "default",
+          fontSize: 11, fontWeight: 500, color: "var(--md-primary)", opacity: 0.85,
+        }}
+        onMouseOver={e => { e.currentTarget.style.opacity = "1"; e.currentTarget.style.textDecoration = "underline"; }}
+        onMouseOut={e => { e.currentTarget.style.opacity = "0.85"; e.currentTarget.style.textDecoration = "none"; }}
+      >
+        {iframeTitle}
+        <svg viewBox="0 0 16 16" width={10} height={10} fill="currentColor" style={{ opacity: 0.7, flexShrink: 0 }}>
+          <path d="M2 2h5v1.5H3.5v9h9V11H14v4H2V2zm7 0h5v5h-1.5V4.56L7.28 9.78 6.22 8.72 11.44 3.5H9V2z"/>
+        </svg>
+      </button>
+
+      {/* iframe */}
+      <div style={{ border: "1px solid var(--md-outline-var)", borderRadius: 8, overflow: "hidden", background: "var(--md-surface-cont)" }}>
+        <iframe
+          src={iframeUrl}
+          title={iframeTitle}
+          style={{ width: "100%", height: "300px", border: "none", display: "block" }}
+          sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+          allowFullScreen
+        />
+      </div>
+    </div>
+  );
+}
+
 // ── Table parsing helper ──────────────────────────────────────────
 interface ParsedTable {
   headers: string[];
@@ -171,15 +301,18 @@ function renderMarkdown(
   // Step 3 — remove any leading whitespace from lines that start with [iframe]
   //          so the anchored regex always fires.
   const processedText = text
+    // Step 1: strip code fences wrapping [iframe] or [iframe-ai:N] lines
     .replace(
-      /```[^\n]*\n((?:\[iframe\][^\n]*\n?)+)```/g,
+      /```[^\n]*\n((?:\[iframe(?:-ai:\d+)?\][^\n]*\n?)+)```/g,
       (_: string, iframeLines: string) => iframeLines.trimEnd(),
     )
+    // Step 2: split [iframe*] tokens that appear inline after other text
     .replace(
-      /([^\n])(\[iframe\]\([^\s)]+\)[^\n]*)/g,
+      /([^\n])(\[iframe(?:-ai:\d+)?\]\([^\s)]+\)[^\n]*)/g,
       (_: string, before: string, iframePart: string) => `${before}\n${iframePart}`,
     )
-    .replace(/^[ \t]+(\[iframe\])/gm, "$1");
+    // Step 3: strip leading whitespace so the anchored block regex always fires
+    .replace(/^[ \t]+(\[iframe(?:-ai:\d+)?\])/gm, "$1");
 
   const lines = processedText.split("\n");
   const nodes: React.ReactNode[] = [];
@@ -374,6 +507,27 @@ function renderMarkdown(
           </div>
         </details>
       );
+      continue;
+    }
+
+    // AI chart embed — [iframe-ai:CHART_ID](url) Title
+    // Renders an iframe with a "Temporary / Keep permanently" toggle badge.
+    const iframeAiMatch = line.match(/^\[iframe-ai:(\d+)\]\s*\(([^\s)]+)\)\s*(.*)$/);
+    if (iframeAiMatch) {
+      const chartId    = parseInt(iframeAiMatch[1], 10);
+      const iframeUrl  = iframeAiMatch[2];
+      const iframeTitle = iframeAiMatch[3].trim() || "Embedded Content";
+      nodes.push(
+        <AiChartEmbed
+          key={`ai-chart-${chartId}`}
+          chartId={chartId}
+          iframeUrl={iframeUrl}
+          iframeTitle={iframeTitle}
+          supersetUrl={supersetUrl}
+          onSupersetLinkClick={onSupersetLinkClick}
+        />
+      );
+      i++;
       continue;
     }
 
