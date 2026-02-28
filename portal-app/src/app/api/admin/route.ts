@@ -1,21 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/auth";
-import { getIronSession } from "iron-session";
-import type { SessionData } from "@/lib/session";
 import OpenAI from "openai";
-
-const sessionOptions = {
-  cookieName: "hyperset_session",
-  password:
-    process.env.SESSION_SECRET ??
-    "change-me-to-a-very-long-random-secret-key-32chars",
-  cookieOptions: {
-    secure: process.env.NODE_ENV === "production",
-    httpOnly: true,
-    sameSite: "lax" as const,
-    maxAge: 86400,
-  },
-};
+import {
+  getAdminSettings,
+  setAdminSettings,
+  clearAdminSettings,
+} from "@/lib/admin-settings";
 
 function requireAdmin(request: NextRequest) {
   const user = getUserFromRequest(request);
@@ -28,45 +18,35 @@ export async function GET(request: NextRequest) {
   const denied = requireAdmin(request);
   if (denied) return denied;
 
-  const response = NextResponse.json({});
-  const session = await getIronSession<SessionData>(request, response, sessionOptions);
+  const s = getAdminSettings();
 
   return NextResponse.json({
-    apiUrl: session.llmSettings?.apiUrl ?? process.env.LLM_API_URL ?? "",
-    apiKey: session.llmSettings?.apiKey ? "***" : "",
-    model: session.llmSettings?.model ?? process.env.LLM_MODEL ?? "gpt-4o",
-    systemPrompt: session.llmSettings?.systemPrompt ?? process.env.LLM_SYSTEM_PROMPT ?? "",
-    modelParams: session.llmSettings?.modelParams ?? "",
-    isCustom: !!(
-      session.llmSettings?.apiUrl ||
-      session.llmSettings?.apiKey ||
-      session.llmSettings?.model ||
-      session.llmSettings?.systemPrompt ||
-      session.llmSettings?.modelParams
-    ),
+    apiUrl:       s?.apiUrl       ?? process.env.LLM_API_URL       ?? "",
+    apiKey:       s?.apiKey       ? "***" : "",
+    model:        s?.model        ?? process.env.LLM_MODEL        ?? "gpt-4o",
+    systemPrompt: s?.systemPrompt ?? process.env.LLM_SYSTEM_PROMPT ?? "",
+    modelParams:  s?.modelParams  ?? "",
+    isCustom: !!(s?.apiUrl || s?.apiKey || s?.model || s?.systemPrompt || s?.modelParams),
   });
 }
 
-/** POST /api/admin — save LLM settings (admin-only, applies to all users) */
+/** POST /api/admin — save LLM settings (admin-only, applies to ALL users) */
 export async function POST(request: NextRequest) {
   const denied = requireAdmin(request);
   if (denied) return denied;
 
   const body = await request.json();
-  const response = NextResponse.json({ ok: true });
-  const session = await getIronSession<SessionData>(request, response, sessionOptions);
+  const prev = getAdminSettings() ?? {};
 
-  const prev = session.llmSettings ?? {};
-  session.llmSettings = {
-    apiUrl: body.apiUrl !== undefined ? body.apiUrl : prev.apiUrl,
-    apiKey: body.apiKey && body.apiKey !== "***" ? body.apiKey : prev.apiKey,
-    model: body.model !== undefined ? body.model : prev.model,
+  setAdminSettings({
+    apiUrl:       body.apiUrl       !== undefined ? body.apiUrl       : prev.apiUrl,
+    apiKey:       body.apiKey && body.apiKey !== "***" ? body.apiKey : prev.apiKey,
+    model:        body.model        !== undefined ? body.model        : prev.model,
     systemPrompt: body.systemPrompt !== undefined ? body.systemPrompt : prev.systemPrompt,
-    modelParams: body.modelParams !== undefined ? body.modelParams : prev.modelParams,
-  };
+    modelParams:  body.modelParams  !== undefined ? body.modelParams  : prev.modelParams,
+  });
 
-  await session.save();
-  return response;
+  return NextResponse.json({ ok: true });
 }
 
 /** DELETE /api/admin — reset runtime overrides back to env defaults */
@@ -74,13 +54,8 @@ export async function DELETE(request: NextRequest) {
   const denied = requireAdmin(request);
   if (denied) return denied;
 
-  const response = NextResponse.json({ ok: true });
-  const session = await getIronSession<SessionData>(request, response, sessionOptions);
-
-  session.llmSettings = undefined;
-
-  await session.save();
-  return response;
+  clearAdminSettings();
+  return NextResponse.json({ ok: true });
 }
 
 /** PATCH /api/admin — validate an API config by making a minimal call */

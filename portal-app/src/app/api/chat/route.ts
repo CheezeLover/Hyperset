@@ -1,36 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getIronSession } from "iron-session";
-import type { SessionData } from "@/lib/session";
 import { listMcpTools, callMcpTool } from "@/lib/mcp-client";
 import OpenAI from "openai";
-
-const sessionOptions = {
-  cookieName: "hyperset_session",
-  password:
-    process.env.SESSION_SECRET ??
-    "change-me-to-a-very-long-random-secret-key-32chars",
-  cookieOptions: {
-    secure: process.env.NODE_ENV === "production",
-    httpOnly: true,
-    sameSite: "lax" as const,
-    maxAge: 86400,
-  },
-};
+import { getAdminSettings } from "@/lib/admin-settings";
 
 // ── GET: health / config check ───────────────────────────────────
 export const GET = async (req: NextRequest) => {
-  const dummyRes = new Response();
-  let apiKey = "";
-  try {
-    const session = await getIronSession<SessionData>(
-      req.clone() as NextRequest,
-      dummyRes as never,
-      sessionOptions
-    );
-    apiKey = session.llmSettings?.apiKey ?? process.env.LLM_API_KEY ?? "";
-  } catch {
-    apiKey = process.env.LLM_API_KEY ?? "";
-  }
+  const s = getAdminSettings();
+  const apiKey = s?.apiKey ?? process.env.LLM_API_KEY ?? "";
 
   if (!apiKey) {
     return NextResponse.json(
@@ -145,23 +121,11 @@ async function generateFollowupSuggestions(
 // ── POST: streaming chat completion ──────────────────────────────
 // Body: { messages: [{role,content}], stream?: boolean }
 export const POST = async (req: NextRequest) => {
-  const dummyRes = new Response();
-  let session: SessionData;
-  try {
-    const s = await getIronSession<SessionData>(
-      req.clone() as NextRequest,
-      dummyRes as never,
-      sessionOptions
-    );
-    session = s;
-  } catch {
-    session = {};
-  }
-
-  const apiUrl = session.llmSettings?.apiUrl ?? process.env.LLM_API_URL ?? "https://api.openai.com/v1";
-  const apiKey = session.llmSettings?.apiKey ?? process.env.LLM_API_KEY ?? "";
-  const model  = session.llmSettings?.model  ?? process.env.LLM_MODEL  ?? "gpt-4o";
-  const systemPrompt = session.llmSettings?.systemPrompt ?? process.env.LLM_SYSTEM_PROMPT ?? "";
+  const s = getAdminSettings();
+  const apiUrl      = s?.apiUrl       ?? process.env.LLM_API_URL       ?? "https://api.openai.com/v1";
+  const apiKey      = s?.apiKey       ?? process.env.LLM_API_KEY       ?? "";
+  const model       = s?.model        ?? process.env.LLM_MODEL        ?? "gpt-4o";
+  const systemPrompt = s?.systemPrompt ?? process.env.LLM_SYSTEM_PROMPT ?? "";
 
   if (!apiKey) {
     return NextResponse.json({ error: "No API key configured" }, { status: 503 });
@@ -447,8 +411,8 @@ Use \`navigate_superset_dashboard\` or \`navigate_superset_chart\` when the user
   // Parse model parameters if provided
   let modelParams = {};
   try {
-    if (session.llmSettings?.modelParams) {
-      modelParams = JSON.parse(session.llmSettings.modelParams);
+    if (s?.modelParams) {
+      modelParams = JSON.parse(s.modelParams);
     }
   } catch (e) {
     console.error("Invalid JSON in modelParams:", e);
