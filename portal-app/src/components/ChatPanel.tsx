@@ -303,6 +303,69 @@ function renderMarkdown(
       continue;
     }
 
+    // Horizontal rule (--- or ***)
+    if (/^[-*]{3,}\s*$/.test(line)) {
+      nodes.push(<hr key={key()} style={{ border: "none", borderTop: "1px solid var(--md-outline-var)", margin: "10px 0" }} />);
+      i++;
+      continue;
+    }
+
+    // <details> / collapsible methodology block
+    // Handles both:
+    //   <details><summary>Title</summary>   (summary on same line as opening tag)
+    //   <details>\n<summary>Title</summary>  (summary on next line)
+    if (line.trim().startsWith("<details")) {
+      let summaryText = "";
+      const bodyLines: string[] = [];
+
+      // Summary may be on the same line: <details><summary>Title</summary>
+      const inlineSummaryMatch = line.match(/<summary>(.*?)<\/summary>/);
+      if (inlineSummaryMatch) {
+        summaryText = inlineSummaryMatch[1];
+        i++;
+      } else {
+        // Move to next line to find <summary>
+        i++;
+        while (i < lines.length) {
+          const summaryMatch = lines[i].match(/<summary>(.*?)<\/summary>/);
+          if (summaryMatch) {
+            summaryText = summaryMatch[1];
+            i++;
+            break;
+          }
+          i++;
+        }
+      }
+
+      // Collect body lines until </details>
+      while (i < lines.length && lines[i].trim() !== "</details>") {
+        bodyLines.push(lines[i]);
+        i++;
+      }
+      i++; // consume </details>
+
+      nodes.push(
+        <details key={key()} style={{
+          margin: "10px 0", borderRadius: 8,
+          border: "1px solid var(--md-outline-var)",
+          background: "var(--md-surface-cont)",
+          overflow: "hidden",
+        }}>
+          <summary style={{
+            cursor: "pointer", fontWeight: 500,
+            padding: "8px 12px", userSelect: "none",
+            listStyle: "none", display: "flex", alignItems: "center", gap: 6,
+          }}>
+            {summaryText || "Details"}
+          </summary>
+          <div style={{ padding: "0 12px 10px", borderTop: "1px solid var(--md-outline-var)" }}>
+            {renderMarkdown(bodyLines.join("\n"), supersetUrl, onSupersetLinkClick)}
+          </div>
+        </details>
+      );
+      continue;
+    }
+
     // Iframe embedding — allow optional space between ] and ( to handle LLM formatting variations
     const iframeMatch = line.match(/^\[iframe\]\s*\(([^\s)]+)\)\s*(.*)$/);
     if (iframeMatch) {
