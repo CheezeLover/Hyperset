@@ -16,7 +16,7 @@ interface LlmSettings {
   maxTurns: number;
   maxToolResultChars: number;
   maxHistoryMessages: number;
-  cleanupDelayHours: number;
+  cleanupDelayMinutes: number;
 }
 
 interface TestResult {
@@ -58,7 +58,7 @@ export function AdminModal({ onClose }: AdminModalProps) {
   const [settings, setSettings] = useState<LlmSettings>({
     apiUrl: "", apiKey: "", model: "", systemPrompt: "", modelParams: "", isCustom: false,
     maxTurns: 40, maxToolResultChars: 3000, maxHistoryMessages: 20,
-    cleanupDelayHours: 2,
+    cleanupDelayMinutes: 120,
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -110,7 +110,7 @@ export function AdminModal({ onClose }: AdminModalProps) {
           maxTurns: settings.maxTurns,
           maxToolResultChars: settings.maxToolResultChars,
           maxHistoryMessages: settings.maxHistoryMessages,
-          cleanupDelayHours: settings.cleanupDelayHours,
+          cleanupDelayMinutes: settings.cleanupDelayMinutes,
         }),
       });
       if (!res.ok) throw new Error("Save failed");
@@ -293,32 +293,40 @@ export function AdminModal({ onClose }: AdminModalProps) {
                 <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                   <span style={labelStyle}>
                     Temporary chart lifetime{" "}
-                    <span style={{ opacity: 0.5 }}>(hours before auto-deletion, 0.5 – 168, default 2)</span>
+                    <span style={{ opacity: 0.5 }}>(minutes before auto-deletion, 1 – 10 080, default 120)</span>
                   </span>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <input
-                      type="number" min={0.5} max={168} step={0.5}
-                      value={settings.cleanupDelayHours}
+                      type="number" min={1} max={10080} step={1}
+                      value={settings.cleanupDelayMinutes}
                       onChange={(e) => setSettings((s) => ({
                         ...s,
-                        cleanupDelayHours: Math.max(0.5, Math.min(168, Math.round(Number(e.target.value) * 2) / 2 || 0.5)),
+                        cleanupDelayMinutes: Math.max(1, Math.min(10080, Math.round(Number(e.target.value)) || 1)),
                       }))}
                       style={{ ...inputStyle, width: 100 }}
                       disabled={saving}
                     />
                     <span style={{ fontSize: 11, opacity: 0.5 }}>
-                      {settings.cleanupDelayHours === 1 ? "1 hour" : `${settings.cleanupDelayHours} hours`}
+                      {(() => {
+                        const m = settings.cleanupDelayMinutes;
+                        if (m < 60) return `${m} min`;
+                        const h = Math.floor(m / 60);
+                        const rem = m % 60;
+                        return rem === 0 ? `${h} h` : `${h} h ${rem} min`;
+                      })()}
                       {" "}— charts tagged <code style={{ fontSize: 10, background: "var(--md-surface-cont-hi)", padding: "1px 4px", borderRadius: 4 }}>[HYPERSET-AI-TEMPORARY]</code> are deleted after this delay
                     </span>
                   </div>
                 </label>
 
                 <p style={{ fontSize: 11, opacity: 0.45, margin: 0, lineHeight: 1.5 }}>
-                  Set{" "}
+                  The MCP server reads this setting dynamically via{" "}
+                  <code style={{ fontSize: 10, background: "var(--md-surface-cont-hi)", padding: "1px 4px", borderRadius: 4 }}>HYPERSET_DOMAIN</code>
+                  {" "}— changes take effect on the next cleanup cycle without restarting the server.
+                  For local dev without a domain, set{" "}
                   <code style={{ fontSize: 10, background: "var(--md-surface-cont-hi)", padding: "1px 4px", borderRadius: 4 }}>HYPERSET_PORTAL_URL</code>
-                  {" "}in the MCP server's <code style={{ fontSize: 10, background: "var(--md-surface-cont-hi)", padding: "1px 4px", borderRadius: 4 }}>.env</code>{" "}
-                  (e.g. <code style={{ fontSize: 10, background: "var(--md-surface-cont-hi)", padding: "1px 4px", borderRadius: 4 }}>http://localhost:3000</code>)
-                  {" "}so the cleanup job can read this setting without a restart.
+                  {" "}(e.g. <code style={{ fontSize: 10, background: "var(--md-surface-cont-hi)", padding: "1px 4px", borderRadius: 4 }}>http://localhost:3000</code>) in the MCP server's{" "}
+                  <code style={{ fontSize: 10, background: "var(--md-surface-cont-hi)", padding: "1px 4px", borderRadius: 4 }}>.env</code>.
                 </p>
 
               </div>

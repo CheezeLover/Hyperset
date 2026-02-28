@@ -13,11 +13,11 @@ import { getAdminSettings } from "@/lib/admin-settings";
  */
 export async function GET() {
   const s = getAdminSettings();
-  const cleanupDelayHours =
-    s?.cleanupDelayHours ?? Number(process.env.HYPERSET_CLEANUP_DELAY_HOURS ?? 2);
+  const cleanupDelayMinutes =
+    s?.cleanupDelayMinutes ?? Number(process.env.HYPERSET_CLEANUP_DELAY_MINUTES ?? 120);
 
   return NextResponse.json(
-    { cleanupDelayHours },
+    { cleanupDelayMinutes },
     { headers: { "Cache-Control": "no-store" } },
   );
 }

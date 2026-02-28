@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     maxTurns:            s?.maxTurns            ?? Number(process.env.LLM_MAX_TURNS           ?? 40),
     maxToolResultChars:  s?.maxToolResultChars  ?? Number(process.env.LLM_MAX_TOOL_RESULT_CHARS ?? 3000),
     maxHistoryMessages:  s?.maxHistoryMessages  ?? Number(process.env.LLM_MAX_HISTORY_MESSAGES ?? 20),
-    cleanupDelayHours:   s?.cleanupDelayHours   ?? Number(process.env.HYPERSET_CLEANUP_DELAY_HOURS ?? 2),
+    cleanupDelayMinutes: s?.cleanupDelayMinutes  ?? Number(process.env.HYPERSET_CLEANUP_DELAY_MINUTES ?? 120),
     isCustom: !!(s?.apiUrl || s?.apiKey || s?.model || s?.systemPrompt || s?.modelParams),
   });
 }
@@ -48,11 +48,11 @@ export async function POST(request: NextRequest) {
     return Math.max(min, Math.min(max, Math.round(n)));
   };
 
-  // Round cleanupDelayHours to nearest 0.5, clamp to [0.5, 168]
-  const clampHours = (v: unknown, fallback: number): number => {
+  // Clamp cleanupDelayMinutes to [1, 10080] (1 min to 1 week)
+  const clampMinutes = (v: unknown, fallback: number): number => {
     const n = Number(v);
     if (!isFinite(n)) return fallback;
-    return Math.max(0.5, Math.min(168, Math.round(n * 2) / 2));
+    return Math.max(1, Math.min(10080, Math.round(n)));
   };
 
   setAdminSettings({
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     maxTurns:           body.maxTurns           !== undefined ? clamp(body.maxTurns,          1, 200,   40) : prev.maxTurns,
     maxToolResultChars: body.maxToolResultChars !== undefined ? clamp(body.maxToolResultChars, 500, 50000, 3000) : prev.maxToolResultChars,
     maxHistoryMessages: body.maxHistoryMessages !== undefined ? clamp(body.maxHistoryMessages, 4, 200,   20) : prev.maxHistoryMessages,
-    cleanupDelayHours:  body.cleanupDelayHours  !== undefined ? clampHours(body.cleanupDelayHours, 2) : prev.cleanupDelayHours,
+    cleanupDelayMinutes: body.cleanupDelayMinutes !== undefined ? clampMinutes(body.cleanupDelayMinutes, 120) : prev.cleanupDelayMinutes,
   });
 
   return NextResponse.json({ ok: true });

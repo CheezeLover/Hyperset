@@ -20,8 +20,8 @@ export interface LlmSettings {
   maxHistoryMessages?: number;
 
   // ── AI chart cleanup ─────────────────────────────────────────────
-  /** Hours before a [HYPERSET-AI-TEMPORARY] chart is auto-deleted (default: 2) */
-  cleanupDelayHours?: number;
+  /** Minutes before a [HYPERSET-AI-TEMPORARY] chart is auto-deleted (default: 120) */
+  cleanupDelayMinutes?: number;
 }
 
 export interface SessionData {
