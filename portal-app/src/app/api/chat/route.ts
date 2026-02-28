@@ -234,8 +234,10 @@ export const POST = async (req: NextRequest) => {
 
 EMBED RULES (breaking these silently removes content from chat):
 - NEVER hardcode URLs. Always call superset_get_chart_embed or superset_get_dashboard_embed.
-- Output embed_markdown EXACTLY as returned, on its own line, nothing else on that line.
-- For links (not embeds): call superset_get_chart_link / superset_get_dashboard_link, paste link_markdown inline.
+- Those tools return a JSON object with an "embed_markdown" key. Output its VALUE on its own line — the value looks like:
+    [iframe](https://superset.example.com/superset/explore/?slice_id=42&standalone=1) My Chart Title
+- Do NOT write the word "embed_markdown". Write the actual [iframe](...) string from that key.
+- For links (not embeds): call superset_get_chart_link / superset_get_dashboard_link, paste the VALUE of "link_markdown" inline.
 
 CHART CREATION: (1) superset_chart_types → pick viz_type + read its rules. (2) Check column names via superset_dataset_get_by_id. (3) superset_chart_create. (4) superset_get_chart_embed.
 - groupby = plain strings. metric/metrics = objects (see metric_examples). Never invent a viz_type.
