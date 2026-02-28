@@ -129,7 +129,7 @@ function AiChartEmbed({
               disabled={status === "saving"}
               title="Keep this chart permanently — it won't be auto-deleted"
               style={{
-                fontSize: 11, padding: "2px 9px", borderRadius: 6, fontWeight: 600,
+                fontSize: 11, padding: "2px 9px", borderRadius: 6,
                 background: "var(--md-primary-cont)", border: "none",
                 color: "var(--md-on-primary-cont)",
                 cursor: status === "saving" ? "default" : "pointer",
