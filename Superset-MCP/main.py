@@ -16,6 +16,7 @@ import base64
 import hashlib
 import hmac as hmac_lib
 import time
+import datetime
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from functools import wraps
@@ -476,6 +477,7 @@ async def superset_chart_create(
     viz_type: str,
     params: Dict[str, Any],
     datasource_type: str = "table",
+    description: str = "",
 ) -> Dict[str, Any]:
     """
     Create a new chart in Superset.
@@ -489,6 +491,7 @@ async def superset_chart_create(
         viz_type: Chart type (must be a key from superset_chart_types)
         params: Visualization params (keys/values per superset_chart_types definition)
         datasource_type: Datasource kind — defaults to 'table'
+        description: Optional chart description (an AI provenance stamp is always appended automatically)
 
     Returns:
         Created chart info including its ID, or an error with the validation failure
@@ -556,12 +559,25 @@ async def superset_chart_create(
             parts.append(f"All valid column names: {sorted(valid_columns)}")
             return {"error": ". ".join(parts)}
 
+    # ── AI provenance stamp ──────────────────────────────────────────────────
+    # Always append a machine-readable stamp so AI-generated charts are easy
+    # to find and clean up.  Format: [HYPERSET-AI] {ISO-datetime} | {user}
+    stamp_ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    try:
+        _identity = extract_identity(ctx.request_context.request)
+        stamp_user = _identity.username
+    except Exception:
+        stamp_user = "unknown"
+    ai_stamp = f"[HYPERSET-AI] {stamp_ts} | {stamp_user}"
+    full_description = f"{description}\n{ai_stamp}".strip() if description else ai_stamp
+
     payload = {
         "slice_name": slice_name,
         "datasource_id": datasource_id,
         "datasource_type": datasource_type,
         "viz_type": viz_type,
         "params": json.dumps(params),
+        "description": full_description,
     }
 
     return await superset_request(ctx, "post", "/api/v1/chart/", data=payload)
