@@ -348,7 +348,9 @@ CHART CREATION — mandatory steps (superset_chart_create will reject bad column
 4. superset_get_chart_embed → paste embed_markdown value verbatim.
 - groupby = plain strings. metric/metrics = objects (see metric_examples). Never invent a viz_type.
 
-NAVIGATION: use navigate_superset_dashboard or navigate_superset_chart when user asks to open one.`,
+NAVIGATION: use navigate_superset_dashboard or navigate_superset_chart when user asks to open one.
+
+STYLE: Be concise. Do NOT narrate your reasoning or announce each step. Call tools silently and write a short summary only when fully done.`,
           },
         ]),
     ...userMessages,
@@ -369,7 +371,7 @@ NAVIGATION: use navigate_superset_dashboard or navigate_superset_chart when user
   // Agentic loop: keep calling the model until it stops requesting tool calls.
   // 25 turns supports complex multi-chart tasks (each chart needs ~4 tool calls:
   // chart_types → dataset_get_by_id → chart_create → get_chart_embed).
-  const MAX_TURNS = 25;
+  const MAX_TURNS = 40;
   // Max chars for a single tool result stored in history (prevents huge blobs from
   // consuming most of a small model's context window).
   const MAX_TOOL_RESULT_CHARS = 3000;

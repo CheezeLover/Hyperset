@@ -485,10 +485,13 @@ async def superset_chart_create(
     ds_resp = await superset_request(ctx, "get", f"/api/v1/dataset/{datasource_id}")
     if "error" not in ds_resp:
         ds_result = ds_resp.get("result", {})
-        valid_columns: set[str] = {
-            col.get("column_name", "") for col in ds_result.get("columns", [])
+        # Build a case-insensitive lookup: lowercase_name → exact_name
+        col_lookup: dict[str, str] = {
+            col.get("column_name", "").lower(): col.get("column_name", "")
+            for col in ds_result.get("columns", [])
+            if col.get("column_name")
         }
-        valid_columns.discard("")
+        valid_columns = set(col_lookup.values())
 
         # Collect every plain-string column reference used in params
         refs: list[str] = []
@@ -501,14 +504,24 @@ async def superset_chart_create(
             if isinstance(val, list):
                 refs.extend(v for v in val if isinstance(v, str))
 
-        missing_cols = [c for c in refs if c and c not in valid_columns]
-        if missing_cols:
-            return {
-                "error": (
-                    f"Column(s) {missing_cols} not found in dataset {datasource_id}. "
-                    f"Valid columns: {sorted(valid_columns)}"
-                )
-            }
+        corrections: list[str] = []
+        missing: list[str] = []
+        for c in refs:
+            if not c or c in valid_columns:
+                continue  # exact match — fine
+            if c.lower() in col_lookup:
+                corrections.append(f"'{c}' → '{col_lookup[c.lower()]}' (wrong case)")
+            else:
+                missing.append(c)
+
+        if corrections or missing:
+            parts: list[str] = []
+            if corrections:
+                parts.append(f"Case mismatch (use exact name): {corrections}")
+            if missing:
+                parts.append(f"Column(s) not found: {missing}")
+            parts.append(f"All valid column names: {sorted(valid_columns)}")
+            return {"error": ". ".join(parts)}
 
     payload = {
         "slice_name": slice_name,
@@ -644,15 +657,32 @@ async def superset_dataset_list(ctx: Context) -> Dict[str, Any]:
 @handle_api_errors
 async def superset_dataset_get_by_id(ctx: Context, dataset_id: int) -> Dict[str, Any]:
     """
-    Get details for a specific dataset
+    Get column names (exact casing) and basic info for a dataset.
+    Always call this before superset_chart_create to get the exact column names.
 
     Args:
         dataset_id: ID of the dataset to retrieve
 
     Returns:
-        A dictionary with complete dataset information
+        id, table_name, schema, database_id, and the exact list of column names
     """
-    return await superset_request(ctx, "get", f"/api/v1/dataset/{dataset_id}")
+    raw = await superset_request(ctx, "get", f"/api/v1/dataset/{dataset_id}")
+    if "error" in raw:
+        return raw
+    result = raw.get("result", {})
+    # Return only the essentials — column names are the critical output.
+    # Exact casing is preserved so the model can copy-paste them directly.
+    return {
+        "id": result.get("id"),
+        "table_name": result.get("table_name"),
+        "schema": result.get("schema"),
+        "database_id": (result.get("database") or {}).get("id"),
+        "columns": [
+            col.get("column_name")
+            for col in result.get("columns", [])
+            if col.get("column_name")
+        ],
+    }
 
 # ===== SQL Lab Tools =====
 
