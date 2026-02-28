@@ -83,7 +83,7 @@ CLEANUP_EMAIL = os.getenv("HYPERSET_CLEANUP_EMAIL", "admin@hyperset.local")
 
 # Regex to extract the ISO timestamp written into AI chart descriptions.
 _AI_STAMP_RE = re.compile(
-    r'\[HYPERSET-AI\]\s+(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)'
+    r'\[HYPERSET-AI-TEMPORARY\]\s+(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)'
 )
 
 # ── Token verification ─────────────────────────────────────────
@@ -393,7 +393,7 @@ def _extract_chart_ids_from_dashboard_data(data: Any) -> set:
 
 async def _promote_ai_charts_to_permanent(ctx: Context, chart_ids: set) -> None:
     """
-    For each chart ID, if the chart description contains ``[HYPERSET-AI]``
+    For each chart ID, if the chart description contains ``[HYPERSET-AI-TEMPORARY]``
     (but not ``[HYPERSET-AI-PERMANENT]``), promote it to permanent so the
     cleanup job will no longer delete it.  Errors are logged and skipped —
     dashboard creation is never blocked by a promotion failure.
@@ -404,8 +404,8 @@ async def _promote_ai_charts_to_permanent(ctx: Context, chart_ids: set) -> None:
             if "error" in chart_resp:
                 continue
             desc = chart_resp.get("result", {}).get("description") or ""
-            if "[HYPERSET-AI]" in desc and "[HYPERSET-AI-PERMANENT]" not in desc:
-                new_desc = desc.replace("[HYPERSET-AI]", "[HYPERSET-AI-PERMANENT]")
+            if "[HYPERSET-AI-TEMPORARY]" in desc and "[HYPERSET-AI-PERMANENT]" not in desc:
+                new_desc = desc.replace("[HYPERSET-AI-TEMPORARY]", "[HYPERSET-AI-PERMANENT]")
                 await superset_request(
                     ctx, "put", f"/api/v1/chart/{chart_id}",
                     data={"description": new_desc},
@@ -417,7 +417,7 @@ async def _promote_ai_charts_to_permanent(ctx: Context, chart_ids: set) -> None:
 
 async def _run_ai_chart_cleanup() -> None:
     """
-    Delete all ``[HYPERSET-AI]`` charts whose embedded timestamp is older than
+    Delete all ``[HYPERSET-AI-TEMPORARY]`` charts whose embedded timestamp is older than
     2 hours.  Charts flagged ``[HYPERSET-AI-PERMANENT]`` are never touched.
     Uses the dedicated cleanup client / identity so it never disrupts user sessions.
     """
@@ -427,7 +427,7 @@ async def _run_ai_chart_cleanup() -> None:
 
     while True:
         q = json.dumps({
-            "filters": [{"col": "description", "opr": "ct", "val": "[HYPERSET-AI]"}],
+            "filters": [{"col": "description", "opr": "ct", "val": "[HYPERSET-AI-TEMPORARY]"}],
             "page": page,
             "page_size": 100,
         })
@@ -444,7 +444,7 @@ async def _run_ai_chart_cleanup() -> None:
             desc = chart.get("description") or ""
             if "[HYPERSET-AI-PERMANENT]" in desc:
                 continue  # user kept this one explicitly
-            if "[HYPERSET-AI]" not in desc:
+            if "[HYPERSET-AI-TEMPORARY]" not in desc:
                 continue  # filter returned a false positive — skip
 
             m = _AI_STAMP_RE.search(desc)
@@ -796,14 +796,14 @@ async def superset_chart_create(
 
     # ── AI provenance stamp ──────────────────────────────────────────────────
     # Always append a machine-readable stamp so AI-generated charts are easy
-    # to find and clean up.  Format: [HYPERSET-AI] {ISO-datetime} | {user}
+    # to find and clean up.  Format: [HYPERSET-AI-TEMPORARY] {ISO-datetime} | {user}
     stamp_ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     try:
         _identity = extract_identity(ctx.request_context.request)
         stamp_user = _identity.username
     except Exception:
         stamp_user = "unknown"
-    ai_stamp = f"[HYPERSET-AI] {stamp_ts} | {stamp_user}"
+    ai_stamp = f"[HYPERSET-AI-TEMPORARY] {stamp_ts} | {stamp_user}"
     full_description = f"{description}\n{ai_stamp}".strip() if description else ai_stamp
 
     payload = {
@@ -1230,7 +1230,7 @@ async def superset_get_chart_embed(
         if not title:
             title = res.get("slice_name", f"Chart {chart_id}")
         desc = res.get("description") or ""
-        if "[HYPERSET-AI]" in desc and "[HYPERSET-AI-PERMANENT]" not in desc:
+        if "[HYPERSET-AI-TEMPORARY]" in desc and "[HYPERSET-AI-PERMANENT]" not in desc:
             is_ai_temporary = True
     else:
         if not title:

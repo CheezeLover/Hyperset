@@ -6,7 +6,7 @@ import { callMcpTool } from "@/lib/mcp-client";
  * Body: { chartId: number }
  *
  * Promotes a temporary AI-generated chart to permanent by replacing
- * [HYPERSET-AI] with [HYPERSET-AI-PERMANENT] in its description.
+ * [HYPERSET-AI-TEMPORARY] with [HYPERSET-AI-PERMANENT] in its description.
  * This prevents the background cleanup job from deleting it.
  */
 export const POST = async (req: NextRequest) => {
@@ -38,12 +38,12 @@ export const POST = async (req: NextRequest) => {
     if (currentDesc.includes("[HYPERSET-AI-PERMANENT]")) {
       return NextResponse.json({ ok: true, message: "Already permanent" });
     }
-    if (!currentDesc.includes("[HYPERSET-AI]")) {
+    if (!currentDesc.includes("[HYPERSET-AI-TEMPORARY]")) {
       return NextResponse.json({ ok: true, message: "Not an AI-generated chart" });
     }
 
     // 3. Replace the flag and update the chart
-    const newDesc = currentDesc.replace("[HYPERSET-AI]", "[HYPERSET-AI-PERMANENT]");
+    const newDesc = currentDesc.replace("[HYPERSET-AI-TEMPORARY]", "[HYPERSET-AI-PERMANENT]");
     await callMcpTool("superset_chart_update", {
       chart_id: chartId,
       data: { description: newDesc },
