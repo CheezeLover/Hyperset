@@ -600,8 +600,10 @@ function ToolCallsZone({ toolCalls, streaming }: { toolCalls: ToolCall[]; stream
 
   const pendingCount = toolCalls.filter(tc => tc.result === undefined).length;
   const isDone = pendingCount === 0 && !streaming;
+  // Always show the total tool count (never the transient pending count)
+  // so the number doesn't flicker from 1 → N as calls arrive.
   const label = !isDone
-    ? `${pendingCount > 0 ? pendingCount : toolCalls.length} tool${toolCalls.length !== 1 ? "s" : ""} running…`
+    ? `${toolCalls.length} tool${toolCalls.length !== 1 ? "s" : ""} running…`
     : `${toolCalls.length} tool${toolCalls.length !== 1 ? "s" : ""} used`;
 
   return (

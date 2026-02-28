@@ -503,6 +503,20 @@ async def superset_chart_create(
             val = params.get(key)
             if isinstance(val, list):
                 refs.extend(v for v in val if isinstance(v, str))
+        # Also check column names nested inside metric objects
+        # e.g. {"expressionType":"SIMPLE","column":{"column_name":"SH_DTH_MMRT"},...}
+        for key in ("metric", "metrics"):
+            val = params.get(key)
+            if val is None:
+                continue
+            items = [val] if key == "metric" else (val if isinstance(val, list) else [val])
+            for item in items:
+                if isinstance(item, dict):
+                    col_obj = item.get("column")
+                    if isinstance(col_obj, dict):
+                        col_name = col_obj.get("column_name")
+                        if col_name:
+                            refs.append(col_name)
 
         corrections: list[str] = []
         missing: list[str] = []

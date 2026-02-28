@@ -350,7 +350,10 @@ CHART CREATION — mandatory steps (superset_chart_create will reject bad column
 
 NAVIGATION: use navigate_superset_dashboard or navigate_superset_chart when user asks to open one.
 
-STYLE: Be concise. Do NOT narrate your reasoning or announce each step. Call tools silently and write a short summary only when fully done.`,
+STYLE:
+- Do NOT narrate steps or announce what you are about to do. Call tools silently.
+- When all charts/tasks are done, write a meaningful narrative: explain what the data shows, highlight trends, anomalies, or comparisons. Give the user insights, not just a list of chart links.
+- Structure multi-chart responses with a brief intro, per-chart insight (1-2 sentences each), and a closing takeaway.`,
           },
         ]),
     ...userMessages,
