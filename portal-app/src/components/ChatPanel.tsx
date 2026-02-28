@@ -161,14 +161,25 @@ function renderMarkdown(
   // Convenience wrapper — keeps all call sites below identical in shape
   const ir = (t: string) => inlineRender(t, onSupersetLinkClick, isSupersetUrl);
 
-  // Pre-process: models sometimes wrap [iframe](...) lines in triple-backtick
-  // code fences.  Strip those wrappers before line-by-line parsing so the
-  // iframe renderer sees the [iframe] syntax on a bare line.
-  // Handles single or multiple consecutive [iframe] lines inside one fence.
-  const processedText = text.replace(
-    /```[^\n]*\n((?:\[iframe\][^\n]*\n?)+)```/g,
-    (_: string, iframeLines: string) => iframeLines.trimEnd(),
-  );
+  // Pre-process: normalise [iframe] tokens so the block-level renderer always
+  // sees them on their own bare line.
+  //
+  // Step 1 — strip triple-backtick code fences that wrap [iframe] lines.
+  // Step 2 — if [iframe] appears inline after other text on the same line
+  //          (e.g. "Here is your chart: [iframe](url) Title"), split it out
+  //          onto its own line so the block regex can match it.
+  // Step 3 — remove any leading whitespace from lines that start with [iframe]
+  //          so the anchored regex always fires.
+  const processedText = text
+    .replace(
+      /```[^\n]*\n((?:\[iframe\][^\n]*\n?)+)```/g,
+      (_: string, iframeLines: string) => iframeLines.trimEnd(),
+    )
+    .replace(
+      /([^\n])(\[iframe\]\([^\s)]+\)[^\n]*)/g,
+      (_: string, before: string, iframePart: string) => `${before}\n${iframePart}`,
+    )
+    .replace(/^[ \t]+(\[iframe\])/gm, "$1");
 
   const lines = processedText.split("\n");
   const nodes: React.ReactNode[] = [];
