@@ -161,7 +161,16 @@ function renderMarkdown(
   // Convenience wrapper — keeps all call sites below identical in shape
   const ir = (t: string) => inlineRender(t, onSupersetLinkClick, isSupersetUrl);
 
-  const lines = text.split("\n");
+  // Pre-process: models sometimes wrap [iframe](...) lines in triple-backtick
+  // code fences.  Strip those wrappers before line-by-line parsing so the
+  // iframe renderer sees the [iframe] syntax on a bare line.
+  // Handles single or multiple consecutive [iframe] lines inside one fence.
+  const processedText = text.replace(
+    /```[^\n]*\n((?:\[iframe\][^\n]*\n?)+)```/g,
+    (_: string, iframeLines: string) => iframeLines.trimEnd(),
+  );
+
+  const lines = processedText.split("\n");
   const nodes: React.ReactNode[] = [];
   let i = 0;
   let keyCounter = 0;
@@ -382,8 +391,15 @@ function renderMarkdown(
             </div>
           );
         } else {
-          // Non-whitelisted URL (e.g. LLM hallucinated superset.example.com) — silently drop.
-          // The LLM should have called superset_get_chart_embed to get the real URL.
+          // Domain check failed — render as a plain clickable link rather than
+          // silently dropping so the user always sees something and can debug
+          // any config mismatch between SUPERSET_PUBLIC_URL and the portal URL.
+          nodes.push(
+            <a key={key()} href={iframeUrl} target="_blank" rel="noopener noreferrer"
+              style={{ fontSize: 12, color: "var(--md-primary)", display: "block", margin: "4px 0" }}>
+              {iframeTitle || iframeUrl}
+            </a>
+          );
         }
       } catch {
         // Invalid URL — silently drop rather than leaking raw iframe syntax into the chat.

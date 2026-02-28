@@ -337,7 +337,7 @@ export const POST = async (req: NextRequest) => {
 EMBED RULES (breaking these silently removes content from chat):
 - NEVER hardcode or guess any URL. NEVER use "superset.example.com" or any placeholder domain.
 - To embed a chart: call superset_get_chart_embed → the tool returns {"embed_markdown": "...", ...}.
-  Copy ONLY the value of "embed_markdown" verbatim onto its own line. It is a [iframe](...) string with the real server URL — do NOT invent it.
+  Copy ONLY the value of "embed_markdown" verbatim onto its own line. It is a [iframe](...) string with the real server URL — do NOT invent it. Do NOT wrap it in backticks, code fences, or any other formatting.
 - To embed a dashboard: same with superset_get_dashboard_embed.
 - For a clickable link: call superset_get_chart_link or superset_get_dashboard_link and paste the VALUE of "link_markdown" inline.
 
