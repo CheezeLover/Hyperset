@@ -581,6 +581,22 @@ async def superset_chart_update(
     Returns:
         A dictionary with the updated chart information
     """
+    # Run the same param validation as chart_create when params are being updated
+    viz_type = data.get("viz_type")
+    params = data.get("params")
+    if viz_type and params is not None:
+        # params may arrive as a JSON string (Superset API format) or already a dict
+        if isinstance(params, str):
+            try:
+                params_dict = json.loads(params)
+            except json.JSONDecodeError:
+                params_dict = {}
+        else:
+            params_dict = params
+        err = _validate_chart_params(viz_type, params_dict)
+        if err:
+            return {"error": err}
+
     return await superset_request(
         ctx, "put", f"/api/v1/chart/{chart_id}", data=data
     )
