@@ -219,18 +219,76 @@ async def superset_request(
         return {"error": f"Superset {resp.status_code}: {resp.text}"}
     return resp.json()
 
+# ===== Slim list helpers =====
+# Superset API list endpoints return 30+ fields per item.  These helpers keep
+# only the fields the model needs so tool results stay small for low-context models.
+
+def _slim_dashboards(raw: Dict[str, Any]) -> Dict[str, Any]:
+    result = raw.get("result", [])
+    return {
+        "count": raw.get("count", len(result)),
+        "result": [
+            {"id": d.get("id"), "title": d.get("dashboard_title"), "status": d.get("status")}
+            for d in result
+        ],
+    }
+
+def _slim_charts(raw: Dict[str, Any]) -> Dict[str, Any]:
+    result = raw.get("result", [])
+    return {
+        "count": raw.get("count", len(result)),
+        "result": [
+            {
+                "id": c.get("id"),
+                "slice_name": c.get("slice_name"),
+                "viz_type": c.get("viz_type"),
+                "datasource_id": c.get("datasource_id"),
+            }
+            for c in result
+        ],
+    }
+
+def _slim_datasets(raw: Dict[str, Any]) -> Dict[str, Any]:
+    result = raw.get("result", [])
+    return {
+        "count": raw.get("count", len(result)),
+        "result": [
+            {
+                "id": d.get("id"),
+                "table_name": d.get("table_name"),
+                "schema": d.get("schema"),
+                "database_id": (d.get("database") or {}).get("id"),
+            }
+            for d in result
+        ],
+    }
+
+def _slim_databases(raw: Dict[str, Any]) -> Dict[str, Any]:
+    result = raw.get("result", [])
+    return {
+        "count": raw.get("count", len(result)),
+        "result": [
+            {"id": db.get("id"), "database_name": db.get("database_name"), "backend": db.get("backend")}
+            for db in result
+        ],
+    }
+
+
 # ===== Dashboard Tools =====
 
 @mcp.tool()
 @handle_api_errors
 async def superset_dashboard_list(ctx: Context) -> Dict[str, Any]:
     """
-    Get a list of dashboards from Superset
+    Get a list of dashboards from Superset (id, title, status only).
 
     Returns:
-        A dictionary containing dashboard data including id, title, url, and metadata
+        count and result list with id, title, status
     """
-    return await superset_request(ctx, "get", "/api/v1/dashboard/")
+    raw = await superset_request(ctx, "get", "/api/v1/dashboard/")
+    if "error" in raw:
+        return raw
+    return _slim_dashboards(raw)
 
 @mcp.tool()
 @handle_api_errors
@@ -315,12 +373,15 @@ async def superset_dashboard_delete(ctx: Context, dashboard_id: int) -> Dict[str
 @handle_api_errors
 async def superset_chart_list(ctx: Context) -> Dict[str, Any]:
     """
-    Get a list of charts from Superset
+    Get a list of charts from Superset (id, slice_name, viz_type, datasource_id only).
 
     Returns:
-        A dictionary containing chart data including id, slice_name, viz_type, and datasource info
+        count and result list with id, slice_name, viz_type, datasource_id
     """
-    return await superset_request(ctx, "get", "/api/v1/chart/")
+    raw = await superset_request(ctx, "get", "/api/v1/chart/")
+    if "error" in raw:
+        return raw
+    return _slim_charts(raw)
 
 @mcp.tool()
 @handle_api_errors
@@ -369,6 +430,7 @@ def _validate_chart_params(viz_type: str, params: Dict[str, Any]) -> Optional[st
         if key == "metrics" and isinstance(val, list) and len(val) == 0:
             return f"'metrics' is empty — add at least one metric object. {hint}"
         items = [val] if key == "metric" else (val if isinstance(val, list) else [val])
+        _VALID_EXPR_TYPES = {"SIMPLE", "SAVED", "SQL"}
         for item in items:
             if isinstance(item, str):
                 return (
@@ -376,14 +438,32 @@ def _validate_chart_params(viz_type: str, params: Dict[str, Any]) -> Optional[st
                     f"Metrics must be objects with expressionType/column/aggregate/label/optionName. "
                     f"{hint}"
                 )
-    # Validate x_axis not duplicated in groupby
+            if isinstance(item, dict):
+                expr_type = item.get("expressionType")
+                if expr_type is not None and expr_type not in _VALID_EXPR_TYPES:
+                    return (
+                        f"Invalid metric expressionType '{expr_type}'. "
+                        f"Must be one of: {sorted(_VALID_EXPR_TYPES)}. "
+                        f"Use 'SIMPLE' for column+aggregate, 'SQL' for custom SQL expressions. "
+                        f"{hint}"
+                    )
+    # Validate x_axis is not duplicated in groupby or columns
+    # Superset automatically places x_axis on the chart; including it again in
+    # groupby or columns raises "Duplicate column/metric labels".
     x_axis = params.get("x_axis")
-    groupby = params.get("groupby", [])
-    if x_axis and isinstance(groupby, list) and x_axis in groupby:
-        return (
-            f"x_axis '{x_axis}' must NOT appear in groupby — Superset adds it automatically "
-            f"and will raise 'Duplicate column/metric labels'. Remove '{x_axis}' from groupby."
-        )
+    if x_axis:
+        groupby = params.get("groupby", [])
+        if isinstance(groupby, list) and x_axis in groupby:
+            return (
+                f"x_axis '{x_axis}' must NOT appear in groupby — Superset adds it automatically "
+                f"and will raise 'Duplicate column/metric labels'. Remove '{x_axis}' from groupby."
+            )
+        columns = params.get("columns", [])
+        if isinstance(columns, list) and x_axis in columns:
+            return (
+                f"x_axis '{x_axis}' must NOT appear in columns — Superset adds it automatically "
+                f"and will raise 'Duplicate column/metric labels'. Remove '{x_axis}' from columns."
+            )
     return None
 
 
@@ -417,6 +497,65 @@ async def superset_chart_create(
     if err:
         return {"error": err}
 
+    # ── Column existence check ──────────────────────────────────────────────
+    # Fetch the dataset schema and verify every column referenced in params
+    # actually exists.  Returns a clear error listing valid columns so the
+    # model can self-correct without needing an extra tool call.
+    ds_resp = await superset_request(ctx, "get", f"/api/v1/dataset/{datasource_id}")
+    if "error" not in ds_resp:
+        ds_result = ds_resp.get("result", {})
+        # Build a case-insensitive lookup: lowercase_name → exact_name
+        col_lookup: dict[str, str] = {
+            col.get("column_name", "").lower(): col.get("column_name", "")
+            for col in ds_result.get("columns", [])
+            if col.get("column_name")
+        }
+        valid_columns = set(col_lookup.values())
+
+        # Collect every plain-string column reference used in params
+        refs: list[str] = []
+        for key in ("x_axis", "x", "y"):
+            val = params.get(key)
+            if isinstance(val, str):
+                refs.append(val)
+        for key in ("groupby", "columns", "series"):
+            val = params.get(key)
+            if isinstance(val, list):
+                refs.extend(v for v in val if isinstance(v, str))
+        # Also check column names nested inside metric objects
+        # e.g. {"expressionType":"SIMPLE","column":{"column_name":"SH_DTH_MMRT"},...}
+        for key in ("metric", "metrics"):
+            val = params.get(key)
+            if val is None:
+                continue
+            items = [val] if key == "metric" else (val if isinstance(val, list) else [val])
+            for item in items:
+                if isinstance(item, dict):
+                    col_obj = item.get("column")
+                    if isinstance(col_obj, dict):
+                        col_name = col_obj.get("column_name")
+                        if col_name:
+                            refs.append(col_name)
+
+        corrections: list[str] = []
+        missing: list[str] = []
+        for c in refs:
+            if not c or c in valid_columns:
+                continue  # exact match — fine
+            if c.lower() in col_lookup:
+                corrections.append(f"'{c}' → '{col_lookup[c.lower()]}' (wrong case)")
+            else:
+                missing.append(c)
+
+        if corrections or missing:
+            parts: list[str] = []
+            if corrections:
+                parts.append(f"Case mismatch (use exact name): {corrections}")
+            if missing:
+                parts.append(f"Column(s) not found: {missing}")
+            parts.append(f"All valid column names: {sorted(valid_columns)}")
+            return {"error": ". ".join(parts)}
+
     payload = {
         "slice_name": slice_name,
         "datasource_id": datasource_id,
@@ -442,6 +581,22 @@ async def superset_chart_update(
     Returns:
         A dictionary with the updated chart information
     """
+    # Run the same param validation as chart_create when params are being updated
+    viz_type = data.get("viz_type")
+    params = data.get("params")
+    if viz_type and params is not None:
+        # params may arrive as a JSON string (Superset API format) or already a dict
+        if isinstance(params, str):
+            try:
+                params_dict = json.loads(params)
+            except json.JSONDecodeError:
+                params_dict = {}
+        else:
+            params_dict = params
+        err = _validate_chart_params(viz_type, params_dict)
+        if err:
+            return {"error": err}
+
     return await superset_request(
         ctx, "put", f"/api/v1/chart/{chart_id}", data=data
     )
@@ -473,12 +628,15 @@ async def superset_chart_delete(ctx: Context, chart_id: int) -> Dict[str, Any]:
 @handle_api_errors
 async def superset_database_list(ctx: Context) -> Dict[str, Any]:
     """
-    Get a list of databases from Superset
+    Get a list of databases from Superset (id, database_name, backend only).
 
     Returns:
-        A dictionary containing database connection information including id, name, and configuration
+        count and result list with id, database_name, backend
     """
-    return await superset_request(ctx, "get", "/api/v1/database/")
+    raw = await superset_request(ctx, "get", "/api/v1/database/")
+    if "error" in raw:
+        return raw
+    return _slim_databases(raw)
 
 @mcp.tool()
 @handle_api_errors
@@ -534,26 +692,46 @@ async def superset_database_create(
 @handle_api_errors
 async def superset_dataset_list(ctx: Context) -> Dict[str, Any]:
     """
-    Get a list of datasets from Superset
+    Get a list of datasets from Superset (id, table_name, schema, database_id only).
 
     Returns:
-        A dictionary containing dataset information including id, table_name, and database
+        count and result list with id, table_name, schema, database_id
     """
-    return await superset_request(ctx, "get", "/api/v1/dataset/")
+    raw = await superset_request(ctx, "get", "/api/v1/dataset/")
+    if "error" in raw:
+        return raw
+    return _slim_datasets(raw)
 
 @mcp.tool()
 @handle_api_errors
 async def superset_dataset_get_by_id(ctx: Context, dataset_id: int) -> Dict[str, Any]:
     """
-    Get details for a specific dataset
+    Get column names (exact casing) and basic info for a dataset.
+    Always call this before superset_chart_create to get the exact column names.
 
     Args:
         dataset_id: ID of the dataset to retrieve
 
     Returns:
-        A dictionary with complete dataset information
+        id, table_name, schema, database_id, and the exact list of column names
     """
-    return await superset_request(ctx, "get", f"/api/v1/dataset/{dataset_id}")
+    raw = await superset_request(ctx, "get", f"/api/v1/dataset/{dataset_id}")
+    if "error" in raw:
+        return raw
+    result = raw.get("result", {})
+    # Return only the essentials — column names are the critical output.
+    # Exact casing is preserved so the model can copy-paste them directly.
+    return {
+        "id": result.get("id"),
+        "table_name": result.get("table_name"),
+        "schema": result.get("schema"),
+        "database_id": (result.get("database") or {}).get("id"),
+        "columns": [
+            col.get("column_name")
+            for col in result.get("columns", [])
+            if col.get("column_name")
+        ],
+    }
 
 # ===== SQL Lab Tools =====
 
@@ -717,12 +895,20 @@ async def superset_analyze_data(ctx: Context, question: str) -> Dict[str, Any]:
                 category = _classify_column({**col_entry, "is_dttm": col.get("is_dttm", False)})
                 columns_by_category.setdefault(category, []).append(col_entry)
 
+            # Flatten to a single list and cap at 40 columns to keep the
+            # response small for low-context models.
+            all_cols = [c for cols in columns_by_category.values() for c in cols]
+            MAX_COLS = 40
+            cols_out = all_cols[:MAX_COLS]
+            truncated = len(all_cols) > MAX_COLS
+
             db_datasets.append({
                 "dataset_id": ds_id,
                 "table_name": ds.get("table_name", "unknown"),
                 "schema": ds.get("schema") or None,
-                "column_count": sum(len(v) for v in columns_by_category.values()),
-                "columns": columns_by_category,
+                "column_count": len(all_cols),
+                "columns": cols_out,
+                **({"columns_truncated": True} if truncated else {}),
             })
 
         total_datasets += len(db_datasets)

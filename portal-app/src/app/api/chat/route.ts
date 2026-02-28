@@ -74,8 +74,11 @@ async function generateFollowupSuggestions(
   conversationHistory: OpenAI.Chat.ChatCompletionMessageParam[],
 ): Promise<string[]> {
   try {
-    const historyText = conversationHistory
-      .map((msg) => `${msg.role}: ${msg.content}`)
+    // Only use the last 4 messages for suggestion context — sending the full
+    // history wastes tokens on a small-context model.
+    const recentHistory = conversationHistory.slice(-2);
+    const historyText = recentHistory
+      .map((msg) => `${msg.role}: ${typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content)}`)
       .join("\n");
 
     const suggestionPrompt = `Based on the conversation history below, predict 3-4 questions the user is likely to ask next. Write each question in the user's voice, as if the user is typing their next message to the assistant (e.g. "Show me a chart for this", "What caused that spike?", "Can you filter by 2024?"). Do NOT write questions from the assistant's perspective. Respond only with a valid JSON array of strings, with no additional text.\n\nConversation history:\n${historyText}\n\nPredicted user questions (JSON array only):`;
@@ -174,6 +177,28 @@ export const POST = async (req: NextRequest) => {
 
   const userMessages: OpenAI.Chat.ChatCompletionMessageParam[] = body.messages ?? [];
 
+  // Strip nested property descriptions from a JSON schema to reduce token count.
+  // Keeps type/properties/required/items so the model still knows the shape.
+  function stripSchemaDescriptions(schema: Record<string, unknown>): Record<string, unknown> {
+    if (!schema || typeof schema !== "object") return schema;
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(schema)) {
+      if (k === "description") continue; // drop nested descriptions
+      if (k === "properties" && v && typeof v === "object") {
+        const props: Record<string, unknown> = {};
+        for (const [pk, pv] of Object.entries(v as Record<string, unknown>)) {
+          props[pk] = stripSchemaDescriptions(pv as Record<string, unknown>);
+        }
+        out[k] = props;
+      } else if (k === "items" && v && typeof v === "object") {
+        out[k] = stripSchemaDescriptions(v as Record<string, unknown>);
+      } else {
+        out[k] = v;
+      }
+    }
+    return out;
+  }
+
   // Build the MCP tool definitions
   let mcpTools: OpenAI.Chat.ChatCompletionTool[] = [];
   try {
@@ -181,9 +206,10 @@ export const POST = async (req: NextRequest) => {
     mcpTools = raw.map((t) => ({
       type: "function" as const,
       function: {
+        // Truncate top-level description to 120 chars — the name already conveys intent.
         name: t.name,
-        description: t.description,
-        parameters: t.inputSchema as Record<string, unknown>,
+        description: t.description?.slice(0, 120),
+        parameters: stripSchemaDescriptions(t.inputSchema as Record<string, unknown>),
       },
     }));
   } catch {
@@ -196,10 +222,10 @@ export const POST = async (req: NextRequest) => {
       type: "function",
       function: {
         name: "navigate_superset_dashboard",
-        description: "Navigate the Superset panel to show a specific dashboard. Use when user asks to open or navigate to a dashboard.",
+        description: "Open a dashboard in the Superset panel.",
         parameters: {
           type: "object",
-          properties: { dashboardId: { type: "string", description: "The dashboard ID or slug to navigate to" } },
+          properties: { dashboardId: { type: "string" } },
           required: ["dashboardId"],
         },
       },
@@ -208,10 +234,10 @@ export const POST = async (req: NextRequest) => {
       type: "function",
       function: {
         name: "navigate_superset_chart",
-        description: "Navigate the Superset panel to show a specific chart in Explore view.",
+        description: "Open a chart in the Superset Explore panel.",
         parameters: {
           type: "object",
-          properties: { chartId: { type: "string", description: "The chart ID to navigate to" } },
+          properties: { chartId: { type: "string" } },
           required: ["chartId"],
         },
       },
@@ -220,6 +246,85 @@ export const POST = async (req: NextRequest) => {
 
   const tools = [...navTools, ...mcpTools];
 
+  // ── Intent-based tool filtering ───────────────────────────────────────────
+  // Sending all 20+ tools on every turn overwhelms small models (Ministral,
+  // Mistral, etc.) and wastes tokens on larger ones.  Analyse the last user
+  // message and only include tools relevant to the current intent.
+  // Core read / embed / navigate tools are always present.
+  function filterToolsForContext(
+    allTools: OpenAI.Chat.ChatCompletionTool[],
+    userMsgs: OpenAI.Chat.ChatCompletionMessageParam[]
+  ): OpenAI.Chat.ChatCompletionTool[] {
+    const lastUser = [...userMsgs].reverse().find((m) => m.role === "user");
+    const msg = (typeof lastUser?.content === "string" ? lastUser.content : "").toLowerCase();
+
+    // Always-on: navigation + listing + embed/link (model always needs these)
+    const include = new Set([
+      "navigate_superset_dashboard",
+      "navigate_superset_chart",
+      "superset_dashboard_list",
+      "superset_chart_list",
+      "superset_dataset_list",
+      "superset_database_list",
+      "superset_get_chart_embed",
+      "superset_get_dashboard_embed",
+      "superset_get_chart_link",
+      "superset_get_dashboard_link",
+      "superset_analyze_data",
+    ]);
+
+    // Chart creation flow
+    if (/creat|build|make|new chart|generat|visuali/.test(msg)) {
+      include.add("superset_chart_types");
+      include.add("superset_chart_create");
+      include.add("superset_dataset_get_by_id");
+    }
+
+    // Chart / dashboard editing or deleting
+    if (/updat|edit|modif|chang|delet|remov/.test(msg)) {
+      include.add("superset_chart_update");
+      include.add("superset_chart_delete");
+      include.add("superset_chart_get_by_id");
+      include.add("superset_dashboard_update");
+      include.add("superset_dashboard_delete");
+      include.add("superset_dashboard_get_by_id");
+    }
+
+    // Dashboard creation
+    if (/new dashboard|creat.*dashboard|dashboard.*creat/.test(msg)) {
+      include.add("superset_dashboard_create");
+      include.add("superset_dashboard_get_by_id");
+    }
+
+    // SQL / data queries
+    if (/sql|query|select|from |where |analyz|run.*query|execut/.test(msg)) {
+      include.add("superset_sqllab_execute_query");
+      include.add("superset_database_get_by_id");
+      include.add("superset_dataset_get_by_id");
+    }
+
+    // Schema / column inspection
+    if (/schema|column|field|dataset|table/.test(msg)) {
+      include.add("superset_dataset_get_by_id");
+      include.add("superset_database_get_by_id");
+    }
+
+    // User / config info
+    if (/user|role|who am|config|base.?url/.test(msg)) {
+      include.add("superset_user_get_current");
+      include.add("superset_user_get_roles");
+      include.add("superset_config_get_base_url");
+    }
+
+    return allTools.filter((t) => include.has(t.function.name));
+  }
+
+  // ── Ministral / Mistral model detection ──────────────────────────────────
+  // Ministral (3B / 8B) handles sequential tool calls reliably but struggles
+  // with parallel ones.  Disable parallel_tool_calls automatically.
+  const isMistral = /ministral|mistral/i.test(model);
+  const activeTools = filterToolsForContext(tools, userMessages);
+
   // Build message list with optional system prompt
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
     ...(systemPrompt
@@ -227,32 +332,31 @@ export const POST = async (req: NextRequest) => {
       : [
           {
             role: "system" as const,
-            content: `You are Hyperset, an intelligent assistant for Apache Superset analytics. You have access to the full Superset MCP API (dashboards, charts, SQL execution, datasets, databases). When users ask to navigate to a dashboard or chart, use navigate_superset_dashboard or navigate_superset_chart. Always present SQL query results clearly with key insights.
+            content: `You are Hyperset, an AI assistant for Apache Superset. Use MCP tools for all data operations.
 
-SUPERSET CONTENT — CRITICAL RULES (violations break the UI):
+EMBED RULES (breaking these silently removes content from chat):
+- NEVER hardcode or guess any URL. NEVER use "superset.example.com" or any placeholder domain.
+- To embed a chart: call superset_get_chart_embed → the tool returns {"embed_markdown": "...", ...}.
+  Copy ONLY the value of "embed_markdown" verbatim onto its own line. It is a [iframe](...) string with the real server URL — do NOT invent it. Do NOT wrap it in backticks, code fences, or any other formatting.
+- To embed a dashboard: same with superset_get_dashboard_embed.
+- For a clickable link: call superset_get_chart_link or superset_get_dashboard_link and paste the VALUE of "link_markdown" inline.
 
-RULE 1 — NEVER construct or hardcode Superset URLs. Always call the tool; it returns the real URL. "superset.example.com" is a non-existent placeholder — any embed using it is silently removed from the chat and the user sees nothing.
+CHART CREATION — mandatory steps (superset_chart_create will reject bad columns server-side):
+1. superset_chart_types → pick viz_type and note required params.
+2. superset_dataset_get_by_id → read actual column names. ONLY use columns that appear in the response.
+3. superset_chart_create (will return an error listing valid columns if any are wrong — fix and retry).
+4. superset_get_chart_embed → paste embed_markdown value verbatim.
+- groupby/columns = plain strings. metric/metrics = objects (see metric_examples). Never invent a viz_type.
+- DUPLICATE LABEL RULE: NEVER put x_axis column in groupby or columns — Superset adds it automatically and will error.
+- METRICS — always prefer expressionType "SIMPLE" (column + aggregate). Only use expressionType "SQL" when SIMPLE cannot express the logic.
+- CUSTOM SQL RULE: PostgreSQL folds unquoted identifiers to lowercase. Always double-quote every column name in custom SQL: SUM(CASE WHEN "DEPARTURE_DELAY" <= 15 THEN 1 ELSE 0 END). Never write bare uppercase column names in SQL strings.
 
-RULE 2 — ALWAYS USE THE EMBED TOOL. For EVERY chart or dashboard you reference — whether newly created OR found via a list/search — you MUST call superset_get_chart_embed (or superset_get_dashboard_embed) to get the URL. Never derive or construct a URL from a chart ID yourself. This applies equally to existing charts retrieved with superset_chart_list.
+NAVIGATION: use navigate_superset_dashboard or navigate_superset_chart when user asks to open one.
 
-RULE 3 — EMBED FORMAT: call superset_get_chart_embed → take the 'embed_markdown' string → output it EXACTLY as returned, on its own line, with NOTHING else on that line.
-  Correct:   [iframe](https://real-url/...) Chart Title
-  Wrong:     [Chart Title](https://real-url/...)   ← this is a link, not an embed
-  Wrong:     - [iframe](https://real-url/...) ...  ← never put embed inside a list item
-  Wrong:     \`[iframe](https://real-url/...)...\`  ← never wrap in backticks
-
-RULE 4 — LINK FORMAT (only when user asks for a link): call superset_get_chart_link → paste 'link_markdown' verbatim inline in the sentence.
-
-CHART CREATION — mandatory workflow (never skip steps):
-1. Call superset_chart_types → read _rules first, then pick the exact viz_type and note its req/opt params.
-2. Inspect the dataset columns (superset_dataset_get_by_id or a quick SQL query) to know real column names.
-3. Build params from the chart catalog (metric_examples shape), then call superset_chart_create.
-4. After creation succeeds, call superset_get_chart_embed (to show inline) or superset_get_chart_link (to link) — NEVER construct the URL yourself.
-Rules:
-- Follow all _rules from superset_chart_types before building params.
-- Some charts use "metric" (single object); others use "metrics" (list) — follow req exactly.
-- groupby items are plain column-name strings, not metric objects.
-- Never invent a viz_type — only use values from superset_chart_types.`,
+STYLE:
+- Do NOT narrate steps or announce what you are about to do. Call tools silently.
+- When all charts/tasks are done, write a meaningful narrative: explain what the data shows, highlight trends, anomalies, or comparisons. Give the user insights, not just a list of chart links.
+- Structure multi-chart responses with a brief intro, per-chart insight (1-2 sentences each), and a closing takeaway.`,
           },
         ]),
     ...userMessages,
@@ -270,9 +374,32 @@ Rules:
 
   const openai = new OpenAI({ apiKey, baseURL: apiUrl });
 
-  // Agentic loop: keep calling the model until it stops requesting tool calls
-  // We run up to 10 iterations to avoid infinite loops.
-  const MAX_TURNS = 10;
+  // Agentic loop: keep calling the model until it stops requesting tool calls.
+  // 25 turns supports complex multi-chart tasks (each chart needs ~4 tool calls:
+  // chart_types → dataset_get_by_id → chart_create → get_chart_embed).
+  const MAX_TURNS = 40;
+  // Max chars for a single tool result stored in history (prevents huge blobs from
+  // consuming most of a small model's context window).
+  const MAX_TOOL_RESULT_CHARS = 3000;
+  // Max non-system messages kept in the sliding window sent to the model.
+  // Keeps the system prompt + last N messages to bound context growth.
+  const MAX_HISTORY_MESSAGES = 20;
+
+  function windowedMessages(
+    msgs: OpenAI.Chat.ChatCompletionMessageParam[]
+  ): OpenAI.Chat.ChatCompletionMessageParam[] {
+    const system = msgs.filter((m) => m.role === "system");
+    const rest = msgs.filter((m) => m.role !== "system");
+    const sliced = rest.slice(-MAX_HISTORY_MESSAGES);
+    // Never start the window in the middle of a tool-call sequence.
+    // An orphaned tool/assistant-tool_calls message (without its pair) causes
+    // the API to error and kills the stream.  Advance to the first user message
+    // so the window always starts at a clean conversation boundary.
+    const firstUserIdx = sliced.findIndex((m) => m.role === "user");
+    const trimmed = firstUserIdx > 0 ? sliced.slice(firstUserIdx) : sliced;
+    return [...system, ...trimmed];
+  }
+
   const accumulated: OpenAI.Chat.ChatCompletionMessageParam[] = [...messages];
 
   const encoder = new TextEncoder();
@@ -293,9 +420,12 @@ Rules:
         for (let turn = 0; turn < MAX_TURNS; turn++) {
           const completion = await openai.chat.completions.create({
             model,
-            messages: accumulated,
-            tools: tools.length > 0 ? tools : undefined,
-            tool_choice: tools.length > 0 ? "auto" : undefined,
+            messages: windowedMessages(accumulated),
+            tools: activeTools.length > 0 ? activeTools : undefined,
+            tool_choice: activeTools.length > 0 ? "auto" : undefined,
+            // Ministral/Mistral models handle sequential tool calls reliably
+            // but trip up on parallel ones — disable them automatically.
+            ...(isMistral ? { parallel_tool_calls: false } : {}),
             stream: true,
             ...modelParams, // Spread additional model parameters
           });
@@ -386,10 +516,16 @@ Rules:
             }
 
             send({ type: "tool_result", name: tc.name, result });
+            // Truncate stored result to avoid bloating the context window.
+            const storedResult =
+              result.length > MAX_TOOL_RESULT_CHARS
+                ? result.slice(0, MAX_TOOL_RESULT_CHARS) +
+                  `\n…[truncated ${result.length - MAX_TOOL_RESULT_CHARS} chars]`
+                : result;
             accumulated.push({
               role: "tool",
               tool_call_id: tc.id,
-              content: result,
+              content: storedResult,
             });
           }
         }
