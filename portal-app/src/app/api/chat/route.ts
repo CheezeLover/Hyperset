@@ -263,10 +263,10 @@ NAVIGATION: use navigate_superset_dashboard or navigate_superset_chart when user
   const MAX_TURNS = 10;
   // Max chars for a single tool result stored in history (prevents huge blobs from
   // consuming most of a small model's context window).
-  const MAX_TOOL_RESULT_CHARS = 1500;
+  const MAX_TOOL_RESULT_CHARS = 3000;
   // Max non-system messages kept in the sliding window sent to the model.
   // Keeps the system prompt + last N messages to bound context growth.
-  const MAX_HISTORY_MESSAGES = 10;
+  const MAX_HISTORY_MESSAGES = 20;
 
   function windowedMessages(
     msgs: OpenAI.Chat.ChatCompletionMessageParam[]
