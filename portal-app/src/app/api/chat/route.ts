@@ -283,9 +283,10 @@ NAVIGATION: use navigate_superset_dashboard or navigate_superset_chart when user
 
   const openai = new OpenAI({ apiKey, baseURL: apiUrl });
 
-  // Agentic loop: keep calling the model until it stops requesting tool calls
-  // We run up to 10 iterations to avoid infinite loops.
-  const MAX_TURNS = 10;
+  // Agentic loop: keep calling the model until it stops requesting tool calls.
+  // 25 turns supports complex multi-chart tasks (each chart needs ~4 tool calls:
+  // chart_types → dataset_get_by_id → chart_create → get_chart_embed).
+  const MAX_TURNS = 25;
   // Max chars for a single tool result stored in history (prevents huge blobs from
   // consuming most of a small model's context window).
   const MAX_TOOL_RESULT_CHARS = 3000;
