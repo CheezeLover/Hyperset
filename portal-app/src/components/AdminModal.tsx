@@ -16,6 +16,7 @@ interface LlmSettings {
   maxTurns: number;
   maxToolResultChars: number;
   maxHistoryMessages: number;
+  cleanupDelayHours: number;
 }
 
 interface TestResult {
@@ -57,6 +58,7 @@ export function AdminModal({ onClose }: AdminModalProps) {
   const [settings, setSettings] = useState<LlmSettings>({
     apiUrl: "", apiKey: "", model: "", systemPrompt: "", modelParams: "", isCustom: false,
     maxTurns: 40, maxToolResultChars: 3000, maxHistoryMessages: 20,
+    cleanupDelayHours: 2,
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -108,6 +110,7 @@ export function AdminModal({ onClose }: AdminModalProps) {
           maxTurns: settings.maxTurns,
           maxToolResultChars: settings.maxToolResultChars,
           maxHistoryMessages: settings.maxHistoryMessages,
+          cleanupDelayHours: settings.cleanupDelayHours,
         }),
       });
       if (!res.ok) throw new Error("Save failed");
@@ -276,6 +279,47 @@ export function AdminModal({ onClose }: AdminModalProps) {
                     disabled={saving}
                   />
                 </label>
+
+              </div>
+            </div>
+
+            {/* ── AI chart cleanup ── */}
+            <div style={{ marginTop: 8, borderTop: "1px solid var(--md-outline-var)", paddingTop: 12 }}>
+              <p style={{ fontSize: 11, fontWeight: 600, opacity: 0.45, textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 8px" }}>
+                AI Chart Cleanup
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+
+                <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                  <span style={labelStyle}>
+                    Temporary chart lifetime{" "}
+                    <span style={{ opacity: 0.5 }}>(hours before auto-deletion, 0.5 – 168, default 2)</span>
+                  </span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <input
+                      type="number" min={0.5} max={168} step={0.5}
+                      value={settings.cleanupDelayHours}
+                      onChange={(e) => setSettings((s) => ({
+                        ...s,
+                        cleanupDelayHours: Math.max(0.5, Math.min(168, Math.round(Number(e.target.value) * 2) / 2 || 0.5)),
+                      }))}
+                      style={{ ...inputStyle, width: 100 }}
+                      disabled={saving}
+                    />
+                    <span style={{ fontSize: 11, opacity: 0.5 }}>
+                      {settings.cleanupDelayHours === 1 ? "1 hour" : `${settings.cleanupDelayHours} hours`}
+                      {" "}— charts tagged <code style={{ fontSize: 10, background: "var(--md-surface-cont-hi)", padding: "1px 4px", borderRadius: 4 }}>[HYPERSET-AI-TEMPORARY]</code> are deleted after this delay
+                    </span>
+                  </div>
+                </label>
+
+                <p style={{ fontSize: 11, opacity: 0.45, margin: 0, lineHeight: 1.5 }}>
+                  Set{" "}
+                  <code style={{ fontSize: 10, background: "var(--md-surface-cont-hi)", padding: "1px 4px", borderRadius: 4 }}>HYPERSET_PORTAL_URL</code>
+                  {" "}in the MCP server's <code style={{ fontSize: 10, background: "var(--md-surface-cont-hi)", padding: "1px 4px", borderRadius: 4 }}>.env</code>{" "}
+                  (e.g. <code style={{ fontSize: 10, background: "var(--md-surface-cont-hi)", padding: "1px 4px", borderRadius: 4 }}>http://localhost:3000</code>)
+                  {" "}so the cleanup job can read this setting without a restart.
+                </p>
 
               </div>
             </div>

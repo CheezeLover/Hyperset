@@ -18,6 +18,10 @@ export interface LlmSettings {
   maxToolResultChars?: number;
   /** Max non-system messages kept in the sliding context window (default: 20) */
   maxHistoryMessages?: number;
+
+  // ── AI chart cleanup ─────────────────────────────────────────────
+  /** Hours before a [HYPERSET-AI-TEMPORARY] chart is auto-deleted (default: 2) */
+  cleanupDelayHours?: number;
 }
 
 export interface SessionData {
