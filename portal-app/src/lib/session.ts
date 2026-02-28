@@ -10,6 +10,14 @@ export interface LlmSettings {
   systemPrompt?: string;
   /** Additional model parameters as JSON string */
   modelParams?: string;
+
+  // ── Chat context controls ────────────────────────────────────────
+  /** Max agentic tool-call turns per response (default: 40) */
+  maxTurns?: number;
+  /** Max characters stored per tool result in history (default: 3000) */
+  maxToolResultChars?: number;
+  /** Max non-system messages kept in the sliding context window (default: 20) */
+  maxHistoryMessages?: number;
 }
 
 export interface SessionData {

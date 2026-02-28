@@ -13,6 +13,9 @@ interface LlmSettings {
   systemPrompt: string;
   modelParams: string;
   isCustom: boolean;
+  maxTurns: number;
+  maxToolResultChars: number;
+  maxHistoryMessages: number;
 }
 
 interface TestResult {
@@ -53,6 +56,7 @@ function TestResultBanner({ result }: { result: TestResult }) {
 export function AdminModal({ onClose }: AdminModalProps) {
   const [settings, setSettings] = useState<LlmSettings>({
     apiUrl: "", apiKey: "", model: "", systemPrompt: "", modelParams: "", isCustom: false,
+    maxTurns: 40, maxToolResultChars: 3000, maxHistoryMessages: 20,
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -101,6 +105,9 @@ export function AdminModal({ onClose }: AdminModalProps) {
           model: settings.model,
           systemPrompt: settings.systemPrompt,
           modelParams: settings.modelParams,
+          maxTurns: settings.maxTurns,
+          maxToolResultChars: settings.maxToolResultChars,
+          maxHistoryMessages: settings.maxHistoryMessages,
         }),
       });
       if (!res.ok) throw new Error("Save failed");
@@ -228,6 +235,49 @@ export function AdminModal({ onClose }: AdminModalProps) {
                   disabled={saving}
                 />
               </label>
+            </div>
+
+            {/* ── Chat context controls ── */}
+            <div style={{ marginTop: 8, borderTop: "1px solid var(--md-outline-var)", paddingTop: 12 }}>
+              <p style={{ fontSize: 11, fontWeight: 600, opacity: 0.45, textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 8px" }}>
+                Chat Context
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+
+                <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                  <span style={labelStyle}>Max tool-call turns per response <span style={{ opacity: 0.5 }}>(1 – 200, default 40)</span></span>
+                  <input
+                    type="number" min={1} max={200}
+                    value={settings.maxTurns}
+                    onChange={(e) => setSettings((s) => ({ ...s, maxTurns: Math.max(1, Math.min(200, Number(e.target.value) || 1)) }))}
+                    style={{ ...inputStyle, width: 100 }}
+                    disabled={saving}
+                  />
+                </label>
+
+                <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                  <span style={labelStyle}>Max characters stored per tool result in history <span style={{ opacity: 0.5 }}>(500 – 50 000, default 3 000)</span></span>
+                  <input
+                    type="number" min={500} max={50000} step={500}
+                    value={settings.maxToolResultChars}
+                    onChange={(e) => setSettings((s) => ({ ...s, maxToolResultChars: Math.max(500, Math.min(50000, Number(e.target.value) || 500)) }))}
+                    style={{ ...inputStyle, width: 120 }}
+                    disabled={saving}
+                  />
+                </label>
+
+                <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                  <span style={labelStyle}>Max messages kept in the sliding context window <span style={{ opacity: 0.5 }}>(4 – 200, default 20)</span></span>
+                  <input
+                    type="number" min={4} max={200}
+                    value={settings.maxHistoryMessages}
+                    onChange={(e) => setSettings((s) => ({ ...s, maxHistoryMessages: Math.max(4, Math.min(200, Number(e.target.value) || 4)) }))}
+                    style={{ ...inputStyle, width: 100 }}
+                    disabled={saving}
+                  />
+                </label>
+
+              </div>
             </div>
 
             {saveError && <p style={{ color: "#ef5350", fontSize: 12, marginTop: 4 }}>{saveError}</p>}

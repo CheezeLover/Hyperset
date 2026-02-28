@@ -21,11 +21,14 @@ export async function GET(request: NextRequest) {
   const s = getAdminSettings();
 
   return NextResponse.json({
-    apiUrl:       s?.apiUrl       ?? process.env.LLM_API_URL       ?? "",
-    apiKey:       s?.apiKey       ? "***" : "",
-    model:        s?.model        ?? process.env.LLM_MODEL        ?? "gpt-4o",
-    systemPrompt: s?.systemPrompt ?? process.env.LLM_SYSTEM_PROMPT ?? "",
-    modelParams:  s?.modelParams  ?? "",
+    apiUrl:              s?.apiUrl              ?? process.env.LLM_API_URL       ?? "",
+    apiKey:              s?.apiKey              ? "***" : "",
+    model:               s?.model               ?? process.env.LLM_MODEL        ?? "gpt-4o",
+    systemPrompt:        s?.systemPrompt        ?? process.env.LLM_SYSTEM_PROMPT ?? "",
+    modelParams:         s?.modelParams         ?? "",
+    maxTurns:            s?.maxTurns            ?? Number(process.env.LLM_MAX_TURNS           ?? 40),
+    maxToolResultChars:  s?.maxToolResultChars  ?? Number(process.env.LLM_MAX_TOOL_RESULT_CHARS ?? 3000),
+    maxHistoryMessages:  s?.maxHistoryMessages  ?? Number(process.env.LLM_MAX_HISTORY_MESSAGES ?? 20),
     isCustom: !!(s?.apiUrl || s?.apiKey || s?.model || s?.systemPrompt || s?.modelParams),
   });
 }
@@ -38,12 +41,21 @@ export async function POST(request: NextRequest) {
   const body = await request.json();
   const prev = getAdminSettings() ?? {};
 
+  const clamp = (v: unknown, min: number, max: number, fallback: number): number => {
+    const n = Number(v);
+    if (!isFinite(n)) return fallback;
+    return Math.max(min, Math.min(max, Math.round(n)));
+  };
+
   setAdminSettings({
-    apiUrl:       body.apiUrl       !== undefined ? body.apiUrl       : prev.apiUrl,
-    apiKey:       body.apiKey && body.apiKey !== "***" ? body.apiKey : prev.apiKey,
-    model:        body.model        !== undefined ? body.model        : prev.model,
-    systemPrompt: body.systemPrompt !== undefined ? body.systemPrompt : prev.systemPrompt,
-    modelParams:  body.modelParams  !== undefined ? body.modelParams  : prev.modelParams,
+    apiUrl:             body.apiUrl             !== undefined ? body.apiUrl             : prev.apiUrl,
+    apiKey:             body.apiKey && body.apiKey !== "***" ? body.apiKey              : prev.apiKey,
+    model:              body.model              !== undefined ? body.model              : prev.model,
+    systemPrompt:       body.systemPrompt       !== undefined ? body.systemPrompt       : prev.systemPrompt,
+    modelParams:        body.modelParams        !== undefined ? body.modelParams        : prev.modelParams,
+    maxTurns:           body.maxTurns           !== undefined ? clamp(body.maxTurns,          1, 200,   40) : prev.maxTurns,
+    maxToolResultChars: body.maxToolResultChars !== undefined ? clamp(body.maxToolResultChars, 500, 50000, 3000) : prev.maxToolResultChars,
+    maxHistoryMessages: body.maxHistoryMessages !== undefined ? clamp(body.maxHistoryMessages, 4, 200,   20) : prev.maxHistoryMessages,
   });
 
   return NextResponse.json({ ok: true });

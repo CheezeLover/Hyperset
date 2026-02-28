@@ -420,16 +420,13 @@ Use \`navigate_superset_dashboard\` or \`navigate_superset_chart\` when the user
 
   const openai = new OpenAI({ apiKey, baseURL: apiUrl });
 
-  // Agentic loop: keep calling the model until it stops requesting tool calls.
-  // 25 turns supports complex multi-chart tasks (each chart needs ~4 tool calls:
-  // chart_types → dataset_get_by_id → chart_create → get_chart_embed).
-  const MAX_TURNS = 40;
-  // Max chars for a single tool result stored in history (prevents huge blobs from
-  // consuming most of a small model's context window).
-  const MAX_TOOL_RESULT_CHARS = 3000;
-  // Max non-system messages kept in the sliding window sent to the model.
-  // Keeps the system prompt + last N messages to bound context growth.
-  const MAX_HISTORY_MESSAGES = 20;
+  // Context-control constants — configurable by admin via the settings panel.
+  // Env vars (LLM_MAX_TURNS etc.) serve as deployment-level defaults;
+  // admin UI overrides take precedence when set.
+  // chart_types → dataset_get_by_id → chart_create → get_chart_embed ≈ 4 turns/chart.
+  const MAX_TURNS             = s?.maxTurns            ?? Number(process.env.LLM_MAX_TURNS             ?? 40);
+  const MAX_TOOL_RESULT_CHARS = s?.maxToolResultChars  ?? Number(process.env.LLM_MAX_TOOL_RESULT_CHARS ?? 3000);
+  const MAX_HISTORY_MESSAGES  = s?.maxHistoryMessages  ?? Number(process.env.LLM_MAX_HISTORY_MESSAGES  ?? 20);
 
   function windowedMessages(
     msgs: OpenAI.Chat.ChatCompletionMessageParam[]
