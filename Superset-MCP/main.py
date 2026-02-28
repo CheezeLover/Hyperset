@@ -17,6 +17,8 @@ import hashlib
 import hmac as hmac_lib
 import time
 import datetime
+import asyncio
+import re
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from functools import wraps
@@ -72,6 +74,18 @@ SUPERSET_PUBLIC_URL = (
     or SUPERSET_BASE_URL
 )
 
+# ── AI chart cleanup identity ───────────────────────────────────────────────
+# Superset user that the auto-cleanup job impersonates when deleting stale charts.
+# Must exist as a valid Superset user (admin recommended).
+# Override via env vars if your admin account has a different name/email.
+CLEANUP_USER  = os.getenv("HYPERSET_CLEANUP_USER",  "admin")
+CLEANUP_EMAIL = os.getenv("HYPERSET_CLEANUP_EMAIL", "admin@hyperset.local")
+
+# Regex to extract the ISO timestamp written into AI chart descriptions.
+_AI_STAMP_RE = re.compile(
+    r'\[HYPERSET-AI\]\s+(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)'
+)
+
 # ── Token verification ─────────────────────────────────────────
 _MCP_SECRET = os.getenv("MCP_SERVICE_SECRET", "")
 if not _MCP_SECRET or len(_MCP_SECRET) < 32:
@@ -125,6 +139,10 @@ app = FastAPI(title="Superset MCP Server")
 _shared_client: Optional[httpx.AsyncClient] = None
 _shared_ctx: Optional["SupersetContext"] = None
 
+# Dedicated client for the background cleanup job (separate cookie jar from user sessions)
+_cleanup_client: Optional[httpx.AsyncClient] = None
+_cleanup_task: Optional[asyncio.Task] = None
+
 @dataclass
 class SupersetContext:
     """Typed context for the Superset MCP server"""
@@ -134,18 +152,30 @@ class SupersetContext:
 @asynccontextmanager
 async def superset_lifespan(server: FastMCP) -> AsyncIterator[SupersetContext]:
     """Manage application lifecycle for Superset integration."""
-    global _shared_client, _shared_ctx
+    global _shared_client, _shared_ctx, _cleanup_client, _cleanup_task
 
     if _shared_ctx is None:
         logger.info(f"Initializing Superset MCP ({SUPERSET_BASE_URL})")
-        client = httpx.AsyncClient(
-            base_url=SUPERSET_BASE_URL,
-            timeout=30.0,
-        )
+        client = httpx.AsyncClient(base_url=SUPERSET_BASE_URL, timeout=30.0)
         _shared_ctx = SupersetContext(client=client, base_url=SUPERSET_BASE_URL)
         _shared_client = client
+        # Separate client for cleanup so its session cookies never collide with user sessions
+        _cleanup_client = httpx.AsyncClient(base_url=SUPERSET_BASE_URL, timeout=30.0)
 
-    yield _shared_ctx
+    # Start background cleanup task (idempotent — only one runs at a time)
+    if _cleanup_task is None or _cleanup_task.done():
+        _cleanup_task = asyncio.create_task(_cleanup_ai_charts_loop())
+        logger.info("AI chart cleanup background task started")
+
+    try:
+        yield _shared_ctx
+    finally:
+        if _cleanup_task and not _cleanup_task.done():
+            _cleanup_task.cancel()
+            try:
+                await _cleanup_task
+            except asyncio.CancelledError:
+                pass
 
 # Initialize FastMCP server
 mcp = FastMCP(
@@ -275,6 +305,195 @@ def _slim_databases(raw: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+# ===== AI chart provenance helpers =====
+
+async def _direct_superset_request(
+    method: str,
+    endpoint: str,
+    data: dict = None,
+    params: dict = None,
+) -> dict:
+    """
+    Make a Superset API call using the cleanup identity, without going through the
+    MCP context.  Uses a dedicated httpx client so its session cookies never
+    interfere with per-user sessions.
+    """
+    if _cleanup_client is None:
+        return {"error": "Cleanup client not initialized"}
+    req_headers = {
+        "X-Webauth-User":  CLEANUP_USER,
+        "X-Webauth-Email": CLEANUP_EMAIL,
+    }
+    try:
+        if method.lower() != "get":
+            csrf_resp = await _cleanup_client.get(
+                "/api/v1/security/csrf_token/", headers=req_headers
+            )
+            if csrf_resp.status_code == 200:
+                req_headers["X-CSRFToken"] = csrf_resp.json().get("result", "")
+        if method.lower() == "get":
+            resp = await _cleanup_client.get(endpoint, params=params, headers=req_headers)
+        elif method.lower() == "delete":
+            resp = await _cleanup_client.delete(endpoint, headers=req_headers)
+        elif method.lower() == "put":
+            resp = await _cleanup_client.put(endpoint, json=data, headers=req_headers)
+        else:
+            return {"error": f"Unsupported method: {method}"}
+        if resp.status_code == 204 or not resp.content:
+            return {"ok": True}
+        if resp.status_code not in (200, 201):
+            return {"error": f"Superset {resp.status_code}: {resp.text[:200]}"}
+        return resp.json()
+    except Exception as e:
+        return {"error": f"Request failed: {e}"}
+
+
+def _extract_chart_ids_from_dashboard_data(data: Any) -> set:
+    """
+    Recursively scan dashboard create/update payload for all referenced chart IDs.
+    Handles both the simple ``charts: [id, ...]`` format and the nested
+    Superset ``position_json`` layout tree (where charts live as
+    ``{"type": "CHART", "meta": {"chartId": N}}``) — including when
+    ``position_json`` is an embedded JSON string.
+    """
+    chart_ids: set = set()
+    if isinstance(data, dict):
+        # CHART node in a position layout
+        if data.get("type") == "CHART":
+            meta = data.get("meta", {})
+            if isinstance(meta, dict):
+                try:
+                    chart_ids.add(int(meta["chartId"]))
+                except (KeyError, TypeError, ValueError):
+                    pass
+        # Simple charts list: {"charts": [1, 2, 3]}
+        charts_list = data.get("charts")
+        if isinstance(charts_list, list):
+            for cid in charts_list:
+                try:
+                    chart_ids.add(int(cid))
+                except (TypeError, ValueError):
+                    pass
+        # Recurse into every value; try JSON-parsing string values (position_json)
+        for v in data.values():
+            if isinstance(v, (dict, list)):
+                chart_ids |= _extract_chart_ids_from_dashboard_data(v)
+            elif isinstance(v, str) and len(v) > 10:
+                try:
+                    parsed = json.loads(v)
+                    if isinstance(parsed, (dict, list)):
+                        chart_ids |= _extract_chart_ids_from_dashboard_data(parsed)
+                except (json.JSONDecodeError, ValueError):
+                    pass
+    elif isinstance(data, list):
+        for item in data:
+            chart_ids |= _extract_chart_ids_from_dashboard_data(item)
+    return chart_ids
+
+
+async def _promote_ai_charts_to_permanent(ctx: Context, chart_ids: set) -> None:
+    """
+    For each chart ID, if the chart description contains ``[HYPERSET-AI]``
+    (but not ``[HYPERSET-AI-PERMANENT]``), promote it to permanent so the
+    cleanup job will no longer delete it.  Errors are logged and skipped —
+    dashboard creation is never blocked by a promotion failure.
+    """
+    for chart_id in chart_ids:
+        try:
+            chart_resp = await superset_request(ctx, "get", f"/api/v1/chart/{chart_id}")
+            if "error" in chart_resp:
+                continue
+            desc = chart_resp.get("result", {}).get("description") or ""
+            if "[HYPERSET-AI]" in desc and "[HYPERSET-AI-PERMANENT]" not in desc:
+                new_desc = desc.replace("[HYPERSET-AI]", "[HYPERSET-AI-PERMANENT]")
+                await superset_request(
+                    ctx, "put", f"/api/v1/chart/{chart_id}",
+                    data={"description": new_desc},
+                )
+                logger.info("Promoted AI chart %d to permanent (added to dashboard)", chart_id)
+        except Exception as e:
+            logger.warning("Failed to promote chart %d to permanent: %s", chart_id, e)
+
+
+async def _run_ai_chart_cleanup() -> None:
+    """
+    Delete all ``[HYPERSET-AI]`` charts whose embedded timestamp is older than
+    2 hours.  Charts flagged ``[HYPERSET-AI-PERMANENT]`` are never touched.
+    Uses the dedicated cleanup client / identity so it never disrupts user sessions.
+    """
+    cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=2)
+    page = 0
+    total_deleted = 0
+
+    while True:
+        q = json.dumps({
+            "filters": [{"col": "description", "opr": "ct", "val": "[HYPERSET-AI]"}],
+            "page": page,
+            "page_size": 100,
+        })
+        resp = await _direct_superset_request("get", "/api/v1/chart/", params={"q": q})
+        if "error" in resp:
+            logger.warning("AI cleanup: chart list query failed: %s", resp["error"])
+            break
+
+        charts = resp.get("result", [])
+        if not charts:
+            break
+
+        for chart in charts:
+            desc = chart.get("description") or ""
+            if "[HYPERSET-AI-PERMANENT]" in desc:
+                continue  # user kept this one explicitly
+            if "[HYPERSET-AI]" not in desc:
+                continue  # filter returned a false positive — skip
+
+            m = _AI_STAMP_RE.search(desc)
+            if not m:
+                continue  # malformed stamp — leave alone
+
+            try:
+                ts = datetime.datetime.fromisoformat(m.group(1).replace("Z", "+00:00"))
+            except ValueError:
+                continue
+
+            if ts >= cutoff:
+                continue  # created less than 2 hours ago — keep
+
+            chart_id = chart.get("id")
+            if chart_id is None:
+                continue
+
+            result = await _direct_superset_request("delete", f"/api/v1/chart/{chart_id}")
+            if "error" not in result:
+                total_deleted += 1
+                logger.info("AI cleanup: deleted chart %d (stamped %s)", chart_id, ts.isoformat())
+            else:
+                logger.warning(
+                    "AI cleanup: failed to delete chart %d: %s", chart_id, result["error"]
+                )
+
+        page += 1
+        if len(charts) < 100:
+            break  # last page reached
+
+    if total_deleted:
+        logger.info("AI chart cleanup complete — deleted %d chart(s)", total_deleted)
+
+
+async def _cleanup_ai_charts_loop() -> None:
+    """
+    Background coroutine: wait 60 s for Superset to finish initialising,
+    then run the cleanup every 5 minutes.
+    """
+    await asyncio.sleep(60)
+    while True:
+        try:
+            await _run_ai_chart_cleanup()
+        except Exception as e:
+            logger.error("AI chart cleanup loop error: %s", e)
+        await asyncio.sleep(300)  # 5 minutes
+
+
 # ===== Dashboard Tools =====
 
 @mcp.tool()
@@ -326,7 +545,17 @@ async def superset_dashboard_create(
     if json_metadata:
         payload["json_metadata"] = json_metadata
 
-    return await superset_request(ctx, "post", "/api/v1/dashboard/", data=payload)
+    result = await superset_request(ctx, "post", "/api/v1/dashboard/", data=payload)
+
+    # Auto-promote any AI charts referenced in the dashboard layout
+    if not result.get("error") and json_metadata:
+        chart_ids = _extract_chart_ids_from_dashboard_data(
+            json_metadata if isinstance(json_metadata, dict) else {"_jm": json_metadata}
+        )
+        if chart_ids:
+            await _promote_ai_charts_to_permanent(ctx, chart_ids)
+
+    return result
 
 @mcp.tool()
 @handle_api_errors
@@ -343,9 +572,15 @@ async def superset_dashboard_update(
     Returns:
         A dictionary with the updated dashboard information
     """
-    return await superset_request(
-        ctx, "put", f"/api/v1/dashboard/{dashboard_id}", data=data
-    )
+    result = await superset_request(ctx, "put", f"/api/v1/dashboard/{dashboard_id}", data=data)
+
+    # Auto-promote any AI charts that appear in the updated layout
+    if not result.get("error") and isinstance(data, dict):
+        chart_ids = _extract_chart_ids_from_dashboard_data(data)
+        if chart_ids:
+            await _promote_ai_charts_to_permanent(ctx, chart_ids)
+
+    return result
 
 @mcp.tool()
 @handle_api_errors
@@ -987,18 +1222,30 @@ async def superset_get_chart_embed(
     Returns:
         A dictionary with embed_markdown (paste verbatim), embed_url, chart_id, title
     """
-    if not title:
-        chart_resp = await superset_request(ctx, "get", f"/api/v1/chart/{chart_id}")
-        if "error" not in chart_resp:
-            title = chart_resp.get("result", {}).get("slice_name", f"Chart {chart_id}")
-        else:
+    # Always fetch chart to get title (if missing) AND to check AI provenance
+    is_ai_temporary = False
+    chart_resp = await superset_request(ctx, "get", f"/api/v1/chart/{chart_id}")
+    if "error" not in chart_resp:
+        res = chart_resp.get("result", {})
+        if not title:
+            title = res.get("slice_name", f"Chart {chart_id}")
+        desc = res.get("description") or ""
+        if "[HYPERSET-AI]" in desc and "[HYPERSET-AI-PERMANENT]" not in desc:
+            is_ai_temporary = True
+    else:
+        if not title:
             title = f"Chart {chart_id}"
 
     embed_url = (
         f"{SUPERSET_PUBLIC_URL}/superset/explore/"
         f"?slice_id={chart_id}&standalone=1"
     )
-    embed_markdown = f"[iframe]({embed_url}) {title}"
+    # Temporary AI charts use a special token so the portal can show the
+    # "Keep permanently" toggle button next to the embedded chart.
+    if is_ai_temporary:
+        embed_markdown = f"[iframe-ai:{chart_id}]({embed_url}) {title}"
+    else:
+        embed_markdown = f"[iframe]({embed_url}) {title}"
 
     return {
         "chart_id": chart_id,
