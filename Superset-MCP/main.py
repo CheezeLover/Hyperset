@@ -219,18 +219,76 @@ async def superset_request(
         return {"error": f"Superset {resp.status_code}: {resp.text}"}
     return resp.json()
 
+# ===== Slim list helpers =====
+# Superset API list endpoints return 30+ fields per item.  These helpers keep
+# only the fields the model needs so tool results stay small for low-context models.
+
+def _slim_dashboards(raw: Dict[str, Any]) -> Dict[str, Any]:
+    result = raw.get("result", [])
+    return {
+        "count": raw.get("count", len(result)),
+        "result": [
+            {"id": d.get("id"), "title": d.get("dashboard_title"), "status": d.get("status")}
+            for d in result
+        ],
+    }
+
+def _slim_charts(raw: Dict[str, Any]) -> Dict[str, Any]:
+    result = raw.get("result", [])
+    return {
+        "count": raw.get("count", len(result)),
+        "result": [
+            {
+                "id": c.get("id"),
+                "slice_name": c.get("slice_name"),
+                "viz_type": c.get("viz_type"),
+                "datasource_id": c.get("datasource_id"),
+            }
+            for c in result
+        ],
+    }
+
+def _slim_datasets(raw: Dict[str, Any]) -> Dict[str, Any]:
+    result = raw.get("result", [])
+    return {
+        "count": raw.get("count", len(result)),
+        "result": [
+            {
+                "id": d.get("id"),
+                "table_name": d.get("table_name"),
+                "schema": d.get("schema"),
+                "database_id": (d.get("database") or {}).get("id"),
+            }
+            for d in result
+        ],
+    }
+
+def _slim_databases(raw: Dict[str, Any]) -> Dict[str, Any]:
+    result = raw.get("result", [])
+    return {
+        "count": raw.get("count", len(result)),
+        "result": [
+            {"id": db.get("id"), "database_name": db.get("database_name"), "backend": db.get("backend")}
+            for db in result
+        ],
+    }
+
+
 # ===== Dashboard Tools =====
 
 @mcp.tool()
 @handle_api_errors
 async def superset_dashboard_list(ctx: Context) -> Dict[str, Any]:
     """
-    Get a list of dashboards from Superset
+    Get a list of dashboards from Superset (id, title, status only).
 
     Returns:
-        A dictionary containing dashboard data including id, title, url, and metadata
+        count and result list with id, title, status
     """
-    return await superset_request(ctx, "get", "/api/v1/dashboard/")
+    raw = await superset_request(ctx, "get", "/api/v1/dashboard/")
+    if "error" in raw:
+        return raw
+    return _slim_dashboards(raw)
 
 @mcp.tool()
 @handle_api_errors
@@ -315,12 +373,15 @@ async def superset_dashboard_delete(ctx: Context, dashboard_id: int) -> Dict[str
 @handle_api_errors
 async def superset_chart_list(ctx: Context) -> Dict[str, Any]:
     """
-    Get a list of charts from Superset
+    Get a list of charts from Superset (id, slice_name, viz_type, datasource_id only).
 
     Returns:
-        A dictionary containing chart data including id, slice_name, viz_type, and datasource info
+        count and result list with id, slice_name, viz_type, datasource_id
     """
-    return await superset_request(ctx, "get", "/api/v1/chart/")
+    raw = await superset_request(ctx, "get", "/api/v1/chart/")
+    if "error" in raw:
+        return raw
+    return _slim_charts(raw)
 
 @mcp.tool()
 @handle_api_errors
@@ -473,12 +534,15 @@ async def superset_chart_delete(ctx: Context, chart_id: int) -> Dict[str, Any]:
 @handle_api_errors
 async def superset_database_list(ctx: Context) -> Dict[str, Any]:
     """
-    Get a list of databases from Superset
+    Get a list of databases from Superset (id, database_name, backend only).
 
     Returns:
-        A dictionary containing database connection information including id, name, and configuration
+        count and result list with id, database_name, backend
     """
-    return await superset_request(ctx, "get", "/api/v1/database/")
+    raw = await superset_request(ctx, "get", "/api/v1/database/")
+    if "error" in raw:
+        return raw
+    return _slim_databases(raw)
 
 @mcp.tool()
 @handle_api_errors
@@ -534,12 +598,15 @@ async def superset_database_create(
 @handle_api_errors
 async def superset_dataset_list(ctx: Context) -> Dict[str, Any]:
     """
-    Get a list of datasets from Superset
+    Get a list of datasets from Superset (id, table_name, schema, database_id only).
 
     Returns:
-        A dictionary containing dataset information including id, table_name, and database
+        count and result list with id, table_name, schema, database_id
     """
-    return await superset_request(ctx, "get", "/api/v1/dataset/")
+    raw = await superset_request(ctx, "get", "/api/v1/dataset/")
+    if "error" in raw:
+        return raw
+    return _slim_datasets(raw)
 
 @mcp.tool()
 @handle_api_errors
@@ -717,12 +784,20 @@ async def superset_analyze_data(ctx: Context, question: str) -> Dict[str, Any]:
                 category = _classify_column({**col_entry, "is_dttm": col.get("is_dttm", False)})
                 columns_by_category.setdefault(category, []).append(col_entry)
 
+            # Flatten to a single list and cap at 40 columns to keep the
+            # response small for low-context models.
+            all_cols = [c for cols in columns_by_category.values() for c in cols]
+            MAX_COLS = 40
+            cols_out = all_cols[:MAX_COLS]
+            truncated = len(all_cols) > MAX_COLS
+
             db_datasets.append({
                 "dataset_id": ds_id,
                 "table_name": ds.get("table_name", "unknown"),
                 "schema": ds.get("schema") or None,
-                "column_count": sum(len(v) for v in columns_by_category.values()),
-                "columns": columns_by_category,
+                "column_count": len(all_cols),
+                "columns": cols_out,
+                **({"columns_truncated": True} if truncated else {}),
             })
 
         total_datasets += len(db_datasets)

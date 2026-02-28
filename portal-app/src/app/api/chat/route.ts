@@ -74,8 +74,11 @@ async function generateFollowupSuggestions(
   conversationHistory: OpenAI.Chat.ChatCompletionMessageParam[],
 ): Promise<string[]> {
   try {
-    const historyText = conversationHistory
-      .map((msg) => `${msg.role}: ${msg.content}`)
+    // Only use the last 4 messages for suggestion context — sending the full
+    // history wastes tokens on a small-context model.
+    const recentHistory = conversationHistory.slice(-4);
+    const historyText = recentHistory
+      .map((msg) => `${msg.role}: ${typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content)}`)
       .join("\n");
 
     const suggestionPrompt = `Based on the conversation history below, predict 3-4 questions the user is likely to ask next. Write each question in the user's voice, as if the user is typing their next message to the assistant (e.g. "Show me a chart for this", "What caused that spike?", "Can you filter by 2024?"). Do NOT write questions from the assistant's perspective. Respond only with a valid JSON array of strings, with no additional text.\n\nConversation history:\n${historyText}\n\nPredicted user questions (JSON array only):`;
@@ -227,32 +230,17 @@ export const POST = async (req: NextRequest) => {
       : [
           {
             role: "system" as const,
-            content: `You are Hyperset, an intelligent assistant for Apache Superset analytics. You have access to the full Superset MCP API (dashboards, charts, SQL execution, datasets, databases). When users ask to navigate to a dashboard or chart, use navigate_superset_dashboard or navigate_superset_chart. Always present SQL query results clearly with key insights.
+            content: `You are Hyperset, an AI assistant for Apache Superset. Use MCP tools for all data operations.
 
-SUPERSET CONTENT — CRITICAL RULES (violations break the UI):
+EMBED RULES (breaking these silently removes content from chat):
+- NEVER hardcode URLs. Always call superset_get_chart_embed or superset_get_dashboard_embed.
+- Output embed_markdown EXACTLY as returned, on its own line, nothing else on that line.
+- For links (not embeds): call superset_get_chart_link / superset_get_dashboard_link, paste link_markdown inline.
 
-RULE 1 — NEVER construct or hardcode Superset URLs. Always call the tool; it returns the real URL. "superset.example.com" is a non-existent placeholder — any embed using it is silently removed from the chat and the user sees nothing.
+CHART CREATION: (1) superset_chart_types → pick viz_type + read its rules. (2) Check column names via superset_dataset_get_by_id. (3) superset_chart_create. (4) superset_get_chart_embed.
+- groupby = plain strings. metric/metrics = objects (see metric_examples). Never invent a viz_type.
 
-RULE 2 — ALWAYS USE THE EMBED TOOL. For EVERY chart or dashboard you reference — whether newly created OR found via a list/search — you MUST call superset_get_chart_embed (or superset_get_dashboard_embed) to get the URL. Never derive or construct a URL from a chart ID yourself. This applies equally to existing charts retrieved with superset_chart_list.
-
-RULE 3 — EMBED FORMAT: call superset_get_chart_embed → take the 'embed_markdown' string → output it EXACTLY as returned, on its own line, with NOTHING else on that line.
-  Correct:   [iframe](https://real-url/...) Chart Title
-  Wrong:     [Chart Title](https://real-url/...)   ← this is a link, not an embed
-  Wrong:     - [iframe](https://real-url/...) ...  ← never put embed inside a list item
-  Wrong:     \`[iframe](https://real-url/...)...\`  ← never wrap in backticks
-
-RULE 4 — LINK FORMAT (only when user asks for a link): call superset_get_chart_link → paste 'link_markdown' verbatim inline in the sentence.
-
-CHART CREATION — mandatory workflow (never skip steps):
-1. Call superset_chart_types → read _rules first, then pick the exact viz_type and note its req/opt params.
-2. Inspect the dataset columns (superset_dataset_get_by_id or a quick SQL query) to know real column names.
-3. Build params from the chart catalog (metric_examples shape), then call superset_chart_create.
-4. After creation succeeds, call superset_get_chart_embed (to show inline) or superset_get_chart_link (to link) — NEVER construct the URL yourself.
-Rules:
-- Follow all _rules from superset_chart_types before building params.
-- Some charts use "metric" (single object); others use "metrics" (list) — follow req exactly.
-- groupby items are plain column-name strings, not metric objects.
-- Never invent a viz_type — only use values from superset_chart_types.`,
+NAVIGATION: use navigate_superset_dashboard or navigate_superset_chart when user asks to open one.`,
           },
         ]),
     ...userMessages,
@@ -273,6 +261,22 @@ Rules:
   // Agentic loop: keep calling the model until it stops requesting tool calls
   // We run up to 10 iterations to avoid infinite loops.
   const MAX_TURNS = 10;
+  // Max chars for a single tool result stored in history (prevents huge blobs from
+  // consuming most of a small model's context window).
+  const MAX_TOOL_RESULT_CHARS = 3000;
+  // Max non-system messages kept in the sliding window sent to the model.
+  // Keeps the system prompt + last N messages to bound context growth.
+  const MAX_HISTORY_MESSAGES = 20;
+
+  function windowedMessages(
+    msgs: OpenAI.Chat.ChatCompletionMessageParam[]
+  ): OpenAI.Chat.ChatCompletionMessageParam[] {
+    const system = msgs.filter((m) => m.role === "system");
+    const rest = msgs.filter((m) => m.role !== "system");
+    const sliced = rest.slice(-MAX_HISTORY_MESSAGES);
+    return [...system, ...sliced];
+  }
+
   const accumulated: OpenAI.Chat.ChatCompletionMessageParam[] = [...messages];
 
   const encoder = new TextEncoder();
@@ -293,7 +297,7 @@ Rules:
         for (let turn = 0; turn < MAX_TURNS; turn++) {
           const completion = await openai.chat.completions.create({
             model,
-            messages: accumulated,
+            messages: windowedMessages(accumulated),
             tools: tools.length > 0 ? tools : undefined,
             tool_choice: tools.length > 0 ? "auto" : undefined,
             stream: true,
@@ -386,10 +390,16 @@ Rules:
             }
 
             send({ type: "tool_result", name: tc.name, result });
+            // Truncate stored result to avoid bloating the context window.
+            const storedResult =
+              result.length > MAX_TOOL_RESULT_CHARS
+                ? result.slice(0, MAX_TOOL_RESULT_CHARS) +
+                  `\n…[truncated ${result.length - MAX_TOOL_RESULT_CHARS} chars]`
+                : result;
             accumulated.push({
               role: "tool",
               tool_call_id: tc.id,
-              content: result,
+              content: storedResult,
             });
           }
         }
