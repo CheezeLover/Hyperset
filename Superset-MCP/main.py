@@ -78,8 +78,19 @@ SUPERSET_PUBLIC_URL = (
 # Superset user that the auto-cleanup job impersonates when deleting stale charts.
 # Must exist as a valid Superset user (admin recommended).
 # Override via env vars if your admin account has a different name/email.
-CLEANUP_USER  = os.getenv("HYPERSET_CLEANUP_USER",  "admin")
-CLEANUP_EMAIL = os.getenv("HYPERSET_CLEANUP_EMAIL", "admin@hyperset.local")
+CLEANUP_USER  = os.getenv("HYPERSET_CLEANUP_USER",  "admin@HYPERSET.local")
+CLEANUP_EMAIL = os.getenv("HYPERSET_CLEANUP_EMAIL", "admin@HYPERSET.local")
+
+# ── Portal URL (for fetching runtime admin settings) ──────────────────────
+# Derived automatically from HYPERSET_DOMAIN (already required by the stack).
+# Override with HYPERSET_PORTAL_URL only if your portal runs on a non-standard
+# host (e.g. http://localhost:3000 in local dev without the domain setup).
+# If neither is set the cleanup job falls back to HYPERSET_CLEANUP_DELAY_MINUTES.
+_hyperset_domain = os.getenv("HYPERSET_DOMAIN", "")
+PORTAL_URL = (
+    os.getenv("HYPERSET_PORTAL_URL")
+    or (f"https://pages.{_hyperset_domain}" if _hyperset_domain else "")
+).rstrip("/")
 
 # Regex to extract the ISO timestamp written into AI chart descriptions.
 _AI_STAMP_RE = re.compile(
@@ -162,20 +173,17 @@ async def superset_lifespan(server: FastMCP) -> AsyncIterator[SupersetContext]:
         # Separate client for cleanup so its session cookies never collide with user sessions
         _cleanup_client = httpx.AsyncClient(base_url=SUPERSET_BASE_URL, timeout=30.0)
 
-    # Start background cleanup task (idempotent — only one runs at a time)
+    # Start background cleanup task (idempotent — only one runs at a time).
+    # IMPORTANT: do NOT cancel this task in the finally block.
+    # With stateless HTTP transport the lifespan is re-entered on every request;
+    # cancelling in finally would kill the task after the very first request and
+    # the cleanup loop would never get to run.  The task is a process-level
+    # resource and is intentionally left running until the process exits.
     if _cleanup_task is None or _cleanup_task.done():
         _cleanup_task = asyncio.create_task(_cleanup_ai_charts_loop())
         logger.info("AI chart cleanup background task started")
 
-    try:
-        yield _shared_ctx
-    finally:
-        if _cleanup_task and not _cleanup_task.done():
-            _cleanup_task.cancel()
-            try:
-                await _cleanup_task
-            except asyncio.CancelledError:
-                pass
+    yield _shared_ctx
 
 # Initialize FastMCP server
 mcp = FastMCP(
@@ -415,19 +423,43 @@ async def _promote_ai_charts_to_permanent(ctx: Context, chart_ids: set) -> None:
             logger.warning("Failed to promote chart %d to permanent: %s", chart_id, e)
 
 
-async def _run_ai_chart_cleanup() -> None:
+async def _get_cleanup_delay_minutes() -> float:
     """
-    Delete all ``[HYPERSET-AI-TEMPORARY]`` charts whose embedded timestamp is older than
-    2 hours.  Charts flagged ``[HYPERSET-AI-PERMANENT]`` are never touched.
-    Uses the dedicated cleanup client / identity so it never disrupts user sessions.
+    Return the configured temporary-chart lifetime in minutes.
+
+    Tries to read it from the portal's ``/api/cleanup-config`` endpoint first
+    (so admin-panel changes take effect without restarting the MCP server).
+    Falls back to the ``HYPERSET_CLEANUP_DELAY_MINUTES`` environment variable,
+    then to a hardcoded default of 120 minutes (2 hours).
     """
-    cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=2)
+    default = float(os.getenv("HYPERSET_CLEANUP_DELAY_MINUTES", "120"))
+    if not PORTAL_URL:
+        return default
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as c:
+            r = await c.get(f"{PORTAL_URL}/api/cleanup-config")
+            if r.status_code == 200:
+                minutes = float(r.json().get("cleanupDelayMinutes", default))
+                return max(1.0, min(10080.0, minutes))
+    except Exception as e:
+        logger.debug("Could not fetch cleanup delay from portal: %s — using default %.0f min", e, default)
+    return default
+
+
+async def _run_ai_chart_cleanup(delay_minutes: float) -> None:
+    """
+    Delete all ``[HYPERSET-AI-TEMPORARY]`` charts whose embedded timestamp is
+    older than ``delay_minutes``.  Charts flagged ``[HYPERSET-AI-PERMANENT]`` are
+    never touched.  Uses the dedicated cleanup client / identity so it never
+    disrupts user sessions.
+    """
+    cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(minutes=delay_minutes)
     page = 0
     total_deleted = 0
 
     while True:
         q = json.dumps({
-            "filters": [{"col": "description", "opr": "ct", "val": "[HYPERSET-AI-TEMPORARY]"}],
+            "filters": [{"col": "description", "opr": "ct", "value": "[HYPERSET-AI-TEMPORARY]"}],
             "page": page,
             "page_size": 100,
         })
@@ -457,7 +489,7 @@ async def _run_ai_chart_cleanup() -> None:
                 continue
 
             if ts >= cutoff:
-                continue  # created less than 2 hours ago — keep
+                continue  # not yet past the configured delay — keep
 
             chart_id = chart.get("id")
             if chart_id is None:
@@ -478,17 +510,23 @@ async def _run_ai_chart_cleanup() -> None:
 
     if total_deleted:
         logger.info("AI chart cleanup complete — deleted %d chart(s)", total_deleted)
+    else:
+        logger.debug("AI chart cleanup complete — nothing to delete")
 
 
 async def _cleanup_ai_charts_loop() -> None:
     """
     Background coroutine: wait 60 s for Superset to finish initialising,
-    then run the cleanup every 5 minutes.
+    then run the cleanup every 5 minutes.  The deletion cutoff is fetched
+    dynamically from the portal on every cycle so admin-panel changes are
+    picked up without restarting the server.
     """
     await asyncio.sleep(60)
     while True:
         try:
-            await _run_ai_chart_cleanup()
+            delay_minutes = await _get_cleanup_delay_minutes()
+            logger.debug("AI chart cleanup: using delay of %.0f minute(s)", delay_minutes)
+            await _run_ai_chart_cleanup(delay_minutes)
         except Exception as e:
             logger.error("AI chart cleanup loop error: %s", e)
         await asyncio.sleep(300)  # 5 minutes
