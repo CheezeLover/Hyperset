@@ -78,8 +78,8 @@ SUPERSET_PUBLIC_URL = (
 # Superset user that the auto-cleanup job impersonates when deleting stale charts.
 # Must exist as a valid Superset user (admin recommended).
 # Override via env vars if your admin account has a different name/email.
-CLEANUP_USER  = os.getenv("HYPERSET_CLEANUP_USER",  "admin")
-CLEANUP_EMAIL = os.getenv("HYPERSET_CLEANUP_EMAIL", "admin@hyperset.local")
+CLEANUP_USER  = os.getenv("HYPERSET_CLEANUP_USER",  "admin@HYPERSET.local")
+CLEANUP_EMAIL = os.getenv("HYPERSET_CLEANUP_EMAIL", "admin@HYPERSET.local")
 
 # ── Portal URL (for fetching runtime admin settings) ──────────────────────
 # Derived automatically from HYPERSET_DOMAIN (already required by the stack).
@@ -459,7 +459,7 @@ async def _run_ai_chart_cleanup(delay_minutes: float) -> None:
 
     while True:
         q = json.dumps({
-            "filters": [{"col": "description", "opr": "ct", "val": "[HYPERSET-AI-TEMPORARY]"}],
+            "filters": [{"col": "description", "opr": "ct", "value": "[HYPERSET-AI-TEMPORARY]"}],
             "page": page,
             "page_size": 100,
         })
