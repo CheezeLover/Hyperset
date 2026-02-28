@@ -129,10 +129,11 @@ function AiChartEmbed({
               disabled={status === "saving"}
               title="Keep this chart permanently — it won't be auto-deleted"
               style={{
-                fontSize: 11, padding: "2px 9px", borderRadius: 6,
-                background: "var(--md-surface)", border: "1px solid var(--md-outline-var)",
-                color: "var(--md-on-surface)", cursor: status === "saving" ? "default" : "pointer",
+                fontSize: 11, padding: "2px 9px", borderRadius: 6, fontWeight: 600,
+                background: "var(--md-primary)", border: "none", color: "#fff",
+                cursor: status === "saving" ? "default" : "pointer",
                 opacity: status === "saving" ? 0.55 : 1,
+                transition: "opacity 0.15s",
               }}
             >
               {status === "saving" ? "Saving…" : "Keep permanently"}
