@@ -478,6 +478,38 @@ async def superset_chart_create(
     if err:
         return {"error": err}
 
+    # ── Column existence check ──────────────────────────────────────────────
+    # Fetch the dataset schema and verify every column referenced in params
+    # actually exists.  Returns a clear error listing valid columns so the
+    # model can self-correct without needing an extra tool call.
+    ds_resp = await superset_request(ctx, "get", f"/api/v1/dataset/{datasource_id}")
+    if "error" not in ds_resp:
+        ds_result = ds_resp.get("result", {})
+        valid_columns: set[str] = {
+            col.get("column_name", "") for col in ds_result.get("columns", [])
+        }
+        valid_columns.discard("")
+
+        # Collect every plain-string column reference used in params
+        refs: list[str] = []
+        for key in ("x_axis", "x", "y"):
+            val = params.get(key)
+            if isinstance(val, str):
+                refs.append(val)
+        for key in ("groupby", "columns", "series"):
+            val = params.get(key)
+            if isinstance(val, list):
+                refs.extend(v for v in val if isinstance(v, str))
+
+        missing_cols = [c for c in refs if c and c not in valid_columns]
+        if missing_cols:
+            return {
+                "error": (
+                    f"Column(s) {missing_cols} not found in dataset {datasource_id}. "
+                    f"Valid columns: {sorted(valid_columns)}"
+                )
+            }
+
     payload = {
         "slice_name": slice_name,
         "datasource_id": datasource_id,
