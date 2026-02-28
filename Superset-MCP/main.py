@@ -832,6 +832,39 @@ async def superset_chart_create(
             parts.append(f"All valid column names: {sorted(valid_columns)}")
             return {"error": ". ".join(parts)}
 
+        # ── Auto-quote uppercase column names in SQL expression metrics ──────
+        # PostgreSQL folds unquoted identifiers to lowercase.  Columns that
+        # were created with double-quotes (e.g. "CANCELLED") are stored as
+        # uppercase and must be quoted in raw SQL expressions or the query
+        # will fail with "column 'cancelled' does not exist".
+        # We silently fix this by wrapping every such column name that appears
+        # unquoted inside a SQL expression metric.
+        columns_needing_quotes = [c for c in valid_columns if c != c.lower()]
+        if columns_needing_quotes:
+            def _quote_cols_in_sql(sql: str) -> str:
+                result = sql
+                # Process longest names first to avoid partial replacements
+                for col in sorted(columns_needing_quotes, key=len, reverse=True):
+                    # Replace only unquoted occurrences (not already inside "…")
+                    pattern = r'(?<!")\b' + re.escape(col) + r'\b(?!")'
+                    result = re.sub(pattern, f'"{col}"', result)
+                return result
+
+            for key in ("metric", "metrics"):
+                val = params.get(key)
+                if val is None:
+                    continue
+                items = [val] if key == "metric" else (val if isinstance(val, list) else [val])
+                for item in items:
+                    if isinstance(item, dict) and item.get("expressionType") == "SQL":
+                        sql_expr = item.get("sqlExpression", "")
+                        if sql_expr:
+                            item["sqlExpression"] = _quote_cols_in_sql(sql_expr)
+                            logger.debug(
+                                "Auto-quoted SQL expression: %s → %s",
+                                sql_expr, item["sqlExpression"],
+                            )
+
     # ── AI provenance stamp ──────────────────────────────────────────────────
     # Always append a machine-readable stamp so AI-generated charts are easy
     # to find and clean up.  Format: [HYPERSET-AI-TEMPORARY] {ISO-datetime} | {user}
