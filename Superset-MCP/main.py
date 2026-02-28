@@ -447,14 +447,23 @@ def _validate_chart_params(viz_type: str, params: Dict[str, Any]) -> Optional[st
                         f"Use 'SIMPLE' for column+aggregate, 'SQL' for custom SQL expressions. "
                         f"{hint}"
                     )
-    # Validate x_axis not duplicated in groupby
+    # Validate x_axis is not duplicated in groupby or columns
+    # Superset automatically places x_axis on the chart; including it again in
+    # groupby or columns raises "Duplicate column/metric labels".
     x_axis = params.get("x_axis")
-    groupby = params.get("groupby", [])
-    if x_axis and isinstance(groupby, list) and x_axis in groupby:
-        return (
-            f"x_axis '{x_axis}' must NOT appear in groupby — Superset adds it automatically "
-            f"and will raise 'Duplicate column/metric labels'. Remove '{x_axis}' from groupby."
-        )
+    if x_axis:
+        groupby = params.get("groupby", [])
+        if isinstance(groupby, list) and x_axis in groupby:
+            return (
+                f"x_axis '{x_axis}' must NOT appear in groupby — Superset adds it automatically "
+                f"and will raise 'Duplicate column/metric labels'. Remove '{x_axis}' from groupby."
+            )
+        columns = params.get("columns", [])
+        if isinstance(columns, list) and x_axis in columns:
+            return (
+                f"x_axis '{x_axis}' must NOT appear in columns — Superset adds it automatically "
+                f"and will raise 'Duplicate column/metric labels'. Remove '{x_axis}' from columns."
+            )
     return None
 
 

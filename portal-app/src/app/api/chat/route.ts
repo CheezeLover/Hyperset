@@ -346,7 +346,8 @@ CHART CREATION — mandatory steps (superset_chart_create will reject bad column
 2. superset_dataset_get_by_id → read actual column names. ONLY use columns that appear in the response.
 3. superset_chart_create (will return an error listing valid columns if any are wrong — fix and retry).
 4. superset_get_chart_embed → paste embed_markdown value verbatim.
-- groupby = plain strings. metric/metrics = objects (see metric_examples). Never invent a viz_type.
+- groupby/columns = plain strings. metric/metrics = objects (see metric_examples). Never invent a viz_type.
+- DUPLICATE LABEL RULE: NEVER put x_axis column in groupby or columns — Superset adds it automatically and will error.
 - METRICS — always prefer expressionType "SIMPLE" (column + aggregate). Only use expressionType "SQL" when SIMPLE cannot express the logic.
 - CUSTOM SQL RULE: PostgreSQL folds unquoted identifiers to lowercase. Always double-quote every column name in custom SQL: SUM(CASE WHEN "DEPARTURE_DELAY" <= 15 THEN 1 ELSE 0 END). Never write bare uppercase column names in SQL strings.
 
