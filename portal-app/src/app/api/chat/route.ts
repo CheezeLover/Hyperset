@@ -2,6 +2,34 @@ import { NextRequest, NextResponse } from "next/server";
 import { listMcpTools, callMcpTool } from "@/lib/mcp-client";
 import OpenAI from "openai";
 import { getAdminSettings } from "@/lib/admin-settings";
+import { getUserFromRequest } from "@/lib/auth";
+
+// ── Sliding-window rate limiter ────────────────────────────────────────────
+// 20 requests per 60-second window per authenticated user (email-keyed).
+const _rateLimitMap = new Map<string, number[]>();
+const RATE_LIMIT      = 20;
+const RATE_WINDOW_MS  = 60_000;
+
+function checkRateLimit(email: string): boolean {
+  const now = Date.now();
+  const timestamps = _rateLimitMap.get(email) ?? [];
+  const recent = timestamps.filter((t) => now - t < RATE_WINDOW_MS);
+  if (recent.length >= RATE_LIMIT) {
+    _rateLimitMap.set(email, recent);
+    return false;
+  }
+  recent.push(now);
+  _rateLimitMap.set(email, recent);
+  return true;
+}
+
+// ── Allowed modelParams keys ────────────────────────────────────────────────
+// Prevents arbitrary LLM provider options from being injected via admin config.
+const ALLOWED_MODEL_PARAMS = new Set([
+  "temperature", "top_p", "max_tokens", "frequency_penalty",
+  "presence_penalty", "stop", "logit_bias", "n", "seed",
+  "random_seed", "response_format",
+]);
 
 // ── GET: health / config check ───────────────────────────────────
 export const GET = async (req: NextRequest) => {
@@ -121,6 +149,15 @@ async function generateFollowupSuggestions(
 // ── POST: streaming chat completion ──────────────────────────────
 // Body: { messages: [{role,content}], stream?: boolean }
 export const POST = async (req: NextRequest) => {
+  const requestUser = getUserFromRequest(req);
+  if (!requestUser.email) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!checkRateLimit(requestUser.email)) {
+    return NextResponse.json({ error: "Rate limit exceeded. Please wait before sending more messages." }, { status: 429 });
+  }
+
   const s = getAdminSettings();
   const apiUrl      = s?.apiUrl       ?? process.env.LLM_API_URL       ?? "https://api.openai.com/v1";
   const apiKey      = s?.apiKey       ?? process.env.LLM_API_KEY       ?? "";
@@ -140,6 +177,18 @@ export const POST = async (req: NextRequest) => {
   }
 
   const userMessages: OpenAI.Chat.ChatCompletionMessageParam[] = body.messages ?? [];
+
+  // Input size validation — reject oversized payloads early
+  if (userMessages.length > 100) {
+    return NextResponse.json({ error: "Too many messages in history" }, { status: 400 });
+  }
+  const totalChars = userMessages.reduce((acc, m) => {
+    const content = typeof m.content === "string" ? m.content : JSON.stringify(m.content);
+    return acc + content.length;
+  }, 0);
+  if (totalChars > 100_000) {
+    return NextResponse.json({ error: "Message history is too large" }, { status: 400 });
+  }
 
   // Strip nested property descriptions from a JSON schema to reduce token count.
   // Keeps type/properties/required/items so the model still knows the shape.
@@ -406,11 +455,19 @@ Use \`navigate_superset_dashboard\` or \`navigate_superset_chart\` when the user
     ...userMessages,
   ];
 
-  // Parse model parameters if provided
-  let modelParams = {};
+  // Parse model parameters if provided — only allow keys in ALLOWED_MODEL_PARAMS
+  // to prevent arbitrary provider options from being injected via admin config.
+  let modelParams: Record<string, unknown> = {};
   try {
     if (s?.modelParams) {
-      modelParams = JSON.parse(s.modelParams);
+      const parsed = JSON.parse(s.modelParams);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        for (const [k, v] of Object.entries(parsed)) {
+          if (ALLOWED_MODEL_PARAMS.has(k)) {
+            modelParams[k] = v;
+          }
+        }
+      }
     }
   } catch (e) {
     console.error("Invalid JSON in modelParams:", e);
@@ -629,8 +686,8 @@ Use \`navigate_superset_dashboard\` or \`navigate_superset_chart\` when the user
 
         send({ type: "done" });
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        send({ type: "error", message: msg });
+        console.error("[chat] Stream error:", err);
+        send({ type: "error", message: "An internal error occurred. Please try again." });
       } finally {
         controller.close();
       }

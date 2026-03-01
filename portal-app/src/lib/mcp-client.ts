@@ -19,38 +19,24 @@ const MCP_HEADERS = {
   Accept: "application/json, text/event-stream",
 };
 
-// Track the last user we generated a token for
-let _lastUser: string | null = null;
-let _cachedToken: string | null = null;
-let _tokenExpiry: number = 0;
-
 async function getAuthHeaders(): Promise<Record<string, string>> {
   try {
     const { getUserFromHeaders } = await import("./auth");
     const { createMcpToken } = await import("./mcp-auth");
-    
+
     const user = await getUserFromHeaders();
-    const userKey = `${user.username}:${user.roles.join(',')}`;
-    
-    // Regenerate token if:
-    // 1. No cached token
-    // 2. Token expired
-    // 3. User changed
-    if (!_cachedToken || Date.now() >= _tokenExpiry || userKey !== _lastUser) {
-      const token = createMcpToken(user.username, user.email, user.roles);
-      _cachedToken = token;
-      _tokenExpiry = Date.now() + 50_000; // 50s cache (token expires at 60s)
-      _lastUser = userKey;
-      console.log("[MCP] Generated new token for user:", user.username);
-    }
-    
+    // Generate a fresh token on every request — each token has a unique JTI,
+    // which is required by the server-side replay-protection check.
+    // createMcpToken is a synchronous HMAC operation so there is no meaningful
+    // performance cost to skipping a cache here.
+    const token = createMcpToken(user.username, user.email, user.roles);
+
     return {
       ...MCP_HEADERS,
-      Authorization: `Bearer ${_cachedToken}`,
+      Authorization: `Bearer ${token}`,
     };
   } catch (error) {
     console.error("[mcp-client] Failed to create auth token:", error);
-    // Retourner les headers de base sans authentification
     return MCP_HEADERS;
   }
 }

@@ -29,15 +29,25 @@ export interface SessionData {
   llmSettings?: LlmSettings;
 }
 
+const _rawSecret = process.env.SESSION_SECRET ?? "";
+if (
+  !_rawSecret ||
+  _rawSecret.length < 32 ||
+  _rawSecret.startsWith("change-me")
+) {
+  throw new Error(
+    "SESSION_SECRET env var is missing, too short (< 32 chars), or still set to " +
+    "the default placeholder. Generate a value with: openssl rand -base64 32"
+  );
+}
+
 const sessionOptions = {
   cookieName: "hyperset_session",
-  password:
-    process.env.SESSION_SECRET ??
-    "change-me-to-a-very-long-random-secret-key-32chars",
+  password: _rawSecret,
   cookieOptions: {
     secure: process.env.NODE_ENV === "production",
     httpOnly: true,
-    sameSite: "lax" as const,
+    sameSite: "strict" as const,
     maxAge: 86400, // 24h
   },
 };

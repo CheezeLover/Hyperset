@@ -14,7 +14,14 @@ export async function GET() {
       expires: new Date(0),
       path: "/",
     });
-    
+
+    // Also clear the iron-session admin cookie
+    response.cookies.set("hyperset_session", "", {
+      expires: new Date(0),
+      path: "/",
+      httpOnly: true,
+    });
+
     return response;
   } catch (error) {
     console.error("Logout error:", error);
