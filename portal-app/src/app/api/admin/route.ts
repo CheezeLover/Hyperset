@@ -13,6 +13,42 @@ function requireAdmin(request: NextRequest) {
   return null;
 }
 
+/**
+ * Validate an API URL before making outbound requests.
+ * Blocks non-HTTPS, loopback, private, and link-local addresses
+ * to prevent SSRF attacks via the API validation endpoint.
+ */
+function validateApiUrl(url: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return "apiUrl must be a valid URL";
+  }
+  if (parsed.protocol !== "https:") {
+    return "apiUrl must use https://";
+  }
+  const host = parsed.hostname;
+  // Block loopback
+  if (host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "0.0.0.0") {
+    return "apiUrl must not point to a loopback address";
+  }
+  // Block private / link-local IPv4 ranges
+  const ipv4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (ipv4) {
+    const [a, b] = [Number(ipv4[1]), Number(ipv4[2])];
+    if (
+      a === 10 ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      (a === 169 && b === 254)
+    ) {
+      return "apiUrl must not point to a private or link-local address";
+    }
+  }
+  return null;
+}
+
 /** GET /api/admin — return current effective LLM settings */
 export async function GET(request: NextRequest) {
   const denied = requireAdmin(request);
@@ -88,6 +124,11 @@ export async function PATCH(request: NextRequest) {
 
   if (!body.apiUrl || !body.apiKey || !body.model) {
     return NextResponse.json({ ok: false, error: "apiUrl, apiKey and model are required" }, { status: 400 });
+  }
+
+  const urlError = validateApiUrl(body.apiUrl);
+  if (urlError) {
+    return NextResponse.json({ ok: false, error: urlError }, { status: 400 });
   }
 
   try {

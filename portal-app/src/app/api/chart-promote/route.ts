@@ -57,7 +57,7 @@ export const POST = async (req: NextRequest) => {
 
     return NextResponse.json({ ok: true });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error("[chart-promote] Error:", err);
+    return NextResponse.json({ error: "Failed to promote chart" }, { status: 500 });
   }
 };

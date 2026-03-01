@@ -19,38 +19,31 @@ const MCP_HEADERS = {
   Accept: "application/json, text/event-stream",
 };
 
-// Track the last user we generated a token for
-let _lastUser: string | null = null;
-let _cachedToken: string | null = null;
-let _tokenExpiry: number = 0;
+// Per-user token cache keyed by userKey — avoids cross-user token contamination
+// that could occur when module-level singletons are shared across concurrent requests.
+const _tokenCache = new Map<string, { token: string; expiry: number }>();
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
   try {
     const { getUserFromHeaders } = await import("./auth");
     const { createMcpToken } = await import("./mcp-auth");
-    
+
     const user = await getUserFromHeaders();
-    const userKey = `${user.username}:${user.roles.join(',')}`;
-    
-    // Regenerate token if:
-    // 1. No cached token
-    // 2. Token expired
-    // 3. User changed
-    if (!_cachedToken || Date.now() >= _tokenExpiry || userKey !== _lastUser) {
+    const userKey = `${user.username}:${user.roles.join(",")}`;
+
+    const cached = _tokenCache.get(userKey);
+    if (!cached || Date.now() >= cached.expiry) {
       const token = createMcpToken(user.username, user.email, user.roles);
-      _cachedToken = token;
-      _tokenExpiry = Date.now() + 50_000; // 50s cache (token expires at 60s)
-      _lastUser = userKey;
+      _tokenCache.set(userKey, { token, expiry: Date.now() + 50_000 }); // 50s (token expires at 60s)
       console.log("[MCP] Generated new token for user:", user.username);
     }
-    
+
     return {
       ...MCP_HEADERS,
-      Authorization: `Bearer ${_cachedToken}`,
+      Authorization: `Bearer ${_tokenCache.get(userKey)!.token}`,
     };
   } catch (error) {
     console.error("[mcp-client] Failed to create auth token:", error);
-    // Retourner les headers de base sans authentification
     return MCP_HEADERS;
   }
 }

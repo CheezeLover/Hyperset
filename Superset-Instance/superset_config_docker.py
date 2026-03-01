@@ -284,6 +284,9 @@ def FLASK_APP_MUTATOR(app):
 
             if request.path.rstrip("/") == "/login":
                 next_url = request.args.get("next", "/superset/welcome/")
+                # Guard against open redirects — only allow same-origin paths
+                if not next_url.startswith("/") or next_url.startswith("//"):
+                    next_url = "/superset/welcome/"
                 return redirect(next_url)
 
         return None

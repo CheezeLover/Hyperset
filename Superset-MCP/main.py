@@ -19,6 +19,7 @@ import time
 import datetime
 import asyncio
 import re
+import threading
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from functools import wraps
@@ -89,7 +90,7 @@ CLEANUP_EMAIL = os.getenv("HYPERSET_CLEANUP_EMAIL", "admin@HYPERSET.local")
 _hyperset_domain = os.getenv("HYPERSET_DOMAIN", "")
 PORTAL_URL = (
     os.getenv("HYPERSET_PORTAL_URL")
-    or (f"https://pages.{_hyperset_domain}" if _hyperset_domain else "")
+    or (f"https://{_hyperset_domain}" if _hyperset_domain else "")
 ).rstrip("/")
 
 # Regex to extract the ISO timestamp written into AI chart descriptions.
@@ -108,6 +109,22 @@ class VerifiedIdentity:
     username: str
     email: str
     roles: list[str]
+
+# ── JTI replay cache — prevents token reuse within the token's lifetime ──────
+_used_jtis: dict = {}   # jti (str) → expiry epoch-ms (float)
+_jti_lock = threading.Lock()
+
+def _claim_jti(jti: str, exp_ms: float) -> None:
+    """Mark a JTI as consumed; raises ValueError if already seen (replay)."""
+    now_ms = time.time() * 1000
+    with _jti_lock:
+        # Prune expired entries to prevent unbounded growth
+        expired = [k for k, v in _used_jtis.items() if v < now_ms]
+        for k in expired:
+            del _used_jtis[k]
+        if jti in _used_jtis:
+            raise ValueError("Token replay detected")
+        _used_jtis[jti] = exp_ms
 
 def _b64url_decode(s: str) -> bytes:
     padding = 4 - len(s) % 4
@@ -128,6 +145,10 @@ def verify_mcp_token(token: str) -> VerifiedIdentity:
         raise ValueError("Cannot decode payload")
     if time.time() * 1000 > payload.get("exp", 0):
         raise ValueError("Token expired")
+    jti = payload.get("jti")
+    if not jti:
+        raise ValueError("Missing 'jti' claim")
+    _claim_jti(jti, payload.get("exp", 0))
     username = payload.get("sub")
     if not username:
         raise ValueError("Missing 'sub' claim")
@@ -185,13 +206,30 @@ async def superset_lifespan(server: FastMCP) -> AsyncIterator[SupersetContext]:
 
     yield _shared_ctx
 
+# Allow the portal container to reach the MCP server by its container hostname.
+# The Host header sent by the portal will be "hyperset-superset-mcp:8000" (or
+# whatever the compose service is named).  Both bare-hostname and hostname:port
+# variants must be listed because HTTP clients may or may not include the port.
+_mcp_host_port = int(os.getenv("MCP_PORT", "8000"))
+_mcp_container  = os.getenv("MCP_CONTAINER_NAME", "hyperset-superset-mcp")
+
 # Initialize FastMCP server
 mcp = FastMCP(
     "superset",
     lifespan=superset_lifespan,
     dependencies=["fastapi", "uvicorn", "python-dotenv", "httpx"],
     stateless_http=True,
-    transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=True),
+    transport_security=TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=[
+            "localhost",
+            f"localhost:{_mcp_host_port}",
+            "127.0.0.1",
+            f"127.0.0.1:{_mcp_host_port}",
+            _mcp_container,
+            f"{_mcp_container}:{_mcp_host_port}",
+        ],
+    ),
 )
 
 # Type variables
@@ -1000,9 +1038,9 @@ async def superset_database_create(
         "configuration_method": configuration_method,
         "database_name": database_name,
         "sqlalchemy_uri": sqlalchemy_uri,
-        "allow_dml": True,
-        "allow_cvas": True,
-        "allow_ctas": True,
+        "allow_dml": False,
+        "allow_cvas": False,
+        "allow_ctas": False,
         "expose_in_sqllab": True,
     }
 
