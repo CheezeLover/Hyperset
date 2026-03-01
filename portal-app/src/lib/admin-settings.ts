@@ -88,7 +88,11 @@ function writeToDisk(settings: LlmSettings): void {
     if (toWrite.apiKey) {
       toWrite.apiKey = encryptString(toWrite.apiKey);
     }
-    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(toWrite, null, 2), "utf-8");
+    // Write with mode 0o600 (owner read/write only) so the encrypted API key
+    // is not world-readable. writeFileSync only sets mode on new files, so
+    // chmodSync is called unconditionally to fix pre-existing permissions too.
+    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(toWrite, null, 2), { encoding: "utf-8", mode: 0o600 });
+    fs.chmodSync(SETTINGS_FILE, 0o600);
   } catch (e) {
     console.warn("[admin-settings] Could not persist settings to disk:", e);
   }
