@@ -2,6 +2,27 @@ import { NextRequest, NextResponse } from "next/server";
 import { callMcpTool } from "@/lib/mcp-client";
 import { getUserFromRequest } from "@/lib/auth";
 
+// ── Sliding-window rate limiter ────────────────────────────────────────────
+// 60 promote actions per 60-second window per authenticated user.
+// Each call makes 2 MCP round-trips (get + update), so this caps at
+// 120 upstream requests per user per minute — well within Superset limits.
+const _promoteRateMap = new Map<string, number[]>();
+const PROMOTE_LIMIT     = 60;
+const PROMOTE_WINDOW_MS = 60_000;
+
+function checkPromoteLimit(email: string): boolean {
+  const now   = Date.now();
+  const times = _promoteRateMap.get(email) ?? [];
+  const recent = times.filter((t) => now - t < PROMOTE_WINDOW_MS);
+  if (recent.length >= PROMOTE_LIMIT) {
+    _promoteRateMap.set(email, recent);
+    return false;
+  }
+  recent.push(now);
+  _promoteRateMap.set(email, recent);
+  return true;
+}
+
 /**
  * POST /api/chart-promote
  * Body: { chartId: number }
@@ -14,6 +35,13 @@ export const POST = async (req: NextRequest) => {
   const user = getUserFromRequest(req);
   if (!user.email) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!checkPromoteLimit(user.email)) {
+    return NextResponse.json(
+      { error: "Rate limit exceeded. Please wait before promoting more charts." },
+      { status: 429 },
+    );
   }
 
   let chartId: number;

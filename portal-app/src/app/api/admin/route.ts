@@ -29,23 +29,46 @@ function validateApiUrl(url: string): string | null {
     return "apiUrl must use https://";
   }
   const host = parsed.hostname;
-  // Block loopback
-  if (host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "0.0.0.0") {
+
+  // ── IPv4 loopback and unspecified ────────────────────────────────────────────
+  if (host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0") {
     return "apiUrl must not point to a loopback address";
   }
-  // Block private / link-local IPv4 ranges
+
+  // ── IPv4 private / link-local / CGNAT ranges ─────────────────────────────────
   const ipv4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
   if (ipv4) {
     const [a, b] = [Number(ipv4[1]), Number(ipv4[2])];
     if (
-      a === 10 ||
-      (a === 172 && b >= 16 && b <= 31) ||
-      (a === 192 && b === 168) ||
-      (a === 169 && b === 254)
+      a === 10 ||                           // 10.0.0.0/8      RFC-1918
+      (a === 172 && b >= 16 && b <= 31) ||  // 172.16.0.0/12   RFC-1918
+      (a === 192 && b === 168) ||           // 192.168.0.0/16  RFC-1918
+      (a === 169 && b === 254) ||           // 169.254.0.0/16  link-local
+      (a === 100 && b >= 64 && b <= 127)    // 100.64.0.0/10   CGNAT (RFC-6598)
     ) {
-      return "apiUrl must not point to a private or link-local address";
+      return "apiUrl must not point to a private, link-local, or CGNAT address";
     }
   }
+
+  // ── IPv6 loopback, mapped, and private ranges ────────────────────────────────
+  // Node's URL parser strips brackets: "https://[::1]/" → hostname "::1"
+  const h6 = host.toLowerCase();
+  if (h6 === "::1" || h6 === "0:0:0:0:0:0:0:1") {
+    return "apiUrl must not point to an IPv6 loopback address";
+  }
+  // ::ffff:0:0/96 — IPv4-mapped (covers ::ffff:127.0.0.1, ::ffff:10.x.x.x …)
+  if (h6.startsWith("::ffff:")) {
+    return "apiUrl must not use an IPv4-mapped IPv6 address";
+  }
+  // fe80::/10 — IPv6 link-local
+  if (/^fe[89ab]/i.test(h6)) {
+    return "apiUrl must not point to an IPv6 link-local address";
+  }
+  // fc00::/7 — Unique Local Addresses (fc00:: and fd00::, analogous to RFC-1918)
+  if (/^f[cd]/i.test(h6)) {
+    return "apiUrl must not point to a private IPv6 (ULA) address";
+  }
+
   return null;
 }
 

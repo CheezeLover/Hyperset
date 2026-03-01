@@ -1,0 +1,34 @@
+# ── Secrets — NEVER commit these ──────────────────────────────────────────────
+# The .env file contains encryption keys and API credentials.
+# Use .env.example (or the comments in .env itself) as a template.
+.env
+*.env.local
+*.env.production
+*.env.*.local
+
+# ── OS / editor noise ─────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/settings.json
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[oc]
+.venv/
+dist/
+build/
+*.egg-info/
+
+# ── Node / Next.js ────────────────────────────────────────────────────────────
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+# ── Runtime data ──────────────────────────────────────────────────────────────
+# Admin settings file contains an encrypted API key — keep off-repo.
+portal-app/data/admin-settings.json
+data/admin-settings.json

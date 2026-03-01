@@ -9,17 +9,27 @@
 (function () {
   "use strict";
 
-  // The portal origin is the parent frame — we validate it loosely
-  // by checking that it matches the same base domain suffix.
-  const EXPECTED_DOMAIN_SUFFIX = window.location.hostname
-    .split(".")
-    .slice(-2)
-    .join(".");
+  // Derive the portal origin from this page's hostname.
+  // Superset is at superset.<domain>; the portal is the root <domain>.
+  // e.g. window.location = "https://superset.hyperset.internal"
+  //      → PORTAL_ORIGIN   = "https://hyperset.internal"
+  //
+  // This is used BOTH to validate incoming messages (isPortalOrigin) AND
+  // as the explicit targetOrigin when posting messages back to the portal,
+  // preventing chart payloads from being intercepted by a malicious parent.
+  const _hostParts = window.location.hostname.split(".");
+  // Strip the leftmost subdomain label (e.g. "superset") to get the portal host.
+  const _portalHost = _hostParts.length > 2
+    ? _hostParts.slice(1).join(".")   // "superset.a.b" → "a.b"
+    : _hostParts.join(".");            // already bare domain — use as-is
+  const PORTAL_ORIGIN = window.location.protocol + "//" + _portalHost;
 
   function isPortalOrigin(origin) {
     try {
       const u = new URL(origin);
-      return u.hostname.endsWith(EXPECTED_DOMAIN_SUFFIX);
+      // Accept the exact portal host or any subdomain of it.
+      // (Covers the case where future services share the same parent domain.)
+      return u.hostname === _portalHost || u.hostname.endsWith("." + _portalHost);
     } catch {
       return false;
     }
@@ -192,7 +202,10 @@
     };
 
     if (window.parent && window.parent !== window) {
-      window.parent.postMessage(payload, "*");
+      // Use the derived PORTAL_ORIGIN as targetOrigin so only the portal frame
+      // can receive this payload — a malicious parent at a different origin is
+      // silently rejected by the browser.
+      window.parent.postMessage(payload, PORTAL_ORIGIN);
     }
   }
 
@@ -211,9 +224,9 @@
     showContextMenu(event.clientX, event.clientY, chartEl);
   });
 
-  // Signal to portal that bridge is ready
+  // Signal to portal that bridge is ready — scoped to PORTAL_ORIGIN only.
   if (window.parent && window.parent !== window) {
-    window.parent.postMessage({ type: "ready" }, "*");
+    window.parent.postMessage({ type: "ready" }, PORTAL_ORIGIN);
   }
 
   console.log("[Hyperset Bridge] Loaded");
