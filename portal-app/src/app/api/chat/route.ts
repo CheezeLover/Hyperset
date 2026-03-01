@@ -470,13 +470,11 @@ Use \`navigate_superset_dashboard\` or \`navigate_superset_chart\` when the user
             // Ministral/Mistral models handle sequential tool calls reliably
             // but trip up on parallel ones — disable them automatically.
             ...(isMistral ? { parallel_tool_calls: false } : {}),
-            // temperature: 0.1 → near-deterministic.  Tool calls, SQL, and chart
-            // params are essentially stable across repeated identical queries,
-            // while prose responses retain slight natural variation in phrasing.
-            // Raise via modelParams for more varied responses.
-            // Note: seed is intentionally omitted — Mistral uses "random_seed" (not
-            // "seed") and rejects the OpenAI field name with a 422 error.
+            // temperature: 0.1 → near-deterministic output.
+            // Seed pins the RNG so identical queries produce identical tool calls.
+            // Mistral uses "random_seed"; OpenAI-compatible providers use "seed".
             temperature: 0.1,
+            ...(isMistral ? { random_seed: 42 } : { seed: 42 }),
             stream: true,
             ...modelParams, // Admin overrides (including temperature) take priority
           });
