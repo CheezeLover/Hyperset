@@ -19,28 +19,21 @@ const MCP_HEADERS = {
   Accept: "application/json, text/event-stream",
 };
 
-// Per-user token cache keyed by userKey — avoids cross-user token contamination
-// that could occur when module-level singletons are shared across concurrent requests.
-const _tokenCache = new Map<string, { token: string; expiry: number }>();
-
 async function getAuthHeaders(): Promise<Record<string, string>> {
   try {
     const { getUserFromHeaders } = await import("./auth");
     const { createMcpToken } = await import("./mcp-auth");
 
     const user = await getUserFromHeaders();
-    const userKey = `${user.username}:${user.roles.join(",")}`;
-
-    const cached = _tokenCache.get(userKey);
-    if (!cached || Date.now() >= cached.expiry) {
-      const token = createMcpToken(user.username, user.email, user.roles);
-      _tokenCache.set(userKey, { token, expiry: Date.now() + 50_000 }); // 50s (token expires at 60s)
-      console.log("[MCP] Generated new token for user:", user.username);
-    }
+    // Generate a fresh token on every request — each token has a unique JTI,
+    // which is required by the server-side replay-protection check.
+    // createMcpToken is a synchronous HMAC operation so there is no meaningful
+    // performance cost to skipping a cache here.
+    const token = createMcpToken(user.username, user.email, user.roles);
 
     return {
       ...MCP_HEADERS,
-      Authorization: `Bearer ${_tokenCache.get(userKey)!.token}`,
+      Authorization: `Bearer ${token}`,
     };
   } catch (error) {
     console.error("[mcp-client] Failed to create auth token:", error);
