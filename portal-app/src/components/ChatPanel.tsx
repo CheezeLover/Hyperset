@@ -807,7 +807,6 @@ function ToolStep({ tc }: { tc: ToolCall }) {
           fontSize: 11, fontWeight: 500, textAlign: "left", opacity: 0.85,
         }}
       >
-        <span style={{ fontSize: 8, transition: "transform 0.15s", display: "inline-block", transform: open ? "rotate(90deg)" : "none", opacity: 0.5 }}>▶</span>
         {isPending ? (
           <>
             <span style={{
@@ -823,6 +822,7 @@ function ToolStep({ tc }: { tc: ToolCall }) {
         ) : (
           <span>✓ {tc.name.replace(/_/g, " ")}</span>
         )}
+        <span style={{ fontSize: 11, opacity: 0.4, marginLeft: "auto", flexShrink: 0 }}>{open ? "▴" : "▾"}</span>
       </button>
       {open && (
         <pre style={{
@@ -872,12 +872,6 @@ function ToolCallsZone({ toolCalls, streaming }: { toolCalls: ToolCall[]; stream
           fontSize: 12, fontWeight: 500, textAlign: "left",
         }}
       >
-        {/* Chevron */}
-        <span style={{
-          fontSize: 8, display: "inline-block",
-          transform: open ? "rotate(90deg)" : "none",
-          transition: "transform 0.15s", opacity: 0.6, flexShrink: 0,
-        }}>▶</span>
         {/* Wrench icon */}
         <svg viewBox="0 0 24 24" width={12} height={12} fill="currentColor"
           style={{ flexShrink: 0, opacity: 0.75 }}>
