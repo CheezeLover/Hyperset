@@ -156,8 +156,8 @@ superset.{$HYPERSET_DOMAIN} {
         replace </body> "<script src=\"/bridge.js\"></script></body>"
     }
 
-    # Only allow the portal origin to embed Superset — this replaces the upstream
-    # headers stripped above and is the single authoritative framing policy.
-    header Content-Security-Policy "frame-ancestors 'self' https://{$HYPERSET_DOMAIN}"
+    # Only allow the portal and chat origins to embed Superset — this replaces the
+    # upstream headers stripped above and is the single authoritative framing policy.
+    header Content-Security-Policy "frame-ancestors 'self' https://{$HYPERSET_DOMAIN} https://chat.{$HYPERSET_DOMAIN}"
     header Strict-Transport-Security "max-age=31536000; includeSubDomains"
 }

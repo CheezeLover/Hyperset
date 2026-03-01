@@ -489,11 +489,13 @@ function renderMd(text) {
       continue;
     }
 
-    // [iframe-ai:N](url) Title — render as link on mobile
+    // [iframe-ai:N](url) Title — render as embedded iframe (same as [iframe])
     const iam = line.match(/^\[iframe-ai:\d+\]\s*\(([^\s)]+)\)\s*(.*)/);
     if (iam) {
       const url = iam[1], title = iam[2].trim() || 'Chart';
-      if (/^https?:\/\//.test(url)) html += `<p><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(title)}</a></p>`;
+      if (/^https?:\/\//.test(url)) {
+        html += `<div class="ie"><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(title)}</a><div class="ie-frame"><iframe src="${esc(url)}" title="${esc(title)}" sandbox="allow-scripts allow-same-origin allow-popups allow-forms" allowfullscreen></iframe></div></div>`;
+      }
       i++; continue;
     }
 
