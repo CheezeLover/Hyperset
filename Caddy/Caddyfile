@@ -65,11 +65,23 @@ auth.{$HYPERSET_DOMAIN} {
     authorize with mypolicy
 
     reverse_proxy hyperset-portal:3000 {
-        header_up X-Token-User-Id {http.request.header.X-Token-User-Id}
+        # Defense-in-depth: strip any client-supplied identity headers BEFORE
+        # forwarding, then re-set them from the values caddy-security has already
+        # injected from the validated JWT token.  This prevents a malicious client
+        # from injecting a spoofed X-Token-User-Email even if caddy-security's
+        # inject-headers step runs after the reverse_proxy handler.
+        header_up -X-Token-User-Id
+        header_up -X-Token-User-Email
+        header_up -X-Token-User-Roles
+        header_up X-Token-User-Id    {http.request.header.X-Token-User-Id}
         header_up X-Token-User-Email {http.request.header.X-Token-User-Email}
         header_up X-Token-User-Roles {http.request.header.X-Token-User-Roles}
         flush_interval -1
     }
+
+    # HSTS — tell browsers to always use HTTPS for this domain (1 year).
+    # Only takes effect over TLS, which is always the case here.
+    header Strict-Transport-Security "max-age=31536000; includeSubDomains"
 }
 
 # ── Pages service ──────────────────────────────────────────────
@@ -86,6 +98,7 @@ pages.{$HYPERSET_DOMAIN} {
     }
     # Only allow the portal origin to embed pages
     header Content-Security-Policy "frame-ancestors 'self' https://{$HYPERSET_DOMAIN}"
+    header Strict-Transport-Security "max-age=31536000; includeSubDomains"
 }
 
 # ── Superset with bridge.js injection ─────────────────────────
@@ -106,7 +119,12 @@ superset.{$HYPERSET_DOMAIN} {
     # Proxy everything else to Superset, injecting bridge.js into HTML responses
     handle {
         reverse_proxy {$SUPERSET_UPSTREAM} {
-            header_up X-Webauth-User {http.request.header.X-Token-User-Email}
+            # Strip any client-supplied X-Webauth-* headers before re-injecting
+            # from the caddy-security validated token values.
+            header_up -X-Webauth-User
+            header_up -X-Webauth-Email
+            header_up -X-Webauth-Groups
+            header_up X-Webauth-User  {http.request.header.X-Token-User-Email}
             header_up X-Webauth-Email {http.request.header.X-Token-User-Email}
             header_up X-Webauth-Groups {http.request.header.X-Token-User-Roles}
             # Strip Superset's own framing headers — Caddy sets the definitive
@@ -122,4 +140,5 @@ superset.{$HYPERSET_DOMAIN} {
     # Only allow the portal origin to embed Superset — this replaces the upstream
     # headers stripped above and is the single authoritative framing policy.
     header Content-Security-Policy "frame-ancestors 'self' https://{$HYPERSET_DOMAIN}"
+    header Strict-Transport-Security "max-age=31536000; includeSubDomains"
 }

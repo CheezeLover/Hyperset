@@ -64,9 +64,15 @@ function readFromDisk(): LlmSettings | null {
     if (settings.apiKey) {
       try {
         settings.apiKey = decryptString(settings.apiKey);
-      } catch {
+      } catch (e) {
         // Decryption failed — key was stored as legacy plaintext.
         // Use as-is to avoid a hard break during migration.
+        console.warn(
+          "[admin-settings] Failed to decrypt apiKey — falling back to legacy " +
+          "plaintext mode. If this is unexpected, rotate SESSION_SECRET and " +
+          "re-save the API key via the admin panel.",
+          e
+        );
       }
     }
     return settings;
