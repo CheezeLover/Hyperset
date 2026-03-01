@@ -29,11 +29,10 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(name)s  %(messa
 
 app = FastAPI(title="Hyperset Pages", docs_url=None, redoc_url=None)
 
-# Build a CORS origin regex scoped to the configured Hyperset domain.
-# Allows any subdomain of HYPERSET_DOMAIN (e.g. portal.hyperset.internal,
-# pages.hyperset.internal) while blocking all other origins.
-# Falls back to permissive https://.* only when the env var is absent, so
-# local dev without DNS still works — in that case a warning is logged.
+# Build a CORS origin regex scoped to the domain set in HYPERSET_DOMAIN.
+# Allows the root domain and any subdomain of HYPERSET_DOMAIN, blocking all
+# other origins. Falls back to permissive https://.* only when the env var
+# is absent so local dev still works — in that case a warning is logged.
 _domain = os.environ.get("HYPERSET_DOMAIN", "")
 if _domain:
     _cors_origin_regex = rf"https://([a-zA-Z0-9-]+\.)?{re.escape(_domain)}$"
