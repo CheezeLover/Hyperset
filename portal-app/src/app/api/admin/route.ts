@@ -7,6 +7,35 @@ import {
   clearAdminSettings,
 } from "@/lib/admin-settings";
 
+// ── Rate limiters ──────────────────────────────────────────────────────────────
+// General admin endpoint limit: 20 req / 60 s per user (config reads/saves).
+const _adminRateLimitMap = new Map<string, number[]>();
+const ADMIN_RATE_LIMIT   = 20;
+const ADMIN_RATE_WINDOW  = 60_000;
+
+// Stricter limit for PATCH (makes a live outbound LLM call): 5 req / 60 s.
+const _patchRateLimitMap = new Map<string, number[]>();
+const PATCH_RATE_LIMIT   = 5;
+const PATCH_RATE_WINDOW  = 60_000;
+
+function checkRateLimit(
+  map: Map<string, number[]>,
+  limit: number,
+  windowMs: number,
+  key: string,
+): boolean {
+  const now = Date.now();
+  const timestamps = map.get(key) ?? [];
+  const recent = timestamps.filter((t) => now - t < windowMs);
+  if (recent.length >= limit) {
+    map.set(key, recent);
+    return false;
+  }
+  recent.push(now);
+  map.set(key, recent);
+  return true;
+}
+
 function requireAdmin(request: NextRequest) {
   const user = getUserFromRequest(request);
   if (!user.isAdmin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -77,6 +106,11 @@ export async function GET(request: NextRequest) {
   const denied = requireAdmin(request);
   if (denied) return denied;
 
+  const { email } = getUserFromRequest(request);
+  if (!checkRateLimit(_adminRateLimitMap, ADMIN_RATE_LIMIT, ADMIN_RATE_WINDOW, email)) {
+    return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
+  }
+
   const s = getAdminSettings();
 
   return NextResponse.json({
@@ -97,6 +131,11 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const denied = requireAdmin(request);
   if (denied) return denied;
+
+  const { email } = getUserFromRequest(request);
+  if (!checkRateLimit(_adminRateLimitMap, ADMIN_RATE_LIMIT, ADMIN_RATE_WINDOW, email)) {
+    return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
+  }
 
   const body = await request.json();
   const prev = getAdminSettings() ?? {};
@@ -134,6 +173,11 @@ export async function DELETE(request: NextRequest) {
   const denied = requireAdmin(request);
   if (denied) return denied;
 
+  const { email } = getUserFromRequest(request);
+  if (!checkRateLimit(_adminRateLimitMap, ADMIN_RATE_LIMIT, ADMIN_RATE_WINDOW, email)) {
+    return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
+  }
+
   clearAdminSettings();
   return NextResponse.json({ ok: true });
 }
@@ -142,6 +186,11 @@ export async function DELETE(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const denied = requireAdmin(request);
   if (denied) return denied;
+
+  const { email } = getUserFromRequest(request);
+  if (!checkRateLimit(_patchRateLimitMap, PATCH_RATE_LIMIT, PATCH_RATE_WINDOW, email)) {
+    return NextResponse.json({ error: "Rate limit exceeded. Please wait before validating again." }, { status: 429 });
+  }
 
   const body = await request.json() as { apiUrl: string; apiKey: string; model: string };
 

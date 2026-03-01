@@ -27,6 +27,8 @@ services:
     build: ./Pages-Service
     image: localhost/hyperset-pages:latest
     container_name: hyperset-pages
+    environment:
+      - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
     volumes:
       - ./Pages:/pages:Z
     networks:
