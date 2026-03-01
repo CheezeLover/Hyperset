@@ -10,6 +10,8 @@ Single FastAPI process that:
 
 import importlib.util
 import logging
+import os
+import re
 import sys
 import threading
 from pathlib import Path
@@ -27,12 +29,25 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(name)s  %(messa
 
 app = FastAPI(title="Hyperset Pages", docs_url=None, redoc_url=None)
 
-# Allow the portal (same base domain, different subdomain) to call /__pages__
+# Build a CORS origin regex scoped to the configured Hyperset domain.
+# Allows any subdomain of HYPERSET_DOMAIN (e.g. portal.hyperset.internal,
+# pages.hyperset.internal) while blocking all other origins.
+# Falls back to permissive https://.* only when the env var is absent, so
+# local dev without DNS still works — in that case a warning is logged.
+_domain = os.environ.get("HYPERSET_DOMAIN", "")
+if _domain:
+    _cors_origin_regex = rf"https://([a-zA-Z0-9-]+\.)?{re.escape(_domain)}$"
+else:
+    log.warning(
+        "HYPERSET_DOMAIN is not set — CORS will allow all HTTPS origins. "
+        "Set this variable in production."
+    )
+    _cors_origin_regex = r"https://.*"
+
 # credentials=True is required so the browser sends the Caddy auth cookie cross-origin.
-# allow_origin_regex accepts any https origin; Caddy's auth gate keeps this internal.
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"https://.*",
+    allow_origin_regex=_cors_origin_regex,
     allow_credentials=True,
     allow_methods=["GET"],
     allow_headers=["*"],

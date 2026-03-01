@@ -64,15 +64,15 @@ function readFromDisk(): LlmSettings | null {
     if (settings.apiKey) {
       try {
         settings.apiKey = decryptString(settings.apiKey);
-      } catch (e) {
+      } catch {
         // Decryption failed — key was stored as legacy plaintext.
-        // Use as-is to avoid a hard break during migration.
+        // settings.apiKey still holds the plaintext value (the assignment above threw).
+        // Auto-migrate: re-encrypt and persist so subsequent reads succeed.
         console.warn(
-          "[admin-settings] Failed to decrypt apiKey — falling back to legacy " +
-          "plaintext mode. If this is unexpected, rotate SESSION_SECRET and " +
-          "re-save the API key via the admin panel.",
-          e
+          "[admin-settings] apiKey was stored as legacy plaintext — " +
+          "automatically migrating to AES-256-GCM encryption now."
         );
+        writeToDisk(settings);
       }
     }
     return settings;

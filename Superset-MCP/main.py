@@ -481,8 +481,10 @@ async def _get_cleanup_delay_minutes() -> float:
     if not PORTAL_URL:
         return default
     try:
+        mcp_secret = os.getenv("MCP_SERVICE_SECRET", "")
+        headers = {"Authorization": f"Bearer {mcp_secret}"} if mcp_secret else {}
         async with httpx.AsyncClient(timeout=5.0) as c:
-            r = await c.get(f"{PORTAL_URL}/api/cleanup-config")
+            r = await c.get(f"{PORTAL_URL}/api/cleanup-config", headers=headers)
             if r.status_code == 200:
                 minutes = float(r.json().get("cleanupDelayMinutes", default))
                 return max(1.0, min(10080.0, minutes))
