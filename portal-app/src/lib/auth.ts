@@ -20,17 +20,21 @@ export interface UserContext {
  *  - "hyperset/admin"  — explicit Hyperset admin role
  *  - "authp/admin"     — caddy-security's own admin role (injected when no
  *                        custom role transform is configured)
- *  - no roles header   — request came through without Caddy (direct port
- *                        access, local dev, etc.) → treat as admin so the
- *                        app stays usable
+ *  - no roles header   — fail closed (isAdmin: false, unauthenticated).
+ *                        Set DEV_ADMIN=true only in local dev without Caddy.
  */
 function parseRoles(rolesHeader: string | null): {
   roles: string[];
   isAdmin: boolean;
 } {
   if (rolesHeader === null) {
-    // No Caddy auth headers → direct access / dev mode → grant admin
-    return { roles: [], isAdmin: true };
+    // No Caddy auth headers present — fail closed by default so that direct
+    // access to the Next.js port (3000) never grants elevated privileges.
+    // Set DEV_ADMIN=true only in local development without Caddy.
+    if (process.env.DEV_ADMIN === "true") {
+      return { roles: [], isAdmin: true };
+    }
+    return { roles: [], isAdmin: false };
   }
   // caddy-security injects roles separated by spaces (not commas).
   // Split on any whitespace or comma to be safe.

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { callMcpTool } from "@/lib/mcp-client";
+import { getUserFromRequest } from "@/lib/auth";
 
 /**
  * POST /api/chart-promote
@@ -10,6 +11,11 @@ import { callMcpTool } from "@/lib/mcp-client";
  * This prevents the background cleanup job from deleting it.
  */
 export const POST = async (req: NextRequest) => {
+  const user = getUserFromRequest(req);
+  if (!user.email) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   let chartId: number;
   try {
     const body = await req.json();

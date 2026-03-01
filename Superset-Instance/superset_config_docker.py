@@ -50,27 +50,66 @@ AUTH_ROLES_MAPPING = {
 # ---------------------------------------------------------------------------
 # Security
 # ---------------------------------------------------------------------------
-SECRET_KEY = os.getenv("SECRET_KEY", os.getenv("SUPERSET_SECRET_KEY", "CHANGE_ME_IN_PRODUCTION"))
+
+# Fix 8: SECRET_KEY must be set to a strong random value — never a placeholder.
+_secret_key = os.getenv("SECRET_KEY") or os.getenv("SUPERSET_SECRET_KEY", "")
+_known_placeholders = {"CHANGE_ME_IN_PRODUCTION", "change_me_in_production", ""}
+if not _secret_key or _secret_key in _known_placeholders:
+    raise RuntimeError(
+        "SECRET_KEY (or SUPERSET_SECRET_KEY) must be set to a strong random value. "
+        "Generate one with: openssl rand -base64 42"
+    )
+SECRET_KEY = _secret_key
+
+# Fix 7: CORS must be locked to the portal origin — never a wildcard.
+# Set HYPERSET_ORIGIN explicitly (e.g. https://hyperset.internal), or derive
+# it from HYPERSET_DOMAIN. A wildcard '*' is rejected to prevent cross-origin
+# credential leakage regardless of the CSRF state.
+_hyperset_domain = os.getenv("HYPERSET_DOMAIN", "")
+_portal_origin = (
+    os.getenv("HYPERSET_ORIGIN")
+    or (f"https://{_hyperset_domain}" if _hyperset_domain else None)
+)
+if not _portal_origin:
+    raise RuntimeError(
+        "HYPERSET_ORIGIN or HYPERSET_DOMAIN must be set so that the Superset "
+        "CORS policy can be restricted to the portal's origin. "
+        "Example: HYPERSET_ORIGIN=https://hyperset.internal"
+    )
+if _portal_origin == "*":
+    raise RuntimeError(
+        "HYPERSET_ORIGIN must be an explicit origin (e.g. https://hyperset.internal), "
+        "not the wildcard '*'. A wildcard with credentials is rejected by browsers "
+        "and creates a CORS vulnerability."
+    )
 
 ENABLE_CORS = True
 CORS_OPTIONS = {
     "supports_credentials": True,
-    "allow_headers": ["*"],
-    "resources": ["*"],
-    "origins": [
-        os.getenv("HYPERSET_ORIGIN", "*"),
+    "allow_headers": [
+        "Content-Type",
+        "X-CSRFToken",
+        "X-Webauth-User",
+        "X-Webauth-Email",
+        "X-Webauth-Groups",
     ],
+    "resources": ["/api/*"],
+    "origins": [_portal_origin],
 }
 
 HTTP_HEADERS = {
     "X-Frame-Options": os.getenv("SUPERSET_FRAME_OPTIONS", "ALLOWALL"),
     "Content-Security-Policy": (
         "frame-ancestors 'self' "
-        + os.getenv("HYPERSET_ORIGIN", "*")
+        + _portal_origin
     ),
 }
 
-WTF_CSRF_ENABLED = False
+# Fix 6: Re-enable CSRF protection.
+# The MCP server already fetches a CSRF token from /api/v1/security/csrf_token/
+# before every state-changing request and sends it in the X-CSRFToken header,
+# so API calls continue to work with CSRF enabled.
+WTF_CSRF_ENABLED = True
 
 # ---------------------------------------------------------------------------
 # Embedded / guest token support

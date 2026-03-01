@@ -191,7 +191,7 @@ mcp = FastMCP(
     lifespan=superset_lifespan,
     dependencies=["fastapi", "uvicorn", "python-dotenv", "httpx"],
     stateless_http=True,
-    transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
+    transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=True),
 )
 
 # Type variables

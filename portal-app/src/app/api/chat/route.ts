@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { listMcpTools, callMcpTool } from "@/lib/mcp-client";
 import OpenAI from "openai";
 import { getAdminSettings } from "@/lib/admin-settings";
+import { getUserFromRequest } from "@/lib/auth";
 
 // ── GET: health / config check ───────────────────────────────────
 export const GET = async (req: NextRequest) => {
@@ -121,6 +122,11 @@ async function generateFollowupSuggestions(
 // ── POST: streaming chat completion ──────────────────────────────
 // Body: { messages: [{role,content}], stream?: boolean }
 export const POST = async (req: NextRequest) => {
+  const requestUser = getUserFromRequest(req);
+  if (!requestUser.email) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const s = getAdminSettings();
   const apiUrl      = s?.apiUrl       ?? process.env.LLM_API_URL       ?? "https://api.openai.com/v1";
   const apiKey      = s?.apiKey       ?? process.env.LLM_API_KEY       ?? "";
