@@ -470,12 +470,13 @@ Use \`navigate_superset_dashboard\` or \`navigate_superset_chart\` when the user
             // Ministral/Mistral models handle sequential tool calls reliably
             // but trip up on parallel ones — disable them automatically.
             ...(isMistral ? { parallel_tool_calls: false } : {}),
-            // temperature: 0.1 → near-deterministic.  Tool calls, SQL, and chart
-            // params are essentially stable across repeated identical queries,
-            // while prose responses retain slight natural variation in phrasing.
-            // Use temperature: 0 for fully identical outputs, or raise it via
-            // modelParams for more varied responses.
+            // temperature: 0.1 → narrow probability distribution (near-deterministic).
+            // seed: fixed integer → pins the RNG used to sample from that distribution.
+            // Together these make tool calls, SQL, and chart params essentially stable
+            // across repeated identical queries, while prose retains slight natural
+            // variation. Override both via modelParams for more varied responses.
             temperature: 0.1,
+            seed: 42,
             stream: true,
             ...modelParams, // Admin overrides (including temperature) take priority
           });
