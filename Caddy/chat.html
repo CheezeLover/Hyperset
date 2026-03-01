@@ -580,10 +580,10 @@ function buildToolStep(tc, key) {
     : isNav ? `↗ ${tc.name === 'navigate_superset_dashboard' ? `Dashboard ${tc.args?.dashboardId ?? ''}` : `Chart ${tc.args?.chartId ?? ''}`}`
     : `✓ ${tc.name.replace(/_/g, ' ')}`;
   el.innerHTML = `
-    <button class="tool-step-header" onclick="toggleEl('tsb${key}','tsc${key}')">
-      <span id="tsc${key}" style="font-size:8px;display:inline-block;opacity:0.5">▶</span>
+    <button class="tool-step-header" onclick="toggleEl('tsb${key}',null,'tsc${key}')">
       ${isPending ? '<span class="spinner"></span>' : ''}
       <span>${esc(label)}</span>
+      <span id="tsc${key}" style="font-size:11px;opacity:0.4;margin-left:auto;flex-shrink:0">▾</span>
     </button>
     <div id="tsb${key}" style="display:none" class="tool-step-body">${esc(`args: ${JSON.stringify(tc.args, null, 2)}`)}</div>`;
   return el;
@@ -599,8 +599,7 @@ function ensureToolZone(msgId) {
   zone.className = 'tool-zone';
   const count = (msg.toolCalls || []).length;
   zone.innerHTML = `
-    <button class="tool-zone-header" onclick="toggleEl('tzb${msgId}','tzch${msgId}','tztg${msgId}')">
-      <span id="tzch${msgId}" style="font-size:8px;display:inline-block;opacity:0.6">▶</span>
+    <button class="tool-zone-header" onclick="toggleEl('tzb${msgId}',null,'tztg${msgId}')">
       <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" style="flex-shrink:0;opacity:0.75">
         <path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/>
       </svg>
@@ -647,7 +646,7 @@ function updateToolStepEl(msgId, toolName, result, idx) {
   const label = isNav
     ? `↗ ${toolName === 'navigate_superset_dashboard' ? `Dashboard ${tc.args?.dashboardId ?? ''}` : `Chart ${tc.args?.chartId ?? ''}`}`
     : `✓ ${toolName.replace(/_/g, ' ')}`;
-  if (header) header.innerHTML = `<span id="tsc${key}" style="font-size:8px;display:inline-block;opacity:0.5">▶</span><span>${esc(label)}</span>`;
+  if (header) header.innerHTML = `<span>${esc(label)}</span><span id="tsc${key}" style="font-size:11px;opacity:0.4;margin-left:auto;flex-shrink:0">▾</span>`;
   if (body) body.textContent = `args: ${JSON.stringify(tc.args, null, 2)}\n\nresult: ${result}`;
 }
 
