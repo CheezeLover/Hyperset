@@ -82,6 +82,12 @@ function validateApiUrl(url: string): string | null {
   // ── IPv6 loopback, mapped, and private ranges ────────────────────────────────
   // Node's URL parser strips brackets: "https://[::1]/" → hostname "::1"
   const h6 = host.toLowerCase();
+
+  // :: — unspecified address (analogous to 0.0.0.0 in IPv4)
+  if (h6 === "::" || h6 === "0:0:0:0:0:0:0:0") {
+    return "apiUrl must not point to an unspecified IPv6 address";
+  }
+  // ::1 / 0:0:0:0:0:0:0:1 — loopback
   if (h6 === "::1" || h6 === "0:0:0:0:0:0:0:1") {
     return "apiUrl must not point to an IPv6 loopback address";
   }
@@ -89,12 +95,22 @@ function validateApiUrl(url: string): string | null {
   if (h6.startsWith("::ffff:")) {
     return "apiUrl must not use an IPv4-mapped IPv6 address";
   }
+  // 64:ff9b::/96 and 64:ff9b:1::/48 — NAT64 well-known prefixes (RFC 6052, RFC 8215).
+  // These translate an IPv6 address to IPv4, so 64:ff9b::10.0.0.1 reaches 10.0.0.1.
+  if (h6.startsWith("64:ff9b:")) {
+    return "apiUrl must not use a NAT64 address";
+  }
+  // 2002::/16 — 6to4 (RFC 3056). Embeds an IPv4 address in bits 16-47.
+  // e.g. 2002:7f00:0001:: encodes 127.0.0.1; 2002:0a00:: encodes 10.0.0.0
+  if (h6.startsWith("2002:")) {
+    return "apiUrl must not use a 6to4 address";
+  }
   // fe80::/10 — IPv6 link-local
-  if (/^fe[89ab]/i.test(h6)) {
+  if (/^fe[89ab]/.test(h6)) {
     return "apiUrl must not point to an IPv6 link-local address";
   }
   // fc00::/7 — Unique Local Addresses (fc00:: and fd00::, analogous to RFC-1918)
-  if (/^f[cd]/i.test(h6)) {
+  if (/^f[cd]/.test(h6)) {
     return "apiUrl must not point to a private IPv6 (ULA) address";
   }
 
