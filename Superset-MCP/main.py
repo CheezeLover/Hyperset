@@ -159,10 +159,17 @@ def verify_mcp_token(token: str) -> VerifiedIdentity:
     )
 
 def extract_identity(request) -> VerifiedIdentity:
-    auth = request.headers.get("authorization", "")
-    if not auth.startswith("Bearer "):
-        raise ValueError("Missing Authorization header")
-    return verify_mcp_token(auth[7:])
+    # Cache the verified identity on request.state so verify_mcp_token (and
+    # therefore _claim_jti) is only called ONCE per HTTP request.  Without this
+    # cache, tools like superset_analyze_data that call superset_request()
+    # multiple times internally would re-run _claim_jti with the same JTI on
+    # every sub-call, causing "Token replay detected" on call #2 onwards.
+    if not hasattr(request.state, "_verified_identity"):
+        auth = request.headers.get("authorization", "")
+        if not auth.startswith("Bearer "):
+            raise ValueError("Missing Authorization header")
+        request.state._verified_identity = verify_mcp_token(auth[7:])
+    return request.state._verified_identity
 
 # Initialize FastAPI app
 app = FastAPI(title="Superset MCP Server")
