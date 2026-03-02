@@ -10,9 +10,10 @@ The easiest way to get started is using the integrated Superset deployment inclu
 
 **Benefits:**
 - Everything runs with one command
-- PostgreSQL and Redis included
+- PostgreSQL + Redis included
 - Pre-configured for Hyperset SSO
 - Isolated within the podman network
+- **Secure by default:** Port 8088 is NOT exposed externally - all access goes through Caddy with SSO headers
 
 **Setup:**
 1. In your root `.env` file, set:
@@ -25,10 +26,12 @@ The easiest way to get started is using the integrated Superset deployment inclu
 The integrated stack will start:
 - `hyperset-superset-db` (PostgreSQL 15)
 - `hyperset-superset-redis` (Redis 7)
-- `hyperset-superset` (Superset 6.0.0 app)
+- `hyperset-superset` (Superset 6.0.0 app) - **internal only, no external port**
 - `hyperset-superset-worker` (Celery worker)
 - `hyperset-superset-beat` (Celery scheduler)
 - `hyperset-superset-init` (one-time initialization)
+
+**Important:** When using integrated mode, Superset is NOT accessible on port 8088 directly. You must access it through Caddy at `https://superset.your-domain.com`. This ensures SSO headers are always present and users cannot bypass authentication.
 
 ### Option 2: External/Standalone Superset
 

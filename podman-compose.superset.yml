@@ -79,8 +79,8 @@ services:
       - superset_home:/app/superset_home
     networks:
       - hyperset-net
-    ports:
-      - "8088:8088"
+    # NOTE: No port binding here - Superset is accessed only through Caddy proxy
+    # at https://superset.${HYPERSET_DOMAIN} with SSO headers
     depends_on:
       superset-db:
         condition: service_healthy

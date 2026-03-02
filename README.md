@@ -79,6 +79,12 @@ chmod +x setup_podman.sh
 - Go to `https://hyperset.internal`
 - Click **Chat** in the sidebar to talk to your data
 
+**8. Access Superset (integrated mode only):**
+- **Important:** Always use `https://superset.hyperset.internal`
+- **Do NOT** use `http://your-server:8088` - this bypasses authentication
+- When you access Superset through Caddy, you'll be automatically logged in via SSO
+- No separate Superset login required!
+
 ---
 
 ### Mode B: External Superset
@@ -149,13 +155,13 @@ SUPERSET_PUBLIC_URL=https://superset.hyperset.internal
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                        Hyperset Stack (Podman)                           │
 │                                                                          │
-│  Browser → Caddy (HTTPS, 80/443)                                        │
+│  Browser → Caddy (HTTPS, 80/443)  ←── ONLY external port exposed          │
 │                │                                                         │
 │                ├─► Portal (Next.js, :3000)                                │
 │                │       └─► Superset MCP (:8000)                           │
 │                │                                                         │
-│                ├─► Superset App (:8088) ←┐                               │
-│                │    (Apache Superset 6.0.0)│                               │
+│                ├─► Superset App (:8088) ←┐   Internal only               │
+│                │    (Apache Superset 6.0.0)│   (no external port)         │
 │                │                          │                               │
 │                ├─► Pages Service (:8001)   │                               │
 │                │                          │                               │
@@ -168,6 +174,8 @@ SUPERSET_PUBLIC_URL=https://superset.hyperset.internal
 │  └─ hyperset-superset-beat (Scheduler)                                   │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
+
+**Important:** Superset is NOT exposed on port 8088 externally. It can only be accessed through Caddy at `https://superset.your-domain.com` with SSO headers.
 
 ### Mode B: External Superset (DEPLOY_WITH_SUPERSET=false)
 
@@ -190,7 +198,8 @@ SUPERSET_PUBLIC_URL=https://superset.hyperset.internal
 
 ### Key Architecture Principles
 
-- **Caddy is the ONLY container with host port bindings** (80, 443, and optionally 8088 in integrated mode)
+- **Caddy is the ONLY container with host port bindings** (80, 443)
+- **Port 8088 is NOT exposed** when using integrated Superset - all access goes through Caddy
 - **All inter-service traffic stays on the internal network** (hyperset-net)
 - **Superset isolation:** In integrated mode, Superset and its dependencies (PostgreSQL, Redis) are isolated within the podman network. In external mode, only Caddy reaches the external Superset.
 - **Security:** Header-based authentication with zero trust for direct Superset access
@@ -399,6 +408,19 @@ podman-compose restart caddy
 - Verify `AUTH_CRYPTO_KEY` is set and is a 32-byte hex string
 - Verify `auth.{HYPERSET_DOMAIN}` resolves correctly
 - Test Superset header auth: `curl -H "X-Webauth-User: admin@HYPERSET.local" http://localhost:8088/api/v1/me/`
+
+**🔴 Superset asking for login instead of using SSO (integrated mode)**
+- Ensure you're accessing Superset through Caddy: `https://superset.{HYPERSET_DOMAIN}`
+- **Do NOT access Superset directly** via `http://your-server:8088` - this bypasses authentication!
+- When `DEPLOY_WITH_SUPERSET=true`, port 8088 is intentionally NOT exposed
+- All Superset access must go through Caddy for SSO headers to be injected
+- Verify Caddy is forwarding headers in the Caddyfile:
+  ```
+  header_up X-Webauth-User  {http.request.header.X-Token-User-Email}
+  header_up X-Webauth-Email {http.request.header.X-Token-User-Email}
+  header_up X-Webauth-Groups {http.request.header.X-Token-User-Roles}
+  ```
+- Check Caddy logs: `podman logs hyperset-caddy -f`
 
 **🔴 Pages not appearing**
 - Verify `pages.{HYPERSET_DOMAIN}` resolves correctly

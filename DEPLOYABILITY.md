@@ -136,31 +136,50 @@ HYPERSET_DOMAIN=your-domain.com
 ## Network Architecture
 
 ### Integrated Mode
+
 ```
+                            External Access
+                                   │
+                                   │ HTTPS (443)
+                                   ▼
 ┌─────────────────────────────────────────────────────────┐
 │                    Hyperset Stack                       │
-│  ├─ Caddy (reverse proxy, HTTPS)                       │
-│  ├─ Portal (Next.js)                                  │
-│  ├─ Pages Service                                       │
-│  ├─ Superset MCP                                      │
-│  └─ Superset Stack:                                   │
-│     ├─ superset (app)                                 │
-│     ├─ superset-db (PostgreSQL)                       │
-│     ├─ superset-redis (Redis)                         │
-│     ├─ superset-worker (Celery)                       │
-│     └─ superset-beat (scheduler)                      │
+│                                                         │
+│  ┌─ Caddy (reverse proxy) ───────────────────────────┐ │
+│  │  • Only external port exposed (80/443)             │ │
+│  │  • SSL termination                                  │ │
+│  │  • SSO header injection                            │ │
+│  └────────────────────────────────────────────────────┘ │
+│                │                                        │
+│                ├─► Portal (Next.js :3000)              │
+│                ├─► Pages Service (:8001)               │
+│                ├─► Superset MCP (:8000)                │
+│                │                                        │
+│                └─► Superset Stack (internal only)      │
+│                    ├─ superset (:8088)                  │
+│                    ├─ superset-db (PostgreSQL)          │
+│                    ├─ superset-redis (Redis)            │
+│                    ├─ superset-worker (Celery)          │
+│                    └─ superset-beat (scheduler)         │
+│                                                         │
+│  Internal Network: hyperset-net                         │
 └─────────────────────────────────────────────────────────┘
+
+Security: Port 8088 is NOT exposed externally - Superset can only be
+accessed through Caddy at https://superset.${HYPERSET_DOMAIN}
 ```
 
 ### External Mode
+
 ```
 ┌─────────────────────────┐      ┌──────────────────┐
 │    Hyperset Stack       │      │ External         │
 │  ├─ Caddy              │◄─────┤ Superset         │
 │  ├─ Portal              │      │ Instance         │
 │  ├─ Pages Service       │      │                  │
-│  └─ Superset MCP       │      └──────────────────┘
-└─────────────────────────┘
+│  └─ Superset MCP       │      │ (Port 8088 may   │
+└─────────────────────────┘      │  be exposed)     │
+                                 └──────────────────┘
 ```
 
 ## Migration Guide
@@ -190,9 +209,18 @@ HYPERSET_DOMAIN=your-domain.com
 ## Security Notes
 
 1. **SUPERSET_SECRET_KEY** must be changed from the placeholder before production use
-2. When using integrated mode, port 8088 is exposed - firewall it appropriately
-3. Caddy remains the only internet-facing service
-4. All internal traffic is on isolated podman network
+2. **Port 8088 is NOT exposed** - Superset can only be accessed through Caddy at `https://superset.your-domain.com`
+3. This ensures SSO headers are always present and users cannot bypass authentication
+4. Caddy remains the only internet-facing service
+5. All internal traffic is on isolated podman network
+
+**Why no direct port access?**
+If Superset were accessible directly on port 8088, users could:
+- Access it without authentication
+- Bypass the SSO header injection
+- See the login page instead of being auto-logged in
+
+Always access Superset through the HTTPS URL: `https://superset.${HYPERSET_DOMAIN}`
 
 ## Testing the Deployment
 
