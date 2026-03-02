@@ -3,6 +3,8 @@ import { getUserFromRequest } from "@/lib/auth";
 import {
   getKnowledgeDocuments,
   addKnowledgeDocument,
+  getKnowledgeBaseRoutingGuide,
+  setKnowledgeBaseRoutingGuide,
   KnowledgeDocument,
 } from "@/lib/knowledge-base";
 
@@ -44,8 +46,8 @@ function requireAdmin(request: NextRequest) {
 }
 
 /**
- * GET /api/knowledge-base — List all documents (public access)
- * Returns array of KnowledgeDocument without the content
+ * GET /api/knowledge-base — List all documents and routing guide (public access)
+ * Returns array of KnowledgeDocument without the content, plus routing guide
  */
 export async function GET(request: NextRequest) {
   const user = getUserFromRequest(request);
@@ -57,7 +59,8 @@ export async function GET(request: NextRequest) {
 
   try {
     const documents = getKnowledgeDocuments();
-    return NextResponse.json({ documents });
+    const routingGuide = getKnowledgeBaseRoutingGuide();
+    return NextResponse.json({ documents, routingGuide });
   } catch (error) {
     console.error("[knowledge-base] Failed to list documents:", error);
     return NextResponse.json({ error: "Failed to retrieve documents" }, { status: 500 });
@@ -157,5 +160,39 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("[knowledge-base] Failed to upload document:", error);
     return NextResponse.json({ error: "Failed to upload document" }, { status: 500 });
+  }
+}
+
+/**
+ * PUT /api/knowledge-base — Update routing guide (admin-only)
+ * Body: JSON with { routingGuide: string }
+ */
+export async function PUT(request: NextRequest) {
+  const denied = requireAdmin(request);
+  if (denied) return denied;
+
+  const user = getUserFromRequest(request);
+  if (!checkRateLimit(_uploadRateLimitMap, UPLOAD_RATE_LIMIT, UPLOAD_RATE_WINDOW, user.email!)) {
+    return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
+  }
+
+  try {
+    const body = await request.json();
+    const routingGuide = body.routingGuide;
+
+    if (typeof routingGuide !== "string") {
+      return NextResponse.json({ error: "routingGuide must be a string" }, { status: 400 });
+    }
+
+    setKnowledgeBaseRoutingGuide(routingGuide);
+
+    return NextResponse.json({ 
+      ok: true, 
+      routingGuide,
+      length: routingGuide.length 
+    });
+  } catch (error) {
+    console.error("[knowledge-base] Failed to update routing guide:", error);
+    return NextResponse.json({ error: "Failed to update routing guide" }, { status: 500 });
   }
 }

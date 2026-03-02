@@ -90,6 +90,8 @@ function KnowledgeBaseTab() {
   const [textContent, setTextContent] = useState("");
   const [textName, setTextName] = useState("");
   const [uploadMode, setUploadMode] = useState<"file" | "text">("file");
+  const [routingGuide, setRoutingGuide] = useState("");
+  const [routingGuideSaving, setRoutingGuideSaving] = useState(false);
 
   const loadDocuments = useCallback(async () => {
     try {
@@ -97,6 +99,7 @@ function KnowledgeBaseTab() {
       if (!res.ok) throw new Error("Failed to load documents");
       const data = await res.json();
       setDocuments(data.documents || []);
+      setRoutingGuide(data.routingGuide || "");
       setError("");
     } catch (e) {
       setError("Failed to load documents");
@@ -364,6 +367,59 @@ function KnowledgeBaseTab() {
             ))}
           </div>
         )}
+      </div>
+
+      {/* Routing Guide Editor */}
+      <div style={{ borderTop: "1px solid var(--md-outline-var)", paddingTop: 16, marginTop: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+          <p style={{ fontSize: 11, fontWeight: 600, opacity: 0.45, textTransform: "uppercase", letterSpacing: "0.06em", margin: 0 }}>
+            Routing Guide — Which Document to Use When
+          </p>
+          <span style={{ fontSize: 10, opacity: 0.5 }}>
+            {routingGuide.length} chars
+          </span>
+        </div>
+        <p style={{ fontSize: 11, opacity: 0.6, margin: "0 0 8px", lineHeight: 1.4 }}>
+          Explain to the AI which document to use for different topics. Be specific about routing decisions.
+        </p>
+        <textarea
+          value={routingGuide}
+          onChange={(e) => setRoutingGuide(e.target.value)}
+          placeholder={`Example routing guide:
+
+- For financial metrics and KPIs → Use "airline-metrics.md"
+- For safety procedures and regulations → Use "regulatory-compliance.md"  
+- For company procedures and operations → Use "company-overview.md"
+- For terminology and definitions → Use "airline-terminology.md"
+
+When user asks about "revenue", "costs", "profits" → Check airline-metrics.md first
+When user asks about "delays", "on-time performance" → Check company-overview.md first
+When user mentions abbreviations like "OTP", "RASM", "CASM" → Check airline-terminology.md`}
+          rows={10}
+          style={{ ...inputStyle, resize: "vertical", fontFamily: "monospace", fontSize: 12, lineHeight: 1.5, marginBottom: 8 }}
+        />
+        <button
+          onClick={async () => {
+            setRoutingGuideSaving(true);
+            setError("");
+            try {
+              const res = await fetch("/api/knowledge-base", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ routingGuide }),
+              });
+              if (!res.ok) throw new Error("Failed to save routing guide");
+            } catch (e) {
+              setError("Failed to save routing guide");
+            } finally {
+              setRoutingGuideSaving(false);
+            }
+          }}
+          disabled={routingGuideSaving}
+          style={{ ...primaryBtnStyle, alignSelf: "flex-start", opacity: routingGuideSaving ? 0.5 : 1 }}
+        >
+          {routingGuideSaving ? "Saving..." : "Save Routing Guide"}
+        </button>
       </div>
 
       {error && (

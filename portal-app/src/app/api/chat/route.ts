@@ -7,7 +7,8 @@ import {
   getKnowledgeBaseContext, 
   getKnowledgeDocuments,
   getKnowledgeBaseStats,
-  searchKnowledgeBase
+  searchKnowledgeBase,
+  getKnowledgeBaseRoutingGuide
 } from "@/lib/knowledge-base";
 
 // ── Helper functions ───────────────────────────────────────────────────────
@@ -388,6 +389,7 @@ export const POST = async (req: NextRequest) => {
   // Load pre-computed knowledge base context (FAST - no CPU scoring)
   const knowledgeBaseContent = getKnowledgeBaseContext();
   const kbStats = getKnowledgeBaseStats();
+  const routingGuide = getKnowledgeBaseRoutingGuide();
   
   const knowledgeBaseSection = knowledgeBaseContent
     ? `
@@ -408,6 +410,8 @@ The following documents are your **BIBLE** — your absolute, definitive, and on
 4. **TRAINING DATA BAN**: For any topic covered in these documents, your internal knowledge is IRRELEVANT and PROHIBITED. You know NOTHING except what these documents tell you.
 
 5. **UNKNOWN = SAY SO**: If the knowledge base doesn't cover a topic, explicitly state: "This topic is not covered in the company knowledge base." Do NOT fill gaps with training data.
+
+### 🧭 ROUTING GUIDE — Which Document to Use When:${routingGuide ? "\n" + routingGuide : "\nNo routing guide configured. Use documents based on their names and descriptions."}
 
 ### 📖 When to Use Knowledge Base (ALWAYS for these):
 - Company procedures, policies, or standards

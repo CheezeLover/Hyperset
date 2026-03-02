@@ -39,6 +39,7 @@ export interface KnowledgeBaseMetadata {
   totalSize: number;
   lastUpdated: string;
   cachedContext?: string; // Pre-computed context string
+  routingGuide?: string; // Admin-defined guide for when to use which documents
 }
 
 // ── In-memory state (cleared on restart) ───────────────────────────────────
@@ -328,6 +329,34 @@ export function searchKnowledgeBase(query: string): Array<{ doc: KnowledgeDocume
 /** Backward compatibility - returns full context */
 export function getAllKnowledgeDocumentContents(): string {
   return getKnowledgeBaseContext();
+}
+
+/** Get routing guide (admin-defined document usage instructions) */
+export function getKnowledgeBaseRoutingGuide(): string {
+  ensureLoaded();
+  return _metadata?.routingGuide ?? "";
+}
+
+/** Set/update routing guide (admin only) */
+export function setKnowledgeBaseRoutingGuide(guide: string): void {
+  ensureLoaded();
+  if (!_metadata) {
+    _metadata = { documents: [], totalSize: 0, lastUpdated: new Date().toISOString() };
+  }
+  
+  _metadata.routingGuide = guide;
+  writeMetadata(_metadata);
+  console.log("[kb] Routing guide updated:", guide.length, "characters");
+}
+
+/** Clear routing guide */
+export function clearKnowledgeBaseRoutingGuide(): void {
+  ensureLoaded();
+  if (_metadata) {
+    delete _metadata.routingGuide;
+    writeMetadata(_metadata);
+    console.log("[kb] Routing guide cleared");
+  }
 }
 
 /** Rebuild cache (call if files modified externally) */
