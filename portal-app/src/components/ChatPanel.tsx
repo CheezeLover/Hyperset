@@ -669,18 +669,18 @@ function renderMarkdown(
         />
       </div>
     </div>
-          );
-        } else {
-          // Domain check failed — render as a plain clickable link rather than
-          // silently dropping so the user always sees something and can debug
-          // any config mismatch between SUPERSET_PUBLIC_URL and the portal URL.
-          nodes.push(
-            <a key={key()} href={iframeUrl} target="_blank" rel="noopener noreferrer"
-              style={{ fontSize: 12, color: "var(--md-primary)", display: "block", margin: "4px 0" }}>
-              {iframeTitle || iframeUrl}
-            </a>
-          );
-        }
+  );
+} else {
+  // Domain check failed — render as a plain clickable link rather than
+  // silently dropping so the user always sees something and can debug
+  // any config mismatch between SUPERSET_PUBLIC_URL and the portal URL.
+  nodes.push(
+    <a key={key()} href={iframeUrl} target="_blank" rel="noopener noreferrer"
+      style={{ fontSize: 12, color: "var(--md-primary)", display: "block", margin: "4px 0" }}>
+      {iframeTitle || iframeUrl}
+    </a>
+  );
+}
       } catch {
         // Invalid URL — silently drop rather than leaking raw iframe syntax into the chat.
       }
