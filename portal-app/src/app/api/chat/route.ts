@@ -4,9 +4,8 @@ import OpenAI from "openai";
 import { getAdminSettings } from "@/lib/admin-settings";
 import { getUserFromRequest } from "@/lib/auth";
 import { 
-  getAllKnowledgeDocumentContents, 
+  getKnowledgeBaseContext, 
   getKnowledgeDocuments,
-  getRelevantKnowledgeContent,
   getKnowledgeBaseStats,
   searchKnowledgeBase
 } from "@/lib/knowledge-base";
@@ -271,14 +270,12 @@ export const POST = async (req: NextRequest) => {
   ];
 
   // Knowledge base tools - allows LLM to explicitly query the knowledge base
-  // These should be considered FIRST before other tools when the question involves
-  // company policies, procedures, terminology, or domain-specific knowledge
   const knowledgeBaseTools: OpenAI.Chat.ChatCompletionTool[] = [
     {
       type: "function",
       function: {
         name: "knowledge_base_list",
-        description: "**CALL THIS FIRST** when the user asks about company procedures, policies, terminology, or any question where company-specific context would help. Returns a list of all available knowledge base documents with descriptions and sizes. This helps you understand what company information is available before answering.",
+        description: "List all documents in the company knowledge base with their descriptions and sizes. Use this to check what company-specific information is available.",
         parameters: {
           type: "object",
           properties: {},
@@ -289,13 +286,13 @@ export const POST = async (req: NextRequest) => {
       type: "function",
       function: {
         name: "knowledge_base_search",
-        description: "**USE AFTER knowledge_base_list** to search for specific content within the knowledge base. Provide a search query to find relevant documents. Returns matching documents with relevance scores and excerpts.",
+        description: "Search for documents by name or description. Provide keywords to find relevant documents. Returns matching document names.",
         parameters: {
           type: "object",
           properties: {
             query: { 
               type: "string", 
-              description: "Search query to find relevant documents (e.g., 'on-time performance', 'safety procedures', 'revenue metrics')" 
+              description: "Search keywords (e.g., 'safety', 'metrics', 'procedures')" 
             },
           },
           required: ["query"],
@@ -388,17 +385,10 @@ export const POST = async (req: NextRequest) => {
   const isMistral = /ministral|mistral/i.test(model);
   const activeTools = filterToolsForContext(tools, userMessages);
 
-  // Load knowledge base content to enrich the system prompt
-  // Use relevance-based retrieval if we have user messages to query against
-  const lastUserMessage = [...userMessages].reverse().find((m) => m.role === "user");
-  const userQuery = typeof lastUserMessage?.content === "string" ? lastUserMessage.content : "";
-  
-  // Get relevant content based on user query (if available), otherwise get all
-  const knowledgeBaseContent = userQuery 
-    ? getRelevantKnowledgeContent(userQuery, 8000)
-    : getAllKnowledgeDocumentContents();
-  
+  // Load pre-computed knowledge base context (FAST - no CPU scoring)
+  const knowledgeBaseContent = getKnowledgeBaseContext();
   const kbStats = getKnowledgeBaseStats();
+  
   const knowledgeBaseSection = knowledgeBaseContent
     ? `
 ---
@@ -421,7 +411,7 @@ The following documents contain company-specific information, vocabulary, proced
 3. Use company terminology and definitions consistently
 4. If knowledge base contradicts your training data, prioritize the knowledge base
 5. Always cite the specific document name when using information from it
-6. Use the knowledge_base_list tool if you need to see all available documents
+6. Use the knowledge_base_list tool to see all available documents
 
 ${knowledgeBaseContent}
 ---
@@ -748,24 +738,22 @@ Use \`navigate_superset_dashboard\` or \`navigate_superset_chart\` when the user
                 result = `Error accessing knowledge base: ${e instanceof Error ? e.message : String(e)}`;
               }
             } else if (tc.name === "knowledge_base_search") {
-              // Knowledge base search tool - search for relevant content
+              // Knowledge base search - simple name/description only
               try {
                 const searchQuery = args.query as string;
                 if (!searchQuery) {
-                  result = "Error: No search query provided. Please provide a query parameter.";
+                  result = "Error: No search query provided.";
                 } else {
-                  const searchResults = searchKnowledgeBase(searchQuery);
-                  if (searchResults.length === 0) {
-                    result = `No results found for "${searchQuery}".\n\nTry using different keywords or check available documents with knowledge_base_list.`;
+                  const matches = searchKnowledgeBase(searchQuery);
+                  if (matches.length === 0) {
+                    result = `No documents found matching "${searchQuery}".`;
                   } else {
-                    const resultsList = searchResults.slice(0, 5).map(r => 
-                      `- **${r.doc.name}** (relevance: ${r.relevance}): ${r.excerpt.slice(0, 150)}...`
-                    ).join('\n');
-                    result = `Search results for "${searchQuery}" (${searchResults.length} matches):\n${resultsList}\n\nThe most relevant documents have been loaded into the conversation context.`;
+                    const docList = matches.map(m => `- ${m.doc.name}: ${m.doc.description || 'No description'}`).join('\n');
+                    result = `Found ${matches.length} document(s) matching "${searchQuery}":\n${docList}`;
                   }
                 }
               } catch (e) {
-                result = `Error searching knowledge base: ${e instanceof Error ? e.message : String(e)}`;
+                result = `Error: ${e instanceof Error ? e.message : String(e)}`;
               }
             } else {
               try {
