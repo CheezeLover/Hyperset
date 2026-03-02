@@ -57,16 +57,16 @@ else:
 
 # Set Superset logo from theme configuration
 if _LOGO_CONFIG.get("logo"):
-    APP_ICON = "/static/assets/images/logos/hyperset-logo-small.png"
+    APP_ICON = "/static/assets/images/logo.png"
     APP_ICON_WIDTH = 200  # Width in pixels
     LOGO_TARGET_PATH = '/'  # Where clicking the logo goes
     LOGO_TOOLTIP = "Hyperset Analytics Portal"
     
     # Favicon configuration
-    FAVICONS = [{"href": "/static/assets/images/logos/hyperset-logo-small.png"}]
+    FAVICONS = [{"href": "/static/assets/images/logo.png"}]
     
     logging.info(f"[Theme] Using custom Superset logo: {APP_ICON}")
-    logging.info(f"[Theme] Logo mounted at: /app/static/assets/images/logos/")
+    logging.info(f"[Theme] Logo mounted at: /app/superset/static/assets/images/logo.png")
 else:
     # Default Superset logo
     APP_ICON = "/static/assets/images/superset-logo-horiz.png"
