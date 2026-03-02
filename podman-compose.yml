@@ -60,8 +60,6 @@ services:
       shm_size: "256m"
     image: localhost/hyperset-portal:latest
     container_name: hyperset-portal
-    ports:
-      - "3000:3000"
     environment:
       - MCP_SERVICE_SECRET=${MCP_SERVICE_SECRET}
       - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
