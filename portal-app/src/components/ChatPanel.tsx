@@ -125,7 +125,10 @@ function AiChartEmbed({
       </button>
 
       {/* iframe */}
-      <div style={{ border: "1px solid var(--md-outline-var)", borderRadius: 8, overflow: "hidden", background: "var(--md-surface-cont)" }}>
+      <div style={{       border: "1px solid var(--md-outline-var)", borderRadius: "12px",
+      overflow: "hidden", background: "var(--md-surface-cont)",
+      boxShadow: "0 2px 8px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04)",
+    }}>
         <iframe
           src={iframeUrl}
           title={iframeTitle}
@@ -337,9 +340,14 @@ function renderMarkdown(
       i++; // consume closing ```
       nodes.push(
         <pre key={key()} style={{
-          background: "var(--md-surface-cont-hi)", borderRadius: 8,
-          padding: "10px 12px", overflowX: "auto", fontSize: 12,
-          margin: "6px 0", border: "1px solid var(--md-outline-var)",
+          background: "var(--md-surface-cont-hi)",
+          borderRadius: "10px",
+          padding: "12px 14px",
+          overflowX: "auto",
+          fontSize: 12,
+          margin: "8px 0",
+          border: "1px solid var(--md-outline-var)",
+          boxShadow: "inset 0 1px 2px rgba(0,0,0,0.03)",
         }}>
           <code data-lang={lang}>{codeLines.join("\n")}</code>
         </pre>
@@ -388,22 +396,24 @@ function renderMarkdown(
       const parsedTable = parseMarkdownTable(tableLines);
       if (parsedTable) {
         nodes.push(
-          <div key={key()} style={{ overflowX: "auto", margin: "8px 0" }}>
+          <div key={key()} style={{ overflowX: "auto", margin: "12px 0", borderRadius: "10px", border: "1px solid var(--md-outline-var)" }}>
             <table style={{ 
               borderCollapse: "collapse", 
               width: "100%",
-              fontSize: "12px",
-              border: "1px solid var(--md-outline-var)"
+              fontSize: "13px",
+              background: "var(--md-surface-cont)",
             }}>
               <thead>
                 <tr style={{ background: "var(--md-surface-cont-hi)" }}>
                   {parsedTable.headers.map((header, colIndex) => (
                     <th key={colIndex} style={{ 
-                      padding: "6px 10px",
+                      padding: "8px 12px",
                       textAlign: parsedTable.alignments[colIndex] || "left",
                       border: "1px solid var(--md-outline-var)",
+                      borderTop: "none",
                       fontWeight: 600,
-                      color: "var(--md-on-surface)"
+                      color: "var(--md-on-surface)",
+                      fontSize: "12px",
                     }}>
                       {ir(header.trim())}
                     </th>
@@ -413,14 +423,17 @@ function renderMarkdown(
               <tbody>
                 {parsedTable.rows.map((row, rowIndex) => (
                   <tr key={rowIndex} style={{ 
-                    background: rowIndex % 2 === 0 ? "var(--md-surface)" : "var(--md-surface-cont-hi)"
+                    background: rowIndex % 2 === 0 ? "var(--md-surface-cont)" : "var(--md-surface-cont-hi)",
+                    transition: "background 0.15s ease",
                   }}>
                     {row.map((cell, cellIndex) => (
                       <td key={cellIndex} style={{ 
-                        padding: "6px 10px",
+                        padding: "8px 12px",
                         textAlign: parsedTable.alignments[cellIndex] || "left",
                         border: "1px solid var(--md-outline-var)",
-                        color: "var(--md-on-surface)"
+                        borderBottom: rowIndex === parsedTable.rows.length - 1 ? "none" : "1px solid var(--md-outline-var)",
+                        color: "var(--md-on-surface)",
+                        fontSize: "13px",
                       }}>
                         {ir(cell.trim())}
                       </td>
@@ -451,7 +464,12 @@ function renderMarkdown(
 
     // Horizontal rule (--- or ***)
     if (/^[-*]{3,}\s*$/.test(line)) {
-      nodes.push(<hr key={key()} style={{ border: "none", borderTop: "1px solid var(--md-outline-var)", margin: "10px 0" }} />);
+      nodes.push(<hr key={key()} style={{ 
+        border: "none", 
+        borderTop: "1px solid var(--md-outline-var)", 
+        margin: "12px 0",
+        opacity: 0.8,
+      }} />);
       i++;
       continue;
     }
@@ -492,19 +510,22 @@ function renderMarkdown(
 
       nodes.push(
         <details key={key()} style={{
-          margin: "10px 0", borderRadius: 8,
+          margin: "12px 0", borderRadius: "12px",
           border: "1px solid var(--md-outline-var)",
           background: "var(--md-surface-cont)",
           overflow: "hidden",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
         }}>
           <summary style={{
             cursor: "pointer", fontWeight: 500,
-            padding: "8px 12px", userSelect: "none",
-            listStyle: "none", display: "flex", alignItems: "center", gap: 6,
-          }}>
+            padding: "10px 14px", userSelect: "none",
+            listStyle: "none", display: "flex", alignItems: "center", gap: 8,
+            fontSize: "13px",
+            transition: "background 0.15s ease",
+          }} onMouseOver={e => e.currentTarget.style.background = "var(--md-surface-cont-hi)"} onMouseOut={e => e.currentTarget.style.background = "transparent"}>
             {summaryText || "Details"}
           </summary>
-          <div style={{ padding: "0 12px 10px", borderTop: "1px solid var(--md-outline-var)" }}>
+          <div style={{ padding: "0 14px 12px", borderTop: "1px solid var(--md-outline-var)" }}>
             {renderMarkdown(bodyLines.join("\n"), supersetUrl, onSupersetLinkClick)}
           </div>
         </details>
@@ -601,9 +622,10 @@ function renderMarkdown(
               </button>
               <div style={{
                 border: "1px solid var(--md-outline-var)",
-                borderRadius: "8px",
+                borderRadius: "12px",
                 overflow: "hidden",
-                background: "var(--md-surface-cont)"
+                background: "var(--md-surface-cont)",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04)",
               }}>
                 <iframe
                   src={iframeUrl}
@@ -640,13 +662,13 @@ function renderMarkdown(
 
     // Empty line → spacing
     if (line.trim() === "") {
-      nodes.push(<div key={key()} style={{ height: 6 }} />);
+      nodes.push(<div key={key()} style={{ height: 8 }} />);
       i++;
       continue;
     }
 
     // Normal paragraph line
-    nodes.push(<p key={key()} style={{ margin: "2px 0", lineHeight: 1.6 }}>{ir(line)}</p>);
+    nodes.push(<p key={key()} style={{ margin: "4px 0", lineHeight: 1.65, fontSize: 14 }}>{ir(line)}</p>);
     i++;
   }
 
@@ -718,9 +740,13 @@ function inlineRender(
       if (end !== -1) {
         parts.push(
           <code key={k++} style={{
-            background: "var(--md-surface-cont-hi)", borderRadius: 4,
-            padding: "1px 5px", fontSize: "0.9em", fontFamily: "monospace",
+            background: "var(--md-surface-cont-hi)",
+            borderRadius: "6px",
+            padding: "2px 6px",
+            fontSize: "0.92em",
+            fontFamily: "ui-monospace, SFMono-Regular, monospace",
             border: "1px solid var(--md-outline-var)",
+            boxShadow: "inset 0 1px 2px rgba(0,0,0,0.03)",
           }}>
             {remaining.slice(1, end)}
           </code>
@@ -737,8 +763,36 @@ function inlineRender(
         const linkText = linkMatch[1];
         const linkUrl  = linkMatch[2];
         const isSuperset = isSupersetUrlFn?.(linkUrl) ?? false;
+        const isIframeLink = linkText.toLowerCase() === "iframe" || linkText.toLowerCase().startsWith("iframe-");
 
-        if (isSuperset && onSupersetLink) {
+        if (isIframeLink && isSuperset) {
+          // Convert [iframe](url) to embedded iframe
+          const iframeTitle = linkText.replace(/^iframe(-ai:\d+)?/i, "").trim() || "Chart";
+          parts.push(
+            <div key={k++} style={{ margin: "12px 0" }}>
+              <div style={{
+                border: "1px solid var(--md-outline-var)",
+                borderRadius: "12px",
+                overflow: "hidden",
+                background: "var(--md-surface-cont)",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04)",
+              }}>
+                <iframe
+                  src={linkUrl}
+                  title={iframeTitle}
+                  style={{
+                    width: "100%",
+                    height: "300px",
+                    border: "none",
+                    display: "block"
+                  }}
+                  sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+                  allowFullScreen
+                />
+              </div>
+            </div>
+          );
+        } else if (isSuperset && onSupersetLink) {
           // Open in the Superset iframe panel instead of a new tab
           parts.push(
             <button
@@ -756,7 +810,6 @@ function inlineRender(
               {linkText}
               <svg viewBox="0 0 16 16" width={10} height={10}
                 fill="currentColor" style={{ marginLeft: 3, verticalAlign: "middle", opacity: 0.7 }}>
-                {/* "open in panel" icon — square with inward arrow */}
                 <path d="M2 2h5v1.5H3.5v9h9V11H14v4H2V2zm7 0h5v5h-1.5V4.56L7.28 9.78 6.22 8.72 11.44 3.5H9V2z"/>
               </svg>
             </button>
@@ -795,41 +848,67 @@ function ToolStep({ tc }: { tc: ToolCall }) {
 
   return (
     <div style={{
-      border: "1px solid var(--md-outline-var)", borderRadius: 8,
-      overflow: "hidden", background: "var(--md-surface-cont)",
-    }}>
+      border: "1px solid var(--md-outline-var)",
+      borderRadius: "10px",
+      overflow: "hidden",
+      background: "var(--md-surface-cont)",
+      boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+      transition: "box-shadow 0.2s ease, transform 0.15s ease",
+    }} onMouseOver={e => e.currentTarget.style.boxShadow = "0 2px 4px rgba(0,0,0,0.06)"} onMouseOut={e => e.currentTarget.style.boxShadow = "0 1px 2px rgba(0,0,0,0.04)"}>
       <button
         onClick={() => setOpen((o) => !o)}
         style={{
-          width: "100%", display: "flex", alignItems: "center", gap: 6,
-          padding: "5px 9px", background: "transparent",
-          border: "none", cursor: "pointer", color: "var(--md-on-surface)",
-          fontSize: 11, fontWeight: 500, textAlign: "left", opacity: 0.85,
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "8px 12px",
+          background: "transparent",
+          border: "none",
+          cursor: "pointer",
+          color: "var(--md-on-surface)",
+          fontSize: 12,
+          fontWeight: 500,
+          textAlign: "left",
+          opacity: 0.9,
+          transition: "opacity 0.15s ease",
         }}
+        onMouseOver={e => e.currentTarget.style.opacity = "1"}
+        onMouseOut={e => e.currentTarget.style.opacity = "0.9"}
       >
         {isPending ? (
           <>
             <span style={{
-              width: 9, height: 9, border: "1.5px solid currentColor",
-              borderTopColor: "transparent", borderRadius: "50%",
-              display: "inline-block", animation: "spin 0.8s linear infinite",
+              width: 10, height: 10,
+              border: "2px solid currentColor",
+              borderTopColor: "transparent",
+              borderRadius: "50%",
+              display: "inline-block",
+              animation: "spin 0.8s linear infinite",
               flexShrink: 0,
             }} />
-            <span style={{ opacity: 0.7 }}>{tc.name.replace(/_/g, " ")}</span>
+            <span style={{ opacity: 0.75 }}>{tc.name.replace(/_/g, " ")}</span>
           </>
         ) : isNav ? (
           <span>↗ {tc.name === "navigate_superset_dashboard" ? `Dashboard ${tc.args.dashboardId ?? ""}` : `Chart ${tc.args.chartId ?? ""}`}</span>
         ) : (
           <span>✓ {tc.name.replace(/_/g, " ")}</span>
         )}
-        <span style={{ fontSize: 11, opacity: 0.4, marginLeft: "auto", flexShrink: 0 }}>{open ? "▴" : "▾"}</span>
+        <span style={{ fontSize: 11, opacity: 0.5, marginLeft: "auto", flexShrink: 0, transition: "transform 0.2s" }}>{open ? "▴" : "▾"}</span>
       </button>
       {open && (
         <pre style={{
-          padding: "7px 11px", fontSize: 10.5, overflowX: "auto",
-          whiteSpace: "pre-wrap", wordBreak: "break-all",
-          color: "var(--md-on-surface)", opacity: 0.75, margin: 0,
+          padding: "10px 14px",
+          fontSize: 11,
+          overflowX: "auto",
+          whiteSpace: "pre-wrap",
+          wordBreak: "break-all",
+          color: "var(--md-on-surface)",
+          opacity: 0.8,
+          margin: 0,
           borderTop: "1px solid var(--md-outline-var)",
+          background: "var(--md-surface-cont-hi)",
+          fontFamily: "ui-monospace, SFMono-Regular, monospace",
         }}>
           {`args: ${JSON.stringify(tc.args, null, 2)}`}
           {tc.result !== undefined ? `\n\nresult: ${tc.result}` : ""}
@@ -846,8 +925,6 @@ function ToolCallsZone({ toolCalls, streaming }: { toolCalls: ToolCall[]; stream
 
   const pendingCount = toolCalls.filter(tc => tc.result === undefined).length;
   const isDone = pendingCount === 0 && !streaming;
-  // Always show the total tool count (never the transient pending count)
-  // so the number doesn't flicker from 1 → N as calls arrive.
   const label = !isDone
     ? `${toolCalls.length} tool${toolCalls.length !== 1 ? "s" : ""} running…`
     : `${toolCalls.length} tool${toolCalls.length !== 1 ? "s" : ""} used`;
@@ -855,53 +932,59 @@ function ToolCallsZone({ toolCalls, streaming }: { toolCalls: ToolCall[]; stream
   return (
     <div style={{
       maxWidth: "88%",
-      border: "1px solid var(--md-primary-cont)",
-      borderRadius: 10,
-      marginBottom: 6,
+      borderRadius: "12px",
+      marginBottom: "8px",
       overflow: "hidden",
+      boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+      border: "1px solid var(--md-primary-cont)",
     }}>
-      {/* Zone header — always visible */}
       <button
         onClick={() => setOpen(o => !o)}
         style={{
-          width: "100%", display: "flex", alignItems: "center", gap: 6,
-          padding: "6px 10px",
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "10px 14px",
           background: "var(--md-primary-cont)",
-          border: "none", cursor: "pointer",
+          border: "none",
+          cursor: "pointer",
           color: "var(--md-on-primary-cont)",
-          fontSize: 12, fontWeight: 500, textAlign: "left",
+          fontSize: 13,
+          fontWeight: 500,
+          textAlign: "left",
+          transition: "opacity 0.15s ease",
         }}
+        onMouseOver={e => e.currentTarget.style.opacity = "0.95"}
+        onMouseOut={e => e.currentTarget.style.opacity = "1"}
       >
-        {/* Wrench icon */}
-        <svg viewBox="0 0 24 24" width={12} height={12} fill="currentColor"
-          style={{ flexShrink: 0, opacity: 0.75 }}>
+        <svg viewBox="0 0 24 24" width={14} height={14} fill="currentColor"
+          style={{ flexShrink: 0, opacity: 0.9 }}>
           <path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/>
         </svg>
-        {/* Label */}
         <span style={{ flex: 1 }}>{label}</span>
-        {/* Spinner while pending */}
         {!isDone && (
           <span style={{
-            width: 10, height: 10,
-            border: "1.5px solid var(--md-on-primary-cont)",
+            width: 12, height: 12,
+            border: "2px solid var(--md-on-primary-cont)",
             borderTopColor: "transparent",
-            borderRadius: "50%", display: "inline-block",
+            borderRadius: "50%",
+            display: "inline-block",
             animation: "spin 0.8s linear infinite",
-            opacity: 0.55, flexShrink: 0,
+            opacity: 0.75,
+            flexShrink: 0,
           }} />
         )}
-        {/* Expand/collapse hint */}
-        <span style={{ fontSize: 11, opacity: 0.4, marginLeft: 4, flexShrink: 0, lineHeight: 1 }}>
-          {open ? "▴" : "▾"}
-        </span>
+        <span style={{ fontSize: 12, opacity: 0.6, marginLeft: 4, flexShrink: 0, transition: "transform 0.2s ease" }}>{open ? "▴" : "▾"}</span>
       </button>
 
-      {/* Expanded body — each tool step */}
       {open && (
         <div style={{
-          padding: "5px 6px 6px",
+          padding: "10px",
           background: "var(--md-surface)",
-          display: "flex", flexDirection: "column", gap: 3,
+          display: "flex",
+          flexDirection: "column",
+          gap: 6,
         }}>
           {toolCalls.map((tc, i) => <ToolStep key={i} tc={tc} />)}
         </div>
@@ -915,7 +998,6 @@ function MessageBubble({ msg, supersetUrl, onSuggestionClick, onSupersetLinkClic
   msg: Message;
   supersetUrl: string;
   onSuggestionClick?: (suggestion: string) => void;
-  /** Called when a Superset-domain link in the message is clicked */
   onSupersetLinkClick?: (url: string) => void;
 }) {
   const isUser = msg.role === "user";
@@ -926,7 +1008,8 @@ function MessageBubble({ msg, supersetUrl, onSuggestionClick, onSupersetLinkClic
       display: "flex",
       flexDirection: "column",
       alignItems: isUser ? "flex-end" : "flex-start",
-      padding: "2px 12px",
+      padding: "4px 16px",
+      animation: "fadeInUp 0.3s ease-out",
     }}>
       {msg.toolCalls && msg.toolCalls.length > 0 && (
         <ToolCallsZone toolCalls={msg.toolCalls} streaming={msg.streaming} />
@@ -935,19 +1018,25 @@ function MessageBubble({ msg, supersetUrl, onSuggestionClick, onSupersetLinkClic
       {msg.content && (
         <div style={{
           maxWidth: "88%",
-          padding: isUser ? "8px 12px" : "6px 0",
-          borderRadius: isUser ? 14 : 0,
+          padding: isUser ? "10px 16px" : "8px 0",
+          borderRadius: isUser ? "18px" : 0,
           background: isUser ? "var(--md-primary-cont)" : "transparent",
           color: isUser ? "var(--md-on-primary-cont)" : "var(--md-on-surface)",
-          fontSize: 13,
-          lineHeight: 1.55,
+          fontSize: 14,
+          lineHeight: 1.6,
           wordBreak: "break-word",
+          boxShadow: isUser ? "0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04)" : "none",
+          transition: "transform 0.2s ease, box-shadow 0.2s ease",
         }}>
           {isUser ? msg.content : renderMarkdown(msg.content, supersetUrl, onSupersetLinkClick)}
           {msg.streaming && (
             <span style={{
-              display: "inline-block", width: 6, height: 13,
-              background: "var(--md-primary)", borderRadius: 1, marginLeft: 2,
+              display: "inline-block",
+              width: 7,
+              height: 16,
+              background: "var(--md-primary)",
+              borderRadius: "2px",
+              marginLeft: 3,
               animation: "blink 1s step-end infinite",
               verticalAlign: "text-bottom",
             }} />
@@ -955,9 +1044,8 @@ function MessageBubble({ msg, supersetUrl, onSuggestionClick, onSupersetLinkClic
         </div>
       )}
       
-      {/* Follow-up suggestions for assistant messages */}
       {isAssistant && !msg.streaming && msg.followupSuggestions && msg.followupSuggestions.length > 0 && onSuggestionClick && (
-        <div style={{ maxWidth: "88%", marginTop: 4 }}>
+        <div style={{ maxWidth: "88%", marginTop: "6px" }}>
           <FollowupSuggestions 
             suggestions={msg.followupSuggestions} 
             onSuggestionClick={onSuggestionClick}
@@ -975,52 +1063,56 @@ function FollowupSuggestions({ suggestions, onSuggestionClick }: {
 }) {
   return (
     <div style={{
-      marginTop: 12, 
+      marginTop: 16, 
       paddingLeft: 16,
-      borderLeft: "2px solid var(--md-primary)",
+      borderLeft: "3px solid var(--md-primary)",
     }}>
       <div style={{
         fontSize: 12, 
         color: "var(--md-primary)", 
-        marginBottom: 8, 
-        fontWeight: 500,
+        marginBottom: 10, 
+        fontWeight: 600,
+        letterSpacing: "0.3px",
       }}>
         Follow-up questions
       </div>
       <div style={{
         display: "flex", 
         flexDirection: "column", 
-        gap: 6,
+        gap: 4,
       }}>
         {suggestions.map((suggestion, index) => (
           <button
             key={index}
             onClick={() => onSuggestionClick(suggestion)}
             style={{
-              padding: "6px 0",
+              padding: "8px 12px",
               background: "transparent",
               color: "var(--md-on-surface)", 
               border: "none",
-              borderRadius: 0,
-              fontSize: 13,
+              borderRadius: "8px",
+              fontSize: 14,
               cursor: "pointer",
-              transition: "all 0.2s",
+              transition: "all 0.2s ease-out",
               textAlign: "left",
               width: "fit-content",
               maxWidth: "100%",
               display: "flex",
               alignItems: "center",
+              gap: 8,
             }}
             onMouseOver={(e) => {
               e.currentTarget.style.color = "var(--md-primary)";
-              e.currentTarget.style.transform = "translateX(2px)";
+              e.currentTarget.style.background = "var(--md-surface-cont)";
+              e.currentTarget.style.transform = "translateX(4px)";
             }}
             onMouseOut={(e) => {
               e.currentTarget.style.color = "var(--md-on-surface)";
+              e.currentTarget.style.background = "transparent";
               e.currentTarget.style.transform = "none";
             }}
           >
-            <span style={{ marginRight: 8, opacity: 0.6, color: "var(--md-primary)" }}>→</span>
+            <span style={{ opacity: 0.5, color: "var(--md-primary)", fontSize: 14 }}>→</span>
             {suggestion}
           </button>
         ))}
@@ -1042,26 +1134,68 @@ function ChatErrorBanner({ error, detail, isAdmin, onOpenSettings, onDismiss }: 
 
   return (
     <div style={{
-      margin: "8px 10px 0", padding: "10px 12px", borderRadius: 10,
-      background: "rgba(211,47,47,0.10)", border: "1px solid rgba(211,47,47,0.28)",
-      display: "flex", flexDirection: "column", gap: 6, fontSize: 12,
+      margin: "12px 16px 0",
+      padding: "12px 16px",
+      borderRadius: "12px",
+      background: "rgba(211,47,47,0.08)",
+      border: "1px solid rgba(211,47,47,0.25)",
+      display: "flex",
+      flexDirection: "column",
+      gap: 8,
+      fontSize: 13,
+      backdropFilter: "blur(8px)",
     }}>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-        <span style={{ color: "#ef5350", fontWeight: 700, flexShrink: 0, fontSize: 14 }}>⚠</span>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+        <span style={{ color: "#ef5350", fontWeight: 700, flexShrink: 0, fontSize: 16 }}>⚠</span>
         <span style={{ flex: 1, color: "var(--md-on-surface)", lineHeight: 1.5 }}>{error}</span>
         <button onClick={handleCopy} title="Copy error"
-          style={{ border: "none", background: "none", cursor: "pointer", color: "var(--md-on-surface)", opacity: 0.5, fontSize: 13, flexShrink: 0, padding: "0 2px" }}>
+          style={{ 
+            border: "none", 
+            background: "none", 
+            cursor: "pointer", 
+            color: "var(--md-on-surface)", 
+            opacity: 0.5, 
+            fontSize: 14, 
+            flexShrink: 0, 
+            padding: "2px 6px",
+            borderRadius: "6px",
+            transition: "opacity 0.15s, background 0.15s",
+          }}
+          onMouseOver={e => { e.currentTarget.style.opacity = "0.8"; e.currentTarget.style.background = "var(--md-surface-cont-hi)"; }}
+          onMouseOut={e => { e.currentTarget.style.opacity = "0.5"; e.currentTarget.style.background = "transparent"; }}>
           {copied ? "✓" : "⎘"}
         </button>
         <button onClick={onDismiss} title="Dismiss"
-          style={{ border: "none", background: "none", cursor: "pointer", color: "var(--md-on-surface)", opacity: 0.4, fontSize: 15, flexShrink: 0, padding: "0 2px", lineHeight: 1 }}>
+          style={{ 
+            border: "none", 
+            background: "none", 
+            cursor: "pointer", 
+            color: "var(--md-on-surface)", 
+            opacity: 0.4, 
+            fontSize: 18, 
+            flexShrink: 0, 
+            padding: "2px 6px",
+            lineHeight: 1,
+            borderRadius: "6px",
+            transition: "opacity 0.15s, background 0.15s",
+          }}
+          onMouseOver={e => { e.currentTarget.style.opacity = "0.8"; e.currentTarget.style.background = "var(--md-surface-cont-hi)"; }}
+          onMouseOut={e => { e.currentTarget.style.opacity = "0.4"; e.currentTarget.style.background = "transparent"; }}>
           ×
         </button>
       </div>
       {isAdmin && (
         <button onClick={onOpenSettings} style={{
-          alignSelf: "flex-start", background: "none", border: "1px solid rgba(211,47,47,0.35)",
-          borderRadius: 6, color: "#ef5350", fontSize: 11, padding: "3px 8px", cursor: "pointer",
+          alignSelf: "flex-start",
+          background: "transparent",
+          border: "1px solid rgba(211,47,47,0.35)",
+          borderRadius: "8px",
+          color: "#ef5350",
+          fontSize: 12,
+          padding: "6px 12px",
+          cursor: "pointer",
+          fontWeight: 500,
+          transition: "all 0.2s ease",
         }}>
           Open LLM Settings
         </button>
@@ -1074,14 +1208,35 @@ function ChatErrorBanner({ error, detail, isAdmin, onOpenSettings, onDismiss }: 
 function McpWarningBanner({ message, onDismiss }: { message: string; onDismiss: () => void }) {
   return (
     <div style={{
-      margin: "6px 10px 0", padding: "7px 12px", borderRadius: 8,
-      background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.30)",
-      display: "flex", alignItems: "center", gap: 8, fontSize: 11,
+      margin: "10px 16px 0",
+      padding: "10px 14px",
+      borderRadius: "10px",
+      background: "rgba(245,158,11,0.08)",
+      border: "1px solid rgba(245,158,11,0.25)",
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+      fontSize: 12,
+      backdropFilter: "blur(8px)",
     }}>
-      <span style={{ color: "#f59e0b", fontWeight: 700, flexShrink: 0 }}>⚡</span>
-      <span style={{ flex: 1, color: "var(--md-on-surface)", opacity: 0.75, lineHeight: 1.4 }}>{message}</span>
+      <span style={{ color: "#f59e0b", fontWeight: 700, flexShrink: 0, fontSize: 14 }}>⚡</span>
+      <span style={{ flex: 1, color: "var(--md-on-surface)", opacity: 0.85, lineHeight: 1.4 }}>{message}</span>
       <button onClick={onDismiss} title="Dismiss"
-        style={{ border: "none", background: "none", cursor: "pointer", color: "var(--md-on-surface)", opacity: 0.4, fontSize: 14, flexShrink: 0, padding: "0 2px", lineHeight: 1 }}>
+        style={{ 
+          border: "none", 
+          background: "none", 
+          cursor: "pointer", 
+          color: "var(--md-on-surface)", 
+          opacity: 0.4, 
+          fontSize: 16, 
+          flexShrink: 0, 
+          padding: "2px 6px",
+          lineHeight: 1,
+          borderRadius: "6px",
+          transition: "opacity 0.15s, background 0.15s",
+        }}
+        onMouseOver={e => { e.currentTarget.style.opacity = "0.8"; e.currentTarget.style.background = "var(--md-surface-cont-hi)"; }}
+        onMouseOut={e => { e.currentTarget.style.opacity = "0.4"; e.currentTarget.style.background = "transparent"; }}>
         ×
       </button>
     </div>
@@ -1483,31 +1638,89 @@ export function ChatPanel({
   }, [messages, supersetIframeRef, supersetOrigin]);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--md-surface-cont)" }}>
-      {/* Blinking cursor CSS */}
-      <style>{`@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }`}</style>
+    <div style={{ 
+      display: "flex", 
+      flexDirection: "column", 
+      height: "100%", 
+      background: "var(--md-surface-cont)",
+      fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    }}>
+      {/* Animations CSS */}
+      <style>{`
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+        @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(8px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        
+        /* Modern thin scrollbar */
+        ::-webkit-scrollbar {
+          width: 6px;
+          height: 6px;
+        }
+        
+        ::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+          background: var(--md-outline);
+          border-radius: 10px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+          background: var(--md-primary-muted);
+        }
+        
+        * {
+          scrollbar-width: thin;
+          scrollbar-color: var(--md-outline) transparent;
+        }
+      `}</style>
 
       {/* Header */}
       <div style={{
-        display: "flex", alignItems: "center", padding: "8px 12px",
-        borderBottom: "1px solid var(--md-outline-var)", gap: 8, minHeight: 44, flexShrink: 0,
+        display: "flex", 
+        alignItems: "center", 
+        padding: "12px 16px",
+        borderBottom: "1px solid var(--md-outline-var)",
+        gap: 10,
+        minHeight: 52,
+        flexShrink: 0,
+        background: "var(--md-surface-cont)",
       }}>
-        <svg viewBox="0 0 24 24" width={18} height={18} fill="var(--md-primary)">
+        <svg viewBox="0 0 24 24" width={20} height={20} fill="var(--md-primary)">
           <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z" />
         </svg>
-        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--md-on-surface)", flex: 1 }}>Chat</span>
+        <span style={{ fontSize: 15, fontWeight: 600, color: "var(--md-on-surface)", flex: 1 }}>Chat</span>
 
         {/* Clear button */}
         {messages.length > 0 && (
           <button onClick={handleClear} title="Clear conversation"
             style={{
-              width: 28, height: 28, border: "none", borderRadius: "var(--radius-m)", cursor: "pointer",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              background: "var(--md-surface-cont-hi)", color: "var(--md-on-surface)",
-              opacity: 0.55, flexShrink: 0,
-            }}>
-            {/* Broom / clear icon */}
-            <svg viewBox="0 0 24 24" width={15} height={15} fill="currentColor">
+              width: 32, height: 32,
+              border: "none",
+              borderRadius: "10px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "var(--md-surface-cont-hi)",
+              color: "var(--md-on-surface)",
+              opacity: 0.65,
+              flexShrink: 0,
+              transition: "all 0.2s ease",
+            }}
+            onMouseOver={e => { e.currentTarget.style.opacity = "1"; e.currentTarget.style.background = "var(--md-surface)"; e.currentTarget.style.transform = "scale(1.05)"; }}
+            onMouseOut={e => { e.currentTarget.style.opacity = "0.65"; e.currentTarget.style.background = "var(--md-surface-cont-hi)"; e.currentTarget.style.transform = "none"; }}>
+            <svg viewBox="0 0 24 24" width={16} height={16} fill="currentColor">
               <path d="M19 4h-3.5l-1-1h-5l-1 1H5v2h14V4zM6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12z"/>
             </svg>
           </button>
@@ -1517,13 +1730,22 @@ export function ChatPanel({
         {isAdmin && (
           <button onClick={() => setShowAdminModal(true)} title="LLM settings"
             style={{
-              width: 30, height: 30, border: "none", borderRadius: "var(--radius-m)", cursor: "pointer",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              background: chatError ? "rgba(211,47,47,0.15)" : "var(--md-secondary-cont)",
-              color: chatError ? "#ef5350" : "var(--md-on-sec-cont)",
-              transition: "background 0.2s",
-            }}>
-            <svg viewBox="0 0 24 24" width={16} height={16} fill="currentColor">
+              width: 32, height: 32,
+              border: "none",
+              borderRadius: "10px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: chatError ? "rgba(211,47,47,0.15)" : "var(--md-surface-cont-hi)",
+              color: chatError ? "#ef5350" : "var(--md-on-surface)",
+              opacity: chatError ? 0.9 : 0.65,
+              flexShrink: 0,
+              transition: "all 0.2s ease",
+            }}
+            onMouseOver={e => { e.currentTarget.style.opacity = "1"; e.currentTarget.style.background = chatError ? "rgba(211,47,47,0.2)" : "var(--md-surface)"; e.currentTarget.style.transform = "scale(1.05)"; }}
+            onMouseOut={e => { e.currentTarget.style.opacity = chatError ? "0.9" : "0.65"; e.currentTarget.style.background = chatError ? "rgba(211,47,47,0.15)" : "var(--md-surface-cont-hi)"; e.currentTarget.style.transform = "none"; }}>
+            <svg viewBox="0 0 24 24" width={17} height={17} fill="currentColor">
               <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z" />
             </svg>
           </button>
@@ -1543,16 +1765,34 @@ export function ChatPanel({
       )}
 
       {/* Message list */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "12px 0" }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: "16px 0" }}>
         {messages.length === 0 && (
           <div style={{
-            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-            height: "100%", gap: 10, opacity: 0.45, userSelect: "none",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            height: "100%",
+            gap: 16,
+            opacity: 0.55,
+            userSelect: "none",
+            animation: "fadeInUp 0.5s ease-out",
           }}>
-            <svg viewBox="0 0 24 24" width={36} height={36} fill="var(--md-primary)">
-              <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z" />
-            </svg>
-            <span style={{ fontSize: 13 }}>Hello! Ask me anything about your data.</span>
+            <div style={{
+              width: 64,
+              height: 64,
+              borderRadius: "50%",
+              background: "var(--md-primary-cont)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+            }}>
+              <svg viewBox="0 0 24 24" width={32} height={32} fill="var(--md-primary)">
+                <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z" />
+              </svg>
+            </div>
+            <span style={{ fontSize: 15, fontWeight: 500 }}>Hello! Ask me anything about your data.</span>
           </div>
         )}
         {messages.map((msg) => (
@@ -1564,12 +1804,12 @@ export function ChatPanel({
             onSupersetLinkClick={handleSupersetLinkClick}
           />
         ))}
-        <div ref={messagesEndRef} />
+        <div ref={messagesEndRef} style={{ height: 8 }} />
       </div>
 
       {/* Floating Input area */}
       <div style={{
-        padding: "6px 10px 10px 14px",
+        padding: "8px 16px 16px",
         display: "flex", 
         flexShrink: 0,
         background: "transparent",
@@ -1578,15 +1818,13 @@ export function ChatPanel({
         <div style={{
           flex: 1,
           position: "relative",
-          borderRadius: 24,
-          background: "transparent",
-          border: "1px solid var(--md-outline-var)",
-          transition: "all 0.2s ease",
-          ...(input.trim() ? {
-            borderColor: "var(--md-primary)",
-          } : hasSentMessage ? {
-            borderColor: "var(--md-outline-var)",
-          } : {})
+          borderRadius: "26px",
+          background: "var(--md-surface-cont-hi)",
+          border: `2px solid ${input.trim() ? "var(--md-primary)" : hasSentMessage ? "var(--md-outline)" : "var(--md-outline-var)"}`,
+          transition: "all 0.2s ease-out",
+          boxShadow: input.trim() 
+            ? "0 4px 12px rgba(32, 167, 201, 0.15), 0 2px 4px rgba(0,0,0,0.06)"
+            : "0 2px 8px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02)",
         }}>
           <textarea
             ref={textareaRef}
@@ -1600,9 +1838,9 @@ export function ChatPanel({
             style={{
               flex: 1, resize: "none", 
               border: "none",
-              borderRadius: 24, 
-              padding: "6px 46px 6px 14px", 
-              fontSize: 14,
+              borderRadius: "26px", 
+              padding: "10px 52px 10px 18px", 
+              fontSize: 15,
               background: "transparent", 
               color: "var(--md-on-surface)",
               outline: "none", 
@@ -1610,12 +1848,11 @@ export function ChatPanel({
               lineHeight: `${LINE_HEIGHT}px`,
               overflowY: "hidden",
               opacity: (loading || !!chatError) ? 0.6 : 1,
-              transition: "height 0.1s ease",
-              minHeight: 38,
+              transition: "height 0.15s ease",
+              minHeight: 42,
               width: "100%",
               WebkitAppearance: "none",
               MozAppearance: "none",
-              // Ensure no focus outline overrides our border
               outlineOffset: 0,
               WebkitTapHighlightColor: "transparent",
             }}
@@ -1624,10 +1861,10 @@ export function ChatPanel({
             position: "absolute",
             right: 12,
             top: "50%",
-            transform: input.trim() ? "translateY(-50%) scale(1)" : "translateY(-50%) scale(0.9)",
+            transform: input.trim() || loading ? "translateY(-50%) scale(1)" : "translateY(-50%) scale(0.85)",
             pointerEvents: "none",
-            opacity: input.trim() ? 1 : 0.3,
-            transition: "opacity 0.2s, transform 0.1s",
+            opacity: input.trim() || loading ? 1 : 0.4,
+            transition: "all 0.2s ease-out",
           }}>
             {loading ? (
               <button
@@ -1638,17 +1875,19 @@ export function ChatPanel({
                 title="Stop generating"
                 style={{
                   border: "none",
-                  background: "transparent",
+                  background: "rgba(239, 83, 80, 0.12)",
                   cursor: "pointer",
-                  padding: "4px",
+                  padding: "6px",
                   borderRadius: "50%",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   pointerEvents: "auto",
+                  transition: "all 0.2s ease",
                 }}
-              >
-                <svg viewBox="0 0 24 24" width={20} height={20} fill="#ef5350">
+                onMouseOver={e => { e.currentTarget.style.background = "rgba(239, 83, 80, 0.2)"; e.currentTarget.style.transform = "scale(1.1)"; }}
+                onMouseOut={e => { e.currentTarget.style.background = "rgba(239, 83, 80, 0.12)"; e.currentTarget.style.transform = "none"; }}>
+                <svg viewBox="0 0 24 24" width={22} height={22} fill="#ef5350">
                   <path d="M18 18H6V6h12v12z"/>
                 </svg>
               </button>
@@ -1662,17 +1901,19 @@ export function ChatPanel({
                 title="Send"
                 style={{
                   border: "none",
-                  background: "transparent",
+                  background: input.trim() ? "var(--md-primary-cont)" : "transparent",
                   cursor: (!input.trim() || loading || !!chatError) ? "default" : "pointer",
-                  padding: "4px",
+                  padding: "6px",
                   borderRadius: "50%",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   pointerEvents: "auto",
+                  transition: "all 0.2s ease",
                 }}
-              >
-                <svg viewBox="0 0 24 24" width={20} height={20} fill="var(--md-primary)">
+                onMouseOver={e => { if (input.trim()) { e.currentTarget.style.background = "var(--md-primary)"; e.currentTarget.style.transform = "scale(1.1)"; } }}
+                onMouseOut={e => { e.currentTarget.style.background = input.trim() ? "var(--md-primary-cont)" : "transparent"; e.currentTarget.style.transform = "none"; }}>
+                <svg viewBox="0 0 24 24" width={22} height={22} fill={input.trim() ? "var(--md-primary)" : "var(--md-outline)"} style={{ transition: "fill 0.2s ease" }}>
                   <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" transform="rotate(-45 12 12)" />
                 </svg>
               </button>
@@ -1685,35 +1926,6 @@ export function ChatPanel({
       {showAdminModal && (
         <AdminModal onClose={() => { setShowAdminModal(false); setChatError(null); }} />
       )}
-
-      <style>{`@keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
-@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
-
-/* Modern rounded scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-  border-radius: 10px;
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 10px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.3);
-}
-
-/* Firefox scrollbar */
-scrollbar-width: thin;
-scrollbar-color: rgba(0, 0, 0, 0.2) transparent;`}</style>
     </div>
   );
 }
