@@ -22,6 +22,10 @@ export interface UserContext {
  *                        custom role transform is configured)
  *  - no roles header   — fail closed (isAdmin: false, unauthenticated).
  *                        Set DEV_ADMIN=true only in local dev without Caddy.
+ * 
+ * SECURITY: DEV_ADMIN is strictly development-only and requires:
+ * 1. DEV_ADMIN=true environment variable
+ * 2. NODE_ENV=development (production fails closed regardless)
  */
 function parseRoles(rolesHeader: string | null): {
   roles: string[];
@@ -31,9 +35,21 @@ function parseRoles(rolesHeader: string | null): {
     // No Caddy auth headers present — fail closed by default so that direct
     // access to the Next.js port (3000) never grants elevated privileges.
     // Set DEV_ADMIN=true only in local development without Caddy.
-    if (process.env.DEV_ADMIN === "true") {
+    
+    // SECURITY FIX: Only allow DEV_ADMIN in development mode
+    const isDevelopment = process.env.NODE_ENV === "development";
+    const devAdminEnabled = process.env.DEV_ADMIN === "true";
+    
+    if (devAdminEnabled && isDevelopment) {
+      console.warn("[AUTH] DEV_ADMIN enabled - granting admin access for development");
       return { roles: [], isAdmin: true };
     }
+    
+    // In production or if DEV_ADMIN not set, fail closed
+    if (devAdminEnabled && !isDevelopment) {
+      console.error("[AUTH] DEV_ADMIN ignored in production - failing closed");
+    }
+    
     return { roles: [], isAdmin: false };
   }
   // caddy-security injects roles separated by spaces (not commas).
