@@ -46,6 +46,16 @@ except Exception as e:
 # Extract Superset theme configuration
 _SUPERSET_THEME = _THEME_CONFIG.get("superset", {})
 _SUPERSET_COLORS = _SUPERSET_THEME.get("colors", {})
+_LOGO_CONFIG = _THEME_CONFIG.get("logos", {}).get("superset", {})
+
+# Set Superset logo from theme configuration
+if _LOGO_CONFIG.get("logo"):
+    APP_ICON = _LOGO_CONFIG["logo"]
+    logging.info(f"[Theme] Using custom Superset logo: {APP_ICON}")
+else:
+    # Default Superset logo
+    APP_ICON = "/static/assets/images/superset-logo-horiz.png"
+    logging.info("[Theme] Using default Superset logo")
 
 # Build THEME_DEFAULT with Ant Design v5 tokens
 if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
