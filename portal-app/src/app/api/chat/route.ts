@@ -731,7 +731,7 @@ Use \`navigate_superset_dashboard\` or \`navigate_superset_chart\` when the user
                 if (docs.length === 0) {
                   result = `Knowledge Base Status: Empty (${stats.documentCount} documents, ${stats.totalSizeFormatted} / ${stats.maxSizeFormatted} used)\n\nNo company-specific documents have been uploaded yet. Administrators can add documents through Admin Settings > Knowledge Base.`;
                 } else {
-                  const docList = docs.map(d => `- **${d.name}** (${formatBytes(d.size)}${d.chunks ? `, ${d.chunks} chunks` : ''}): ${d.description || 'No description'}`).join('\n');
+                  const docList = docs.map(d => `- **${d.name}** (${formatBytes(d.size)}): ${d.description || 'No description'}`).join('\n');
                   result = `Knowledge Base Status: ${stats.documentCount} documents, ${stats.totalSizeFormatted} / ${stats.maxSizeFormatted} used (${stats.utilizationPercent}%)\n\nAvailable documents:\n${docList}\n\nTo search for specific content, use the knowledge_base_search tool with relevant keywords.`;
                 }
               } catch (e) {
