@@ -14,29 +14,42 @@ export const metadata: Metadata = {
 // Read theme at build time for SSR
 function getThemeScript() {
   try {
-    const themePath = join(process.cwd(), "..", "theme.json");
-    const themeContent = readFileSync(themePath, "utf-8");
-    const theme = JSON.parse(themeContent);
+    // Try multiple possible locations for theme.json
+    const possiblePaths = [
+      join(process.cwd(), "theme.json"),
+      join(process.cwd(), "..", "theme.json"),
+      "/app/theme.json",
+    ];
     
-    if (theme.hyperset?.colors) {
-      const colors = theme.hyperset.colors;
-      return `
-        (function() {
-          const root = document.documentElement;
-          root.style.setProperty('--theme-primary', '${colors.primary}');
-          root.style.setProperty('--theme-primary-dark', '${colors.primaryDark}');
-          root.style.setProperty('--theme-primary-light', '${colors.primaryLight}');
-          root.style.setProperty('--theme-secondary', '${colors.secondary}');
-          root.style.setProperty('--theme-secondary-light', '${colors.secondary}');
-          root.style.setProperty('--theme-background', '${colors.background}');
-          root.style.setProperty('--theme-surface', '${colors.surface}');
-          root.style.setProperty('--theme-text', '${colors.text}');
-          root.style.setProperty('--theme-text-muted', '${colors.textMuted}');
-          root.style.setProperty('--theme-border', '${colors.border}');
-          root.style.setProperty('--theme-border-muted', '${colors.border}');
-          root.style.setProperty('--theme-border-light', '${colors.border}');
-        })();
-      `;
+    for (const themePath of possiblePaths) {
+      try {
+        const themeContent = readFileSync(themePath, "utf-8");
+        const theme = JSON.parse(themeContent);
+        
+        if (theme.hyperset?.colors) {
+          const colors = theme.hyperset.colors;
+          return `
+            (function() {
+              const root = document.documentElement;
+              root.style.setProperty('--theme-primary', '${colors.primary}');
+              root.style.setProperty('--theme-primary-dark', '${colors.primaryDark}');
+              root.style.setProperty('--theme-primary-light', '${colors.primaryLight}');
+              root.style.setProperty('--theme-secondary', '${colors.secondary}');
+              root.style.setProperty('--theme-secondary-light', '${colors.secondary}');
+              root.style.setProperty('--theme-background', '${colors.background}');
+              root.style.setProperty('--theme-surface', '${colors.surface}');
+              root.style.setProperty('--theme-text', '${colors.text}');
+              root.style.setProperty('--theme-text-muted', '${colors.textMuted}');
+              root.style.setProperty('--theme-border', '${colors.border}');
+              root.style.setProperty('--theme-border-muted', '${colors.border}');
+              root.style.setProperty('--theme-border-light', '${colors.border}');
+              console.log('[Theme] Build-time theme loaded: ${theme.name || "Custom"}');
+            })();
+          `;
+        }
+      } catch (e) {
+        // Try next path
+      }
     }
   } catch (e) {
     console.log("Theme not found at build time, will load at runtime");

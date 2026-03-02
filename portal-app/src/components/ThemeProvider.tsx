@@ -57,7 +57,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
           root.style.setProperty('--theme-border-muted', colors.border);
           root.style.setProperty('--theme-border-light', colors.border);
           
-          console.log('Theme loaded:', theme.name || 'Custom');
+          console.log('[Theme] Runtime theme loaded:', theme.name || 'Custom');
+          console.log('[Theme] Primary color set to:', colors.primary);
+          console.log('[Theme] CSS variable --md-primary is now:', getComputedStyle(root).getPropertyValue('--md-primary'));
+        } else {
+          console.log('[Theme] No hyperset.colors found in theme.json');
         }
       } catch (error) {
         console.error('Failed to load theme:', error);

@@ -1,10 +1,16 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-COPY package*.json ./
+# Copy package files from portal-app subdirectory
+COPY portal-app/package*.json ./
 RUN npm ci
 
-COPY . .
+# Copy theme.json from project root if available
+COPY theme.json ./theme.json 2>/dev/null || true
+
+# Copy portal-app source
+COPY portal-app/ .
+
 # Limit Node heap during build to avoid OOM SIGKILL in memory-constrained envs.
 # Webpack/SWC compilation is the culprit; 1.5 GB is usually sufficient for Next.js.
 ENV NODE_OPTIONS="--max-old-space-size=1536"
