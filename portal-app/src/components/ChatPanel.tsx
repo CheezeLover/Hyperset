@@ -649,19 +649,26 @@ function renderMarkdown(
         </svg>
       </button>
       <div style={{
-                  src={iframeUrl}
-                  title={iframeTitle}
-                  style={{
-                    width: "100%",
-                    height: "300px",
-                    border: "none",
-                    display: "block"
-                  }}
-                  sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
-                  allowFullScreen
-                />
-              </div>
-            </div>
+        border: "1px solid var(--md-outline-var)",
+        borderRadius: "8px",
+        overflow: "hidden",
+        background: "var(--md-surface-cont)",
+        boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
+      }}>
+        <iframe
+          src={iframeUrl}
+          title={iframeTitle}
+          style={{
+            width: "100%",
+            height: "300px",
+            border: "none",
+            display: "block"
+          }}
+          sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+          allowFullScreen
+        />
+      </div>
+    </div>
           );
         } else {
           // Domain check failed — render as a plain clickable link rather than
