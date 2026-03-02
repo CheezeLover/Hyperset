@@ -39,7 +39,10 @@ services:
 
   # Superset application server
   superset-app:
-    image: docker.io/apache/superset:6.0.0
+    build:
+      context: ./Superset-Instance
+      dockerfile: Dockerfile
+    image: localhost/hyperset-superset:latest
     container_name: hyperset-superset
     environment:
       # Database configuration
@@ -98,7 +101,10 @@ services:
 
   # Superset Celery worker
   superset-worker:
-    image: docker.io/apache/superset:6.0.0
+    build:
+      context: ./Superset-Instance
+      dockerfile: Dockerfile
+    image: localhost/hyperset-superset:latest
     container_name: hyperset-superset-worker
     command: ["celery", "worker", "--app=superset.tasks.celery_app:app", "-l", "INFO"]
     environment:
@@ -147,7 +153,10 @@ services:
 
   # Superset Celery beat (scheduler)
   superset-beat:
-    image: docker.io/apache/superset:6.0.0
+    build:
+      context: ./Superset-Instance
+      dockerfile: Dockerfile
+    image: localhost/hyperset-superset:latest
     container_name: hyperset-superset-beat
     command: ["celery", "beat", "--app=superset.tasks.celery_app:app", "-l", "INFO"]
     environment:
@@ -188,7 +197,10 @@ services:
 
   # Superset initialization (db upgrade, init, create admin)
   superset-init:
-    image: docker.io/apache/superset:6.0.0
+    build:
+      context: ./Superset-Instance
+      dockerfile: Dockerfile
+    image: localhost/hyperset-superset:latest
     container_name: hyperset-superset-init
     command: >
       bash -c "
