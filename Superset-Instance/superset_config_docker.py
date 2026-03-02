@@ -53,10 +53,15 @@ if _LOGO_CONFIG.get("logo"):
     APP_ICON = _LOGO_CONFIG["logo"]
     APP_ICON_WIDTH = 126  # Adjust based on your logo size
     logging.info(f"[Theme] Using custom Superset logo: {APP_ICON}")
+    
+    # Also set favicon if logo is configured
+    FAVICONS = [{"href": _LOGO_CONFIG.get("logo", APP_ICON)}]
+    logging.info(f"[Theme] Using custom favicon")
 else:
     # Default Superset logo
     APP_ICON = "/static/assets/images/superset-logo-horiz.png"
     APP_ICON_WIDTH = 126
+    FAVICONS = [{"href": "/static/assets/images/favicon.png"}]
     logging.info("[Theme] Using default Superset logo")
 
 # Build THEME_DEFAULT with Ant Design v5 tokens
