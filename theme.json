@@ -1,7 +1,7 @@
 {
   "name": "Hyperset Orange Theme",
   "version": "1.0.0",
-  "description": "Orange-themed Hyperset deployment with custom branding",
+  "description": "Warm orange theme for Hyperset analytics portal",
   
   "hyperset": {
     "colors": {
@@ -9,11 +9,11 @@
       "primaryDark": "#E85A2D",
       "primaryLight": "#FF8A5C",
       "secondary": "#2D3748",
-      "background": "#F7FAFC",
+      "background": "#FFF8F5",
       "surface": "#FFFFFF",
       "text": "#1A202C",
       "textMuted": "#718096",
-      "border": "#E2E8F0",
+      "border": "#FFE5D9",
       "success": "#48BB78",
       "warning": "#ED8936",
       "error": "#F56565",
@@ -24,7 +24,7 @@
       "headingFont": "Inter, system-ui, sans-serif"
     },
     "borderRadius": "8px",
-    "shadow": "0 4px 6px -1px rgba(0, 0, 0, 0.1)"
+    "shadow": "0 4px 6px -1px rgba(255, 107, 53, 0.1)"
   },
   
   "superset": {
@@ -34,12 +34,12 @@
       "primaryDark": "#E85A2D",
       "secondary": "#2D3748",
       "grayscale": {
-        "base": "#F7FAFC",
-        "light1": "#EDF2F7",
-        "light2": "#E2E8F0",
-        "light3": "#CBD5E0",
-        "light4": "#A0AEC0",
-        "light5": "#718096",
+        "base": "#FFF8F5",
+        "light1": "#FFEDE5",
+        "light2": "#FFE5D9",
+        "light3": "#FFD4C4",
+        "light4": "#FFA07A",
+        "light5": "#FF8A5C",
         "dark1": "#4A5568",
         "dark2": "#2D3748",
         "dark3": "#1A202C"
