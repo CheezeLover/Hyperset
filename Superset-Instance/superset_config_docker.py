@@ -230,36 +230,6 @@ FEATURE_FLAGS = {
 }
 
 # ---------------------------------------------------------------------------
-# Custom CSS to hide "Superset" text and show logo properly
-# ---------------------------------------------------------------------------
-EXTRA_CSS = """
-/* Hide the "Superset" text next to logo */
-.navbar-brand span,
-.ant-layout-header .brand-text,
-.brand span,
-.logo-text,
-.navbar .brand-text {
-    display: none !important;
-}
-
-/* Ensure logo is visible */
-.navbar-brand img,
-.ant-layout-header img,
-.brand img {
-    display: inline-block !important;
-    visibility: visible !important;
-    height: 40px !important;
-    width: auto !important;
-}
-
-/* Make navbar accommodate larger logo */
-.navbar-brand {
-    display: flex !important;
-    align-items: center !important;
-}
-"""
-
-# ---------------------------------------------------------------------------
 # Cache (Redis)
 # ---------------------------------------------------------------------------
 REDIS_HOST     = os.getenv("REDIS_HOST", "redis")
