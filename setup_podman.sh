@@ -37,6 +37,12 @@ if [ "$DEPLOY_WITH_SUPERSET" = "true" ]; then
     echo ""
     sleep 3
   fi
+  
+  # Build custom Superset image with PostgreSQL support
+  echo "==> Building custom Superset image..."
+  cd Superset-Instance
+  podman build -t localhost/hyperset-superset:latest -f Dockerfile .
+  cd ..
 else
   echo "==> DEPLOY_WITH_SUPERSET=false: Using external Superset instance"
   echo "   Ensure SUPERSET_UPSTREAM in .env points to your Superset instance"
