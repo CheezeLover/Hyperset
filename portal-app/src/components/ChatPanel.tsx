@@ -621,66 +621,38 @@ function renderMarkdown(
                 </svg>
               </button>
               <div style={{
-      border: "1px solid var(--md-outline-var)",
-      borderRadius: "12px",
-      overflow: "hidden",
-      background: "var(--md-surface-cont)",
-      boxShadow: "0 2px 8px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04)",
-    }}>
-      {/* Clickable title */}
-      <button
-        onClick={() => onSupersetLinkClick?.(iframeUrl)}
-        title="Open in Superset"
-        style={{
-          display: "inline-flex", alignItems: "center", gap: 6,
-          background: "none", border: "none", padding: "6px 10px", marginBottom: 4,
-          cursor: onSupersetLinkClick ? "pointer" : "default",
-          fontSize: 12, fontWeight: 500,
-          color: "var(--md-primary)", opacity: 0.9,
-          textDecoration: "none",
-          transition: "all 0.2s ease-out",
-        }}
-        onMouseOver={e => { e.currentTarget.style.opacity = "1"; e.currentTarget.style.textDecoration = "underline"; }}
-        onMouseOut={e => { e.currentTarget.style.opacity = "0.9"; e.currentTarget.style.textDecoration = "none"; }}
-      >
-        {iframeTitle}
-        <svg viewBox="0 0 16 16" width={11} height={11} fill="currentColor" style={{ opacity: 0.8, flexShrink: 0 }}>
-          <path d="M2 2h5v1.5H3.5v9h9V11H14v4H2V2zm7 0h5v5h-1.5V4.56L7.28 9.78 6.22 8.72 11.44 3.5H9V2z"/>
-        </svg>
-      </button>
-      <div style={{
-        border: "1px solid var(--md-outline-var)",
-        borderRadius: "8px",
-        overflow: "hidden",
-        background: "var(--md-surface-cont)",
-        boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
-      }}>
-        <iframe
-          src={iframeUrl}
-          title={iframeTitle}
-          style={{
-            width: "100%",
-            height: "300px",
-            border: "none",
-            display: "block"
-          }}
-          sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
-          allowFullScreen
-        />
-      </div>
-    </div>
-  );
-} else {
-  // Domain check failed — render as a plain clickable link rather than
-  // silently dropping so the user always sees something and can debug
-  // any config mismatch between SUPERSET_PUBLIC_URL and the portal URL.
-  nodes.push(
-    <a key={key()} href={iframeUrl} target="_blank" rel="noopener noreferrer"
-      style={{ fontSize: 12, color: "var(--md-primary)", display: "block", margin: "4px 0" }}>
-      {iframeTitle || iframeUrl}
-    </a>
-  );
-}
+                border: "1px solid var(--md-outline-var)",
+                borderRadius: "12px",
+                overflow: "hidden",
+                background: "var(--md-surface-cont)",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04)",
+              }}>
+                <iframe
+                  src={iframeUrl}
+                  title={iframeTitle}
+                  style={{
+                    width: "100%",
+                    height: "300px",
+                    border: "none",
+                    display: "block"
+                  }}
+                  sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+                  allowFullScreen
+                />
+              </div>
+            </div>
+          );
+        } else {
+          // Domain check failed — render as a plain clickable link rather than
+          // silently dropping so the user always sees something and can debug
+          // any config mismatch between SUPERSET_PUBLIC_URL and the portal URL.
+          nodes.push(
+            <a key={key()} href={iframeUrl} target="_blank" rel="noopener noreferrer"
+              style={{ fontSize: 12, color: "var(--md-primary)", display: "block", margin: "4px 0" }}>
+              {iframeTitle || iframeUrl}
+            </a>
+          );
+        }
       } catch {
         // Invalid URL — silently drop rather than leaking raw iframe syntax into the chat.
       }
