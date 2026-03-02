@@ -223,17 +223,20 @@ services:
     command: >
       bash -c "
         echo 'Waiting for database...' &&
-        sleep 10 &&
+        sleep 15 &&
+        echo 'Running database upgrade...' &&
         superset db upgrade &&
+        echo 'Creating admin user...' &&
         superset fab create-admin \\
           --username admin \\
           --firstname Admin \\
           --lastname User \\
           --email admin@hyperset.local \\
-          --password admin || true &&
+          --password admin || echo 'Admin user may already exist' &&
+        echo 'Initializing Superset...' &&
         superset init &&
-        echo 'Loading example data...' &&
-        superset load_examples || echo 'Examples load skipped or failed' &&
+        echo 'Loading examples (this may take 2-3 minutes)...' &&
+        timeout 300 superset load_examples || echo 'Examples loading completed or timed out' &&
         echo 'Superset initialization complete'
       "
     environment:
