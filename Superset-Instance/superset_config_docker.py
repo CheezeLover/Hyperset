@@ -27,107 +27,83 @@ from flask_login import login_user, current_user
 from superset.security import SupersetSecurityManager
 
 # ---------------------------------------------------------------------------
-# Theme Configuration (loaded from theme.json if available)
+# Theme Configuration (Ant Design v5 Token-based Theming)
 # ---------------------------------------------------------------------------
 # Load custom theme from shared config
 _THEME_CONFIG = {}
 _THEME_PATH = "/app/pythonpath/theme.json"
-
-# Set default logo paths
-APP_ICON = "/static/assets/images/superset-logo-horiz.png"
-APP_ICON_WIDTH = 126
-
-# Check if we should apply custom theming
-_SUPERSET_THEME = {}
-_THEME_COLORS = {}
-_LOGO_CONFIG = {}
 
 try:
     if os.path.exists(_THEME_PATH):
         with open(_THEME_PATH, 'r') as f:
             _THEME_CONFIG = json.load(f)
         logging.info(f"[Theme] Loaded theme from {_THEME_PATH}")
-        
-        # Check if Superset theming is enabled
-        _SUPERSET_THEME = _THEME_CONFIG.get("superset", {})
-        _SUPERSET_THEMING_ENABLED = _SUPERSET_THEME.get("enabled", True)
-        
-        if _SUPERSET_THEMING_ENABLED:
-            _THEME_COLORS = _SUPERSET_THEME.get("colors", {})
-            _LOGO_CONFIG = _THEME_CONFIG.get("logos", {}).get("superset", {})
-            
-            # Update logo paths if configured
-            if _LOGO_CONFIG.get("logo"):
-                APP_ICON = _LOGO_CONFIG["logo"]
-                logging.info(f"[Theme] Using custom logo: {APP_ICON}")
     else:
-        # Try alternative path
-        _ALT_THEME_PATH = "/etc/superset/theme.json"
-        if os.path.exists(_ALT_THEME_PATH):
-            with open(_ALT_THEME_PATH, 'r') as f:
-                _THEME_CONFIG = json.load(f)
-            logging.info(f"[Theme] Loaded theme from {_ALT_THEME_PATH}")
-        else:
-            logging.warning(f"[Theme] theme.json not found, using defaults")
+        logging.warning(f"[Theme] theme.json not found at {_THEME_PATH}")
 except Exception as e:
     logging.error(f"[Theme] Error loading theme: {e}")
 
-# Generate custom CSS for Superset theming
-if _SUPERSET_THEME.get("enabled", False) and "colors" in _SUPERSET_THEME:
-    _colors = _SUPERSET_THEME["colors"]
-    _primary = _colors.get("primary", "#FF6B35")
-    _primary_dark = _colors.get("primaryDark", "#E85A2D")
-    _secondary = _colors.get("secondary", "#2D3748")
+# Extract Superset theme configuration
+_SUPERSET_THEME = _THEME_CONFIG.get("superset", {})
+_SUPERSET_COLORS = _SUPERSET_THEME.get("colors", {})
+
+# Build THEME_DEFAULT with Ant Design v5 tokens
+if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
+    _primary = _SUPERSET_COLORS.get("primary", "#FF6B35")
+    _primary_dark = _SUPERSET_COLORS.get("primaryDark", "#E85A2D")
+    _secondary = _SUPERSET_COLORS.get("secondary", "#2D3748")
     
-    logging.info(f"[Theme] Applying custom Superset theme - primary: {_primary}")
+    logging.info(f"[Theme] Applying Ant Design theme - primary: {_primary}")
     
-    # Custom CSS to override Superset's default colors
-    CUSTOM_CSS = f"""
-:root {{
-    --primary-color: {_primary};
-    --primary-dark: {_primary_dark};
-    --secondary-color: {_secondary};
-}}
-
-/* Override Superset primary colors */
-.btn-primary,
-.ant-btn-primary {{
-    background-color: {_primary} !important;
-    border-color: {_primary} !important;
-}}
-
-.btn-primary:hover,
-.ant-btn-primary:hover {{
-    background-color: {_primary_dark} !important;
-    border-color: {_primary_dark} !important;
-}}
-
-/* Navigation and header */
-.navbar,
-.header {{
-    background-color: {_primary} !important;
-}}
-
-/* Links */
-a,
-a:hover {{
-    color: {_primary};
-}}
-
-/* Active states */
-.nav-item.active,
-.ant-menu-item-selected {{
-    background-color: {_primary} !important;
-}}
-
-/* Brand/logo area */
-.navbar-brand {{
-    color: white !important;
-}}
-    """
+    THEME_DEFAULT = {
+        "token": {
+            # Primary color (buttons, links, accents)
+            "colorPrimary": _primary,
+            "colorPrimaryHover": _primary_dark,
+            "colorPrimaryActive": _primary_dark,
+            "colorPrimaryText": _primary,
+            "colorPrimaryTextHover": _primary_dark,
+            
+            # Success, warning, error colors
+            "colorSuccess": "#48BB78",
+            "colorWarning": "#ED8936",
+            "colorError": "#F56565",
+            "colorInfo": "#4299E1",
+            
+            # Background colors
+            "colorBgBase": "#FFFFFF",
+            "colorBgContainer": "#FFFFFF",
+            "colorBgElevated": "#FFF8F5",
+            "colorBgLayout": "#FFF8F5",
+            
+            # Text colors
+            "colorText": "#1A202C",
+            "colorTextSecondary": "#718096",
+            "colorTextTertiary": "#A0AEC0",
+            
+            # Border colors
+            "colorBorder": "#FFE5D9",
+            "colorBorderSecondary": "#FFEDE5",
+            
+            # Border radius
+            "borderRadius": 8,
+            "borderRadiusLG": 12,
+            "borderRadiusSM": 4,
+            
+            # Typography
+            "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+            "fontFamilyCode": "'Fira Code', Monaco, Consolas, monospace",
+        }
+    }
+    
+    # Enable theme administration in UI
+    ENABLE_UI_THEME_ADMINISTRATION = True
+    
+    logging.info(f"[Theme] THEME_DEFAULT configured with {len(THEME_DEFAULT['token'])} tokens")
 else:
-    logging.info("[Theme] Using default Superset theme")
-    CUSTOM_CSS = ""
+    logging.info("[Theme] Using default Superset theme (no custom colors found)")
+    THEME_DEFAULT = {}
+    ENABLE_UI_THEME_ADMINISTRATION = True
 
 # ---------------------------------------------------------------------------
 # Authentication — trust the X-Webauth-User header set by Caddy/Hyperset
@@ -225,16 +201,83 @@ FEATURE_FLAGS = {
 }
 
 # ---------------------------------------------------------------------------
-# Theme CSS Injection
+# Theme Configuration (Ant Design v5 Token-based Theming)
 # ---------------------------------------------------------------------------
-# Inject custom theme CSS via URL - CSS is served by Caddy at /superset-theme.css
-_hyperset_domain = os.getenv("HYPERSET_DOMAIN", "")
-if _hyperset_domain and _SUPERSET_THEME.get("enabled", False) and "colors" in _SUPERSET_THEME:
-    _css_url = f"https://superset.{_hyperset_domain}/superset-theme.css"
-    EXTRA_CSS = [_css_url]
-    logging.info(f"[Theme] Loading CSS from: {_css_url}")
+# Load custom theme from shared config
+_THEME_CONFIG = {}
+_THEME_PATH = "/app/pythonpath/theme.json"
+
+try:
+    if os.path.exists(_THEME_PATH):
+        with open(_THEME_PATH, 'r') as f:
+            _THEME_CONFIG = json.load(f)
+        logging.info(f"[Theme] Loaded theme from {_THEME_PATH}")
+    else:
+        logging.warning(f"[Theme] theme.json not found at {_THEME_PATH}")
+except Exception as e:
+    logging.error(f"[Theme] Error loading theme: {e}")
+
+# Extract Superset theme configuration
+_SUPERSET_THEME = _THEME_CONFIG.get("superset", {})
+_SUPERSET_COLORS = _SUPERSET_THEME.get("colors", {})
+
+# Build THEME_DEFAULT with Ant Design v5 tokens
+if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
+    _primary = _SUPERSET_COLORS.get("primary", "#FF6B35")
+    _primary_dark = _SUPERSET_COLORS.get("primaryDark", "#E85A2D")
+    _secondary = _SUPERSET_COLORS.get("secondary", "#2D3748")
+    
+    logging.info(f"[Theme] Applying Ant Design theme - primary: {_primary}")
+    
+    THEME_DEFAULT = {
+        "token": {
+            # Primary color (buttons, links, accents)
+            "colorPrimary": _primary,
+            "colorPrimaryHover": _primary_dark,
+            "colorPrimaryActive": _primary_dark,
+            "colorPrimaryText": _primary,
+            "colorPrimaryTextHover": _primary_dark,
+            
+            # Success, warning, error colors
+            "colorSuccess": "#48BB78",
+            "colorWarning": "#ED8936",
+            "colorError": "#F56565",
+            "colorInfo": "#4299E1",
+            
+            # Background colors
+            "colorBgBase": "#FFFFFF",
+            "colorBgContainer": "#FFFFFF",
+            "colorBgElevated": "#FFF8F5",
+            "colorBgLayout": "#FFF8F5",
+            
+            # Text colors
+            "colorText": "#1A202C",
+            "colorTextSecondary": "#718096",
+            "colorTextTertiary": "#A0AEC0",
+            
+            # Border colors
+            "colorBorder": "#FFE5D9",
+            "colorBorderSecondary": "#FFEDE5",
+            
+            # Border radius
+            "borderRadius": 8,
+            "borderRadiusLG": 12,
+            "borderRadiusSM": 4,
+            
+            # Typography
+            "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+            "fontFamilyCode": "'Fira Code', Monaco, Consolas, monospace",
+        }
+    }
+    
+    # Enable theme administration in UI
+    ENABLE_UI_THEME_ADMINISTRATION = True
+    
+    logging.info(f"[Theme] THEME_DEFAULT configured with {len(THEME_DEFAULT['token'])} tokens")
 else:
-    EXTRA_CSS = []
+    logging.info("[Theme] Using default Superset theme (no custom colors found)")
+    THEME_DEFAULT = {}
+    ENABLE_UI_THEME_ADMINISTRATION = True
 
 # ---------------------------------------------------------------------------
 # Cache (Redis)
@@ -409,16 +452,9 @@ CUSTOM_SECURITY_MANAGER = HypersetSecurityManager
 #   1. Reads REMOTE_USER (set by the WSGI middleware above)
 #   2. Logs the user in via our patched auth_user_remote_user
 #   3. Redirects /login/ to the index if already authenticated
-#   4. Injects custom theme CSS
 # ---------------------------------------------------------------------------
 def FLASK_APP_MUTATOR(app):
     logger.info("[FLASK_APP_MUTATOR] Installing before_request hook")
-    
-    # Inject custom CSS into template context
-    if CUSTOM_CSS:
-        logger.info("[Theme] Injecting custom CSS into Superset")
-        # Store CSS in app config for injection
-        app.config['CUSTOM_CSS'] = CUSTOM_CSS
 
     @app.before_request
     def hyperset_auto_login():
@@ -475,10 +511,10 @@ logger.info(f"ENABLE_CORS: {ENABLE_CORS}")
 logger.info(f"CORS origins: {_portal_origin}")
 
 # Theme logging
-if _SUPERSET_THEME.get("enabled", False) and _THEME_COLORS:
-    logger.info(f"[Theme] Superset theming enabled with primary color: {_THEME_COLORS.get('primary', 'N/A')}")
-    if EXTRA_CSS:
-        logger.info(f"[Theme] Loading CSS from: {EXTRA_CSS}")
+if _SUPERSET_THEME.get("enabled", False) and _SUPERSET_COLORS:
+    logger.info(f"[Theme] Superset theming enabled with primary color: {_SUPERSET_COLORS.get('primary', 'N/A')}")
+    if 'THEME_DEFAULT' in globals() and THEME_DEFAULT:
+        logger.info(f"[Theme] THEME_DEFAULT configured with {len(THEME_DEFAULT.get('token', {}))} tokens")
 else:
     logger.info("[Theme] Using default Superset theme")
 
