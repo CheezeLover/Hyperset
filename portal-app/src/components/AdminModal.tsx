@@ -19,6 +19,10 @@ interface LlmSettings {
   cleanupDelayMinutes: number;
 }
 
+interface AdminSettingsResponse extends LlmSettings {
+  effectiveSystemPrompt?: string;
+}
+
 interface KnowledgeDocument {
   id: string;
   name: string;
@@ -445,12 +449,20 @@ export function AdminModal({ onClose }: AdminModalProps) {
   const [saveError, setSaveError] = useState("");
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
+  const [effectiveSystemPrompt, setEffectiveSystemPrompt] = useState("");
+
+  const effectiveSystemPromptPreview = settings.systemPrompt.trim()
+    ? settings.systemPrompt
+    : effectiveSystemPrompt;
 
   useEffect(() => {
     fetch("/api/admin")
       .then((r) => r.json())
       .then((data) => {
-        setSettings({ ...data, apiKey: data.isCustom ? "***" : "" });
+        const response = data as AdminSettingsResponse;
+        const { effectiveSystemPrompt: currentEffectivePrompt, ...rawSettings } = response;
+        setSettings({ ...rawSettings, apiKey: response.isCustom ? "***" : "" });
+        setEffectiveSystemPrompt(currentEffectivePrompt ?? "");
         setLoading(false);
       })
       .catch(() => { setSaveError("Failed to load settings"); setLoading(false); });
@@ -504,8 +516,10 @@ export function AdminModal({ onClose }: AdminModalProps) {
     try {
       await fetch("/api/admin", { method: "DELETE" });
       const res = await fetch("/api/admin");
-      const data = await res.json();
-      setSettings({ ...data, apiKey: "" });
+      const data = await res.json() as AdminSettingsResponse;
+      const { effectiveSystemPrompt: currentEffectivePrompt, ...rawSettings } = data;
+      setSettings({ ...rawSettings, apiKey: "" });
+      setEffectiveSystemPrompt(currentEffectivePrompt ?? "");
     } catch { setSaveError("Failed to reset"); }
     finally { setSaving(false); }
   };
@@ -628,6 +642,15 @@ export function AdminModal({ onClose }: AdminModalProps) {
                   rows={6}
                   style={{ ...inputStyle, resize: "vertical", fontFamily: "monospace", fontSize: 12, lineHeight: 1.5 }}
                   disabled={saving}
+                />
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 6 }}>
+                <span style={labelStyle}>Currently applied value (default when field is empty)</span>
+                <textarea
+                  value={effectiveSystemPromptPreview}
+                  readOnly
+                  rows={6}
+                  style={{ ...inputStyle, resize: "vertical", fontFamily: "monospace", fontSize: 11, lineHeight: 1.4, opacity: 0.8 }}
                 />
               </label>
             </div>
