@@ -3,9 +3,22 @@ import { listMcpTools, callMcpTool } from "@/lib/mcp-client";
 import OpenAI from "openai";
 import { getAdminSettings } from "@/lib/admin-settings";
 import { getUserFromRequest } from "@/lib/auth";
+import { 
+  getKnowledgeBaseContext, 
+  getKnowledgeDocuments,
+  getKnowledgeBaseStats,
+  searchKnowledgeBase,
+  getKnowledgeBaseRoutingGuide
+} from "@/lib/knowledge-base";
 
-// ── Sliding-window rate limiter ────────────────────────────────────────────
-// 20 requests per 60-second window per authenticated user (email-keyed).
+// ── Helper functions ───────────────────────────────────────────────────────
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+}
 const _rateLimitMap = new Map<string, number[]>();
 const RATE_LIMIT      = 20;
 const RATE_WINDOW_MS  = 60_000;
@@ -257,7 +270,39 @@ export const POST = async (req: NextRequest) => {
     },
   ];
 
-  const tools = [...navTools, ...mcpTools];
+  // Knowledge base tools - allows LLM to explicitly query the knowledge base
+  const knowledgeBaseTools: OpenAI.Chat.ChatCompletionTool[] = [
+    {
+      type: "function",
+      function: {
+        name: "knowledge_base_list",
+        description: "List all documents in the company knowledge base with their descriptions and sizes. Use this to check what company-specific information is available.",
+        parameters: {
+          type: "object",
+          properties: {},
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "knowledge_base_search",
+        description: "Search for documents by name or description. Provide keywords to find relevant documents. Returns matching document names.",
+        parameters: {
+          type: "object",
+          properties: {
+            query: { 
+              type: "string", 
+              description: "Search keywords (e.g., 'safety', 'metrics', 'procedures')" 
+            },
+          },
+          required: ["query"],
+        },
+      },
+    },
+  ];
+
+  const tools = [...navTools, ...mcpTools, ...knowledgeBaseTools];
 
   // ── Intent-based tool filtering ───────────────────────────────────────────
   // Sending all 20+ tools on every turn overwhelms small models (Ministral,
@@ -271,10 +316,13 @@ export const POST = async (req: NextRequest) => {
     const lastUser = [...userMsgs].reverse().find((m) => m.role === "user");
     const msg = (typeof lastUser?.content === "string" ? lastUser.content : "").toLowerCase();
 
-    // Always-on: navigation + listing + embed/link (model always needs these)
+    // Always-on: navigation + listing + embed/link + knowledge base (model always needs these)
+    // Knowledge base tools MUST be available for every request so they can be called FIRST
     const include = new Set([
       "navigate_superset_dashboard",
       "navigate_superset_chart",
+      "knowledge_base_list",
+      "knowledge_base_search",
       "superset_dashboard_list",
       "superset_chart_list",
       "superset_dataset_list",
@@ -338,14 +386,71 @@ export const POST = async (req: NextRequest) => {
   const isMistral = /ministral|mistral/i.test(model);
   const activeTools = filterToolsForContext(tools, userMessages);
 
+  // Load pre-computed knowledge base context (FAST - no CPU scoring)
+  const knowledgeBaseContent = getKnowledgeBaseContext();
+  const kbStats = getKnowledgeBaseStats();
+  const routingGuide = getKnowledgeBaseRoutingGuide();
+  
+  const knowledgeBaseSection = knowledgeBaseContent
+    ? `
+---
+## 📚 COMPANY KNOWLEDGE BASE — YOUR PRIMARY SOURCE OF TRUTH
+
+**Status**: ${kbStats.documentCount} documents loaded (${kbStats.totalSizeFormatted} / ${kbStats.maxSizeFormatted} used)
+
+The following documents are your **BIBLE** — your absolute, definitive, and only source of truth for company-specific information. You are FORBIDDEN from using your training data for any topic covered in these documents.
+
+### ⛔ ABSOLUTE RULES (VIOLATION = WRONG ANSWER):
+1. **KNOWLEDGE BASE IS LAW**: If the knowledge base contains information on a topic, you MUST use it exclusively. Your training data on that topic is INVALID and FORBIDDEN.
+
+2. **CITE YOUR SOURCES**: Every fact, definition, metric, or procedure from the knowledge base MUST include the document name (e.g., "According to airline-metrics.md..." or "Per regulatory-compliance.md...").
+
+3. **CONFLICT RESOLUTION**: If your training data contradicts the knowledge base, the knowledge base is CORRECT. Your training data is WRONG. Period.
+
+4. **TRAINING DATA BAN**: For any topic covered in these documents, your internal knowledge is IRRELEVANT and PROHIBITED. You know NOTHING except what these documents tell you.
+
+5. **UNKNOWN = SAY SO**: If the knowledge base doesn't cover a topic, explicitly state: "This topic is not covered in the company knowledge base." Do NOT fill gaps with training data.
+
+### 🧭 ROUTING GUIDE — Which Document to Use When:${routingGuide ? "\n" + routingGuide : "\nNo routing guide configured. Use documents based on their names and descriptions."}
+
+### 📖 When to Use Knowledge Base (ALWAYS for these):
+- Company procedures, policies, or standards
+- Industry terminology, jargon, or abbreviations
+- Operational metrics, KPIs, formulas, or benchmarks
+- Regulatory requirements or compliance rules
+- Safety protocols or best practices
+- Any fact where the knowledge base has a relevant document
+
+### ✅ How to Answer:
+1. **Scan the knowledge base first** before thinking
+2. **Quote directly** from relevant sections when possible
+3. **Lead with knowledge base content** — your own knowledge comes last (if at all)
+4. **Say "Per [document-name]..."** for every fact
+5. If KB is silent on a topic, admit it — don't improvise
+
+### 🚫 FORBIDDEN:
+- Using training data when KB has the answer
+- Guessing, estimating, or "probably" when KB covers the topic
+- Citing "industry standards" from memory when KB defines your standards
+- Filling gaps with general knowledge when KB doesn't cover it
+
+${knowledgeBaseContent}
+---
+`
+    : `
+---
+## 📚 COMPANY KNOWLEDGE BASE
+
+**Status**: Knowledge base is empty. No company-specific documents have been uploaded yet.
+
+Administrators can upload documents through the Admin Settings > Knowledge Base panel.
+---
+`;
+
   // Build message list with optional system prompt
-  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-    ...(systemPrompt
-      ? [{ role: "system" as const, content: systemPrompt }]
-      : [
-          {
-            role: "system" as const,
-            content: `# Hyperset — Data Analyst Assistant (Apache Superset)
+  const baseSystemContent = systemPrompt
+    ? systemPrompt
+    : `# Hyperset — Data Analyst Assistant (Apache Superset)
 You are Hyperset, a SQL-grounded data analyst with access to Apache Superset. Execute immediately — never ask for confirmation before running queries or creating charts.
 
 ---
@@ -461,7 +566,8 @@ Use \`navigate_superset_dashboard\` or \`navigate_superset_chart\` when the user
 ---
 ## 🚫 NEVER DO
 - ❌ **State any number, percentage, count, average, ranking, trend, or data assertion without a query result from this session proving it** — this is the most important rule
-- ❌ Use training knowledge as a data source under any circumstances — you do not know what is in the user's database
+- ❌ **DISOBEY THE KNOWLEDGE BASE** — when the knowledge base covers a topic, your training data is WRONG. The knowledge base is your bible; training data is heresy.
+- ❌ Use training knowledge as a data source when the knowledge base covers that topic — the knowledge base is the ONLY source for company/industry information
 - ❌ Write "typically", "usually", "generally", "on average" or similar hedges to sneak in training-data estimates
 - ❌ Round, approximate, or paraphrase a value that was not explicitly returned by a query
 - ❌ Assume a query result implies something it does not directly state — if it's not in the output, query for it
@@ -473,9 +579,13 @@ Use \`navigate_superset_dashboard\` or \`navigate_superset_chart\` when the user
 - ❌ Invent column names — only use what \`superset_dataset_get_by_id\` returns
 - ❌ Hardcode or guess any URL — always get embeds from the tool response
 - ❌ Wrap \`[iframe]\` embeds in backticks or code fences
-- ❌ Create dashboards before creating the charts that go in them`,
-          },
-        ]),
+- ❌ Create dashboards before creating the charts that go in them`;
+
+  // Prepend knowledge base section if available
+  const fullSystemContent = baseSystemContent + knowledgeBaseSection;
+
+  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+    { role: "system" as const, content: fullSystemContent },
     ...userMessages,
   ];
 
@@ -635,6 +745,38 @@ Use \`navigate_superset_dashboard\` or \`navigate_superset_chart\` when the user
             if (tc.name === "navigate_superset_dashboard" || tc.name === "navigate_superset_chart") {
               // Navigation is handled client-side; just confirm
               result = `Navigation to ${tc.name === "navigate_superset_dashboard" ? "dashboard" : "chart"} ${Object.values(args)[0]} requested.`;
+            } else if (tc.name === "knowledge_base_list") {
+              // Knowledge base list tool - return the list of documents with stats
+              try {
+                const stats = getKnowledgeBaseStats();
+                const docs = getKnowledgeDocuments();
+                if (docs.length === 0) {
+                  result = `Knowledge Base Status: Empty (${stats.documentCount} documents, ${stats.totalSizeFormatted} / ${stats.maxSizeFormatted} used)\n\nNo company-specific documents have been uploaded yet. Administrators can add documents through Admin Settings > Knowledge Base.`;
+                } else {
+                  const docList = docs.map(d => `- **${d.name}** (${formatBytes(d.size)}): ${d.description || 'No description'}`).join('\n');
+                  result = `Knowledge Base Status: ${stats.documentCount} documents, ${stats.totalSizeFormatted} / ${stats.maxSizeFormatted} used (${stats.utilizationPercent}%)\n\nAvailable documents:\n${docList}\n\nTo search for specific content, use the knowledge_base_search tool with relevant keywords.`;
+                }
+              } catch (e) {
+                result = `Error accessing knowledge base: ${e instanceof Error ? e.message : String(e)}`;
+              }
+            } else if (tc.name === "knowledge_base_search") {
+              // Knowledge base search - simple name/description only
+              try {
+                const searchQuery = args.query as string;
+                if (!searchQuery) {
+                  result = "Error: No search query provided.";
+                } else {
+                  const matches = searchKnowledgeBase(searchQuery);
+                  if (matches.length === 0) {
+                    result = `No documents found matching "${searchQuery}".`;
+                  } else {
+                    const docList = matches.map(m => `- ${m.doc.name}: ${m.doc.description || 'No description'}`).join('\n');
+                    result = `Found ${matches.length} document(s) matching "${searchQuery}":\n${docList}`;
+                  }
+                }
+              } catch (e) {
+                result = `Error: ${e instanceof Error ? e.message : String(e)}`;
+              }
             } else {
               try {
                 const raw = await callMcpTool(tc.name, args);
