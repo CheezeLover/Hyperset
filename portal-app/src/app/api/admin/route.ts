@@ -6,6 +6,7 @@ import {
   setAdminSettings,
   clearAdminSettings,
 } from "@/lib/admin-settings";
+import { DEFAULT_SYSTEM_PROMPT } from "@/lib/default-system-prompt";
 
 // ── Rate limiters ──────────────────────────────────────────────────────────────
 // General admin endpoint limit: 20 req / 60 s per user (config reads/saves).
@@ -128,6 +129,8 @@ export async function GET(request: NextRequest) {
   }
 
   const s = getAdminSettings();
+  const effectiveSystemPrompt = s?.systemPrompt ?? process.env.LLM_SYSTEM_PROMPT ?? DEFAULT_SYSTEM_PROMPT;
+  const effectiveModelParams = s?.modelParams ?? "{}";
 
   return NextResponse.json({
     apiUrl:              s?.apiUrl              ?? process.env.LLM_API_URL       ?? "",
@@ -135,6 +138,8 @@ export async function GET(request: NextRequest) {
     model:               s?.model               ?? process.env.LLM_MODEL        ?? "gpt-4o",
     systemPrompt:        s?.systemPrompt        ?? process.env.LLM_SYSTEM_PROMPT ?? "",
     modelParams:         s?.modelParams         ?? "",
+    effectiveSystemPrompt,
+    effectiveModelParams,
     maxTurns:            s?.maxTurns            ?? Number(process.env.LLM_MAX_TURNS           ?? 40),
     maxToolResultChars:  s?.maxToolResultChars  ?? Number(process.env.LLM_MAX_TOOL_RESULT_CHARS ?? 3000),
     maxHistoryMessages:  s?.maxHistoryMessages  ?? Number(process.env.LLM_MAX_HISTORY_MESSAGES ?? 20),

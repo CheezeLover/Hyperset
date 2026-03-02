@@ -19,6 +19,11 @@ interface LlmSettings {
   cleanupDelayMinutes: number;
 }
 
+interface AdminSettingsResponse extends LlmSettings {
+  effectiveSystemPrompt?: string;
+  effectiveModelParams?: string;
+}
+
 interface KnowledgeDocument {
   id: string;
   name: string;
@@ -445,12 +450,29 @@ export function AdminModal({ onClose }: AdminModalProps) {
   const [saveError, setSaveError] = useState("");
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
+  const [effectiveDefaults, setEffectiveDefaults] = useState({
+    systemPrompt: "",
+    modelParams: "{}",
+  });
+
+  const effectiveSystemPromptPreview = settings.systemPrompt.trim()
+    ? settings.systemPrompt
+    : effectiveDefaults.systemPrompt;
+  const effectiveModelParamsPreview = settings.modelParams.trim()
+    ? settings.modelParams
+    : effectiveDefaults.modelParams;
 
   useEffect(() => {
     fetch("/api/admin")
       .then((r) => r.json())
       .then((data) => {
-        setSettings({ ...data, apiKey: data.isCustom ? "***" : "" });
+        const response = data as AdminSettingsResponse;
+        const { effectiveSystemPrompt, effectiveModelParams, ...rawSettings } = response;
+        setSettings({ ...rawSettings, apiKey: response.isCustom ? "***" : "" });
+        setEffectiveDefaults({
+          systemPrompt: effectiveSystemPrompt ?? "",
+          modelParams: effectiveModelParams ?? "{}",
+        });
         setLoading(false);
       })
       .catch(() => { setSaveError("Failed to load settings"); setLoading(false); });
@@ -504,8 +526,13 @@ export function AdminModal({ onClose }: AdminModalProps) {
     try {
       await fetch("/api/admin", { method: "DELETE" });
       const res = await fetch("/api/admin");
-      const data = await res.json();
-      setSettings({ ...data, apiKey: "" });
+      const data = await res.json() as AdminSettingsResponse;
+      const { effectiveSystemPrompt, effectiveModelParams, ...rawSettings } = data;
+      setSettings({ ...rawSettings, apiKey: "" });
+      setEffectiveDefaults({
+        systemPrompt: effectiveSystemPrompt ?? "",
+        modelParams: effectiveModelParams ?? "{}",
+      });
     } catch { setSaveError("Failed to reset"); }
     finally { setSaving(false); }
   };
@@ -630,6 +657,15 @@ export function AdminModal({ onClose }: AdminModalProps) {
                   disabled={saving}
                 />
               </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 6 }}>
+                <span style={labelStyle}>Currently applied value (default when field is empty)</span>
+                <textarea
+                  value={effectiveSystemPromptPreview}
+                  readOnly
+                  rows={6}
+                  style={{ ...inputStyle, resize: "vertical", fontFamily: "monospace", fontSize: 11, lineHeight: 1.4, opacity: 0.8 }}
+                />
+              </label>
             </div>
 
             {/* ── Model parameters ── */}
@@ -646,6 +682,15 @@ export function AdminModal({ onClose }: AdminModalProps) {
                   rows={4}
                   style={{ ...inputStyle, resize: "vertical", fontFamily: "monospace", fontSize: 11, lineHeight: 1.4 }}
                   disabled={saving}
+                />
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 6 }}>
+                <span style={labelStyle}>Currently applied value (default when field is empty)</span>
+                <textarea
+                  value={effectiveModelParamsPreview}
+                  readOnly
+                  rows={4}
+                  style={{ ...inputStyle, resize: "vertical", fontFamily: "monospace", fontSize: 11, lineHeight: 1.4, opacity: 0.8 }}
                 />
               </label>
             </div>
