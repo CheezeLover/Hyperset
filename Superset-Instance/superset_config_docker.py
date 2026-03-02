@@ -184,6 +184,9 @@ class HypersetRemoteUserMiddleware:
         user = environ.get("HTTP_X_WEBAUTH_USER", "")
         if user:
             environ["REMOTE_USER"] = user
+            logger.info(f"[Middleware] Set REMOTE_USER={user} from X-Webauth-User header")
+        else:
+            logger.warning(f"[Middleware] No X-Webauth-User header found! Headers: {dict((k,v) for k,v in environ.items() if k.startswith('HTTP_'))}")
         return self.app(environ, start_response)
 
 ADDITIONAL_MIDDLEWARE = [HypersetRemoteUserMiddleware]
@@ -224,17 +227,19 @@ class HypersetSecurityManager(SupersetSecurityManager):
         On first login (user creation), reads roles from Caddy header.
         On subsequent logins, just logs in without touching roles.
         """
+        logger.info(f"[SecurityManager] auth_user_remote_user called with username={username}")
         user = self.find_user(username=username)
-
+        
         if user is None and self.auth_user_registration:
             # New user — resolve role from Caddy header
             initial_role = self._resolve_initial_role()
-
+            logger.info(f"[SecurityManager] Creating new user={username} with role={initial_role}")
+            
             # Extract email from header if available
             email = request.environ.get("HTTP_X_WEBAUTH_EMAIL", "")
             if not email:
                 email = f"{username}@hyperset.local"
-
+            
             user = self.add_user(
                 username=username,
                 first_name=username.split("@")[0].title(),
@@ -242,10 +247,16 @@ class HypersetSecurityManager(SupersetSecurityManager):
                 email=email,
                 role=initial_role,
             )
-
+            logger.info(f"[SecurityManager] Created user={username}, id={user.id if user else 'FAILED'}")
+        else:
+            logger.info(f"[SecurityManager] Found existing user={username}, user={user}")
+        
         if user:
             login_user(user)
             g.user = user
+            logger.info(f"[SecurityManager] Logged in user={username}")
+        else:
+            logger.error(f"[SecurityManager] Failed to login user={username}")
         return user
 
 CUSTOM_SECURITY_MANAGER = HypersetSecurityManager
@@ -257,6 +268,7 @@ CUSTOM_SECURITY_MANAGER = HypersetSecurityManager
 #   3. Redirects /login/ to the index if already authenticated
 # ---------------------------------------------------------------------------
 def FLASK_APP_MUTATOR(app):
+    logger.info("[FLASK_APP_MUTATOR] Installing before_request hook")
 
     @app.before_request
     def hyperset_auto_login():
@@ -265,12 +277,16 @@ def FLASK_APP_MUTATOR(app):
             return None
 
         remote_user = request.environ.get("REMOTE_USER", "")
+        logger.info(f"[AutoLogin] path={request.path}, REMOTE_USER={remote_user}, current_user={current_user}")
+        
         if not remote_user:
+            logger.warning(f"[AutoLogin] No REMOTE_USER found for path={request.path}")
             return None
 
         # Already logged in as the correct user — nothing to do
         if current_user and current_user.is_authenticated:
             if current_user.username == remote_user:
+                logger.info(f"[AutoLogin] Already logged in as {remote_user}")
                 if request.path.rstrip("/") == "/login":
                     return redirect("/superset/welcome/")
                 return None
@@ -281,6 +297,7 @@ def FLASK_APP_MUTATOR(app):
         if user:
             login_user(user)
             g.user = user
+            logger.info(f"[AutoLogin] Successfully logged in {remote_user}")
 
             if request.path.rstrip("/") == "/login":
                 next_url = request.args.get("next", "/superset/welcome/")
@@ -288,10 +305,24 @@ def FLASK_APP_MUTATOR(app):
                 if not next_url.startswith("/") or next_url.startswith("//"):
                     next_url = "/superset/welcome/"
                 return redirect(next_url)
+        else:
+            logger.error(f"[AutoLogin] Failed to auth user {remote_user}")
 
         return None
 
 # ---------------------------------------------------------------------------
-# Logging
+# Logging and Debug
 # ---------------------------------------------------------------------------
+import logging
+logger = logging.getLogger(__name__)
+logger.info("=== Hyperset Superset Config Loaded ===")
+logger.info(f"AUTH_TYPE: {AUTH_TYPE}")
+logger.info(f"REMOTE_USER_ENV_VAR: {REMOTE_USER_ENV_VAR}")
+logger.info(f"AUTH_USER_REGISTRATION: {AUTH_USER_REGISTRATION}")
+logger.info(f"CUSTOM_SECURITY_MANAGER: HypersetSecurityManager")
+logger.info(f"ADDITIONAL_MIDDLEWARE: {ADDITIONAL_MIDDLEWARE}")
+logger.info(f"ENABLE_CORS: {ENABLE_CORS}")
+logger.info(f"CORS origins: {_portal_origin}")
+logger.info("=========================================")
+
 LOG_LEVEL = logging.INFO
