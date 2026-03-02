@@ -45,13 +45,19 @@ services:
     image: localhost/hyperset-superset:latest
     container_name: hyperset-superset
     environment:
-      # Database configuration
+      # Database configuration (these override config file settings)
       - DATABASE_DIALECT=postgresql
       - DATABASE_USER=superset
       - DATABASE_PASSWORD=superset
       - DATABASE_HOST=hyperset-superset-db
       - DATABASE_PORT=5432
       - DATABASE_DB=superset
+      # Also set DB_* vars for compatibility
+      - DB_HOST=hyperset-superset-db
+      - DB_PORT=5432
+      - DB_NAME=superset
+      - DB_USER=superset
+      - DB_PASS=superset
       # Examples database (same as main for integrated deployment)
       - EXAMPLES_USER=superset
       - EXAMPLES_PASSWORD=superset
@@ -115,6 +121,12 @@ services:
       - DATABASE_HOST=hyperset-superset-db
       - DATABASE_PORT=5432
       - DATABASE_DB=superset
+      # Also set DB_* vars for compatibility
+      - DB_HOST=hyperset-superset-db
+      - DB_PORT=5432
+      - DB_NAME=superset
+      - DB_USER=superset
+      - DB_PASS=superset
       # Redis configuration
       - REDIS_HOST=hyperset-superset-redis
       - REDIS_PORT=6379
@@ -167,6 +179,12 @@ services:
       - DATABASE_HOST=hyperset-superset-db
       - DATABASE_PORT=5432
       - DATABASE_DB=superset
+      # Also set DB_* vars for compatibility
+      - DB_HOST=hyperset-superset-db
+      - DB_PORT=5432
+      - DB_NAME=superset
+      - DB_USER=superset
+      - DB_PASS=superset
       # Redis configuration
       - REDIS_HOST=hyperset-superset-redis
       - REDIS_PORT=6379
@@ -224,6 +242,12 @@ services:
       - DATABASE_HOST=hyperset-superset-db
       - DATABASE_PORT=5432
       - DATABASE_DB=superset
+      # Also set DB_* vars for compatibility
+      - DB_HOST=hyperset-superset-db
+      - DB_PORT=5432
+      - DB_NAME=superset
+      - DB_USER=superset
+      - DB_PASS=superset
       # Redis configuration
       - REDIS_HOST=hyperset-superset-redis
       - REDIS_PORT=6379
