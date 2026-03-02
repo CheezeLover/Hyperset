@@ -71,12 +71,14 @@ auth.{$HYPERSET_DOMAIN} {
         file_server
         header Content-Type "application/json"
         header Cache-Control "no-cache"
+        header Access-Control-Allow-Origin "*"
     }
     
     handle /logos/* {
-        root * /
+        root * /Caddy
         file_server
         header Cache-Control "public, max-age=86400"
+        header Access-Control-Allow-Origin "*"
     }
 
     reverse_proxy hyperset-portal:3000 {
@@ -102,12 +104,14 @@ pages.{$HYPERSET_DOMAIN} {
         file_server
         header Content-Type "application/json"
         header Cache-Control "no-cache"
+        header Access-Control-Allow-Origin "*"
     }
     
     handle /logos/* {
-        root * /
+        root * /Caddy
         file_server
         header Cache-Control "public, max-age=86400"
+        header Access-Control-Allow-Origin "*"
     }
 
     reverse_proxy hyperset-pages:8000 {
@@ -132,12 +136,14 @@ chat.{$HYPERSET_DOMAIN} {
         file_server
         header Content-Type "application/json"
         header Cache-Control "no-cache"
+        header Access-Control-Allow-Origin "*"
     }
     
     handle /logos/* {
-        root * /
+        root * /Caddy
         file_server
         header Cache-Control "public, max-age=86400"
+        header Access-Control-Allow-Origin "*"
     }
 
     handle /api/* {
@@ -171,6 +177,22 @@ superset.{$HYPERSET_DOMAIN} {
         header Cache-Control "no-cache"
         root * /Caddy
         file_server
+    }
+
+    # Theme and branding assets
+    handle /theme.json {
+        root * /Caddy
+        file_server
+        header Content-Type "application/json"
+        header Cache-Control "no-cache"
+        header Access-Control-Allow-Origin "*"
+    }
+    
+    handle /logos/* {
+        root * /Caddy
+        file_server
+        header Cache-Control "public, max-age=86400"
+        header Access-Control-Allow-Origin "*"
     }
 
     # Proxy everything else to Superset, injecting bridge.js into HTML responses

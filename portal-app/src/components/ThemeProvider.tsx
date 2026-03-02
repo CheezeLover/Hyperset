@@ -43,23 +43,19 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
           const colors = theme.hyperset.colors;
           const root = document.documentElement;
           
-          // Map theme colors to CSS variables
-          root.style.setProperty('--md-primary', colors.primary || '#20a7c9');
-          root.style.setProperty('--md-primary-muted', colors.primaryLight || '#4dbdd6');
-          root.style.setProperty('--md-primary-cont', colors.border || '#e0f4f8');
-          root.style.setProperty('--md-on-primary-cont', colors.primaryDark || '#0c6a82');
-          
-          root.style.setProperty('--md-secondary', colors.secondary || '#c75b39');
-          root.style.setProperty('--md-secondary-muted', colors.secondary || '#e8845f');
-          root.style.setProperty('--md-secondary-cont', colors.border || '#fbe9e7');
-          root.style.setProperty('--md-on-sec-cont', colors.textMuted || '#7f2e14');
-          
-          root.style.setProperty('--md-surface', colors.background || '#f5f3f0');
-          root.style.setProperty('--md-surface-cont', colors.surface || '#ffffff');
-          root.style.setProperty('--md-surface-cont-hi', colors.border || '#eceae7');
-          root.style.setProperty('--md-on-surface', colors.text || '#1c1b1f');
-          root.style.setProperty('--md-outline', colors.border || '#cac5be');
-          root.style.setProperty('--md-outline-var', colors.border || '#ddd8d2');
+          // Set theme color variables (CSS maps these to --md-* variables)
+          root.style.setProperty('--theme-primary', colors.primary);
+          root.style.setProperty('--theme-primary-dark', colors.primaryDark);
+          root.style.setProperty('--theme-primary-light', colors.primaryLight);
+          root.style.setProperty('--theme-secondary', colors.secondary);
+          root.style.setProperty('--theme-secondary-light', colors.secondary);
+          root.style.setProperty('--theme-background', colors.background);
+          root.style.setProperty('--theme-surface', colors.surface);
+          root.style.setProperty('--theme-text', colors.text);
+          root.style.setProperty('--theme-text-muted', colors.textMuted);
+          root.style.setProperty('--theme-border', colors.border);
+          root.style.setProperty('--theme-border-muted', colors.border);
+          root.style.setProperty('--theme-border-light', colors.border);
           
           console.log('Theme loaded:', theme.name || 'Custom');
         }
