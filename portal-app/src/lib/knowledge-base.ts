@@ -98,13 +98,93 @@ function generateId(): string {
   return crypto.randomBytes(16).toString("hex");
 }
 
+// ── Auto-import function for orphaned files ─────────────────────────────────
+
+/**
+ * Scan the documents directory and auto-import any .md files that aren't
+ * in the metadata registry. This is useful for pre-populating the knowledge base
+ * with example files or handling files added directly to the filesystem.
+ */
+function autoImportOrphanedFiles(metadata: KnowledgeBaseMetadata): KnowledgeBaseMetadata {
+  try {
+    ensureDirectories();
+    const files = fs.readdirSync(DOCUMENTS_DIR);
+    const registeredIds = new Set(metadata.documents.map(d => d.id));
+    const registeredNames = new Set(metadata.documents.map(d => `${d.id}.md`));
+    
+    for (const file of files) {
+      // Skip non-.md files and files that are already registered
+      if (!file.toLowerCase().endsWith('.md')) continue;
+      if (registeredNames.has(file)) continue;
+      
+      // Also check if the file name (without extension) matches any document name
+      const baseName = file.replace(/\.md$/i, '');
+      const isRegisteredByName = metadata.documents.some(d => 
+        d.name.toLowerCase() === baseName.toLowerCase()
+      );
+      if (isRegisteredByName) continue;
+      
+      try {
+        const filePath = path.join(DOCUMENTS_DIR, file);
+        const stats = fs.statSync(filePath);
+        
+        // Only import files, not directories
+        if (!stats.isFile()) continue;
+        
+        const content = fs.readFileSync(filePath, "utf-8");
+        const id = generateId();
+        const now = new Date().toISOString();
+        
+        // Rename file to use the generated ID
+        const newFilePath = path.join(DOCUMENTS_DIR, `${id}.md`);
+        fs.renameSync(filePath, newFilePath);
+        
+        // Add to metadata
+        const doc: KnowledgeDocument = {
+          id,
+          name: baseName,
+          description: "Auto-imported from filesystem",
+          createdAt: now,
+          updatedAt: now,
+          size: stats.size,
+        };
+        
+        metadata.documents.push(doc);
+        console.log(`[knowledge-base] Auto-imported: ${file} -> ${id}.md (${formatBytes(stats.size)})`);
+      } catch (e) {
+        console.warn(`[knowledge-base] Failed to auto-import ${file}:`, e);
+      }
+    }
+    
+    // Save updated metadata if any files were imported
+    if (metadata.documents.length > registeredIds.size) {
+      writeMetadataToDisk(metadata);
+    }
+    
+    return metadata;
+  } catch (e) {
+    console.warn("[knowledge-base] Error scanning for orphaned files:", e);
+    return metadata;
+  }
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /** Get all documents from the knowledge base */
 export function getKnowledgeDocuments(): KnowledgeDocument[] {
   if (_cache === undefined) {
     const data = readMetadataFromDisk();
-    _cache = data ?? { documents: [] };
+    const metadata = data ?? { documents: [] };
+    // Auto-import any files in the directory that aren't registered
+    _cache = autoImportOrphanedFiles(metadata);
   }
   return _cache?.documents ?? [];
 }

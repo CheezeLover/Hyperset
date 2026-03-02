@@ -3,10 +3,16 @@ import { listMcpTools, callMcpTool } from "@/lib/mcp-client";
 import OpenAI from "openai";
 import { getAdminSettings } from "@/lib/admin-settings";
 import { getUserFromRequest } from "@/lib/auth";
-import { getAllKnowledgeDocumentContents } from "@/lib/knowledge-base";
+import { getAllKnowledgeDocumentContents, getKnowledgeDocuments } from "@/lib/knowledge-base";
 
-// ── Sliding-window rate limiter ────────────────────────────────────────────
-// 20 requests per 60-second window per authenticated user (email-keyed).
+// ── Helper functions ───────────────────────────────────────────────────────
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+}
 const _rateLimitMap = new Map<string, number[]>();
 const RATE_LIMIT      = 20;
 const RATE_WINDOW_MS  = 60_000;
@@ -258,7 +264,22 @@ export const POST = async (req: NextRequest) => {
     },
   ];
 
-  const tools = [...navTools, ...mcpTools];
+  // Knowledge base tool - allows LLM to explicitly query available documents
+  const knowledgeBaseTools: OpenAI.Chat.ChatCompletionTool[] = [
+    {
+      type: "function",
+      function: {
+        name: "knowledge_base_list",
+        description: "List all documents in the company knowledge base. Use this when you need to check what company-specific information is available, or when the user asks about policies, procedures, terminology, or domain-specific knowledge that might be documented.",
+        parameters: {
+          type: "object",
+          properties: {},
+        },
+      },
+    },
+  ];
+
+  const tools = [...navTools, ...mcpTools, ...knowledgeBaseTools];
 
   // ── Intent-based tool filtering ───────────────────────────────────────────
   // Sending all 20+ tools on every turn overwhelms small models (Ministral,
@@ -272,10 +293,11 @@ export const POST = async (req: NextRequest) => {
     const lastUser = [...userMsgs].reverse().find((m) => m.role === "user");
     const msg = (typeof lastUser?.content === "string" ? lastUser.content : "").toLowerCase();
 
-    // Always-on: navigation + listing + embed/link (model always needs these)
+    // Always-on: navigation + listing + embed/link + knowledge base (model always needs these)
     const include = new Set([
       "navigate_superset_dashboard",
       "navigate_superset_chart",
+      "knowledge_base_list",
       "superset_dashboard_list",
       "superset_chart_list",
       "superset_dataset_list",
@@ -342,7 +364,29 @@ export const POST = async (req: NextRequest) => {
   // Load knowledge base content to enrich the system prompt
   const knowledgeBaseContent = getAllKnowledgeDocumentContents();
   const knowledgeBaseSection = knowledgeBaseContent
-    ? `\n---\n## 📚 COMPANY KNOWLEDGE BASE\nThe following documents contain company-specific information, vocabulary, and procedures. Reference this knowledge when relevant to the user's questions.\n\n${knowledgeBaseContent}\n---\n`
+    ? `
+---
+## 📚 COMPANY KNOWLEDGE BASE — READ THIS FIRST
+
+The following documents contain company-specific information, vocabulary, procedures, and domain expertise. You MUST actively reference this knowledge when answering questions.
+
+### When to Use Knowledge Base:
+- User asks about company procedures, terminology, or policies
+- User uses industry-specific jargon or abbreviations you don't recognize
+- Questions about operational metrics, KPIs, or benchmarks
+- Regulatory, compliance, or safety questions
+- Any request requiring company-specific context
+
+### How to Use Knowledge Base:
+1. Check if the knowledge base contains relevant information
+2. Reference specific sections when appropriate
+3. Use company terminology and definitions consistently
+4. If knowledge base contradicts your training data, prioritize the knowledge base
+5. Always cite the specific document name when using information from it
+
+${knowledgeBaseContent}
+---
+`
     : "";
 
   // Build message list with optional system prompt
@@ -642,6 +686,19 @@ Use \`navigate_superset_dashboard\` or \`navigate_superset_chart\` when the user
             if (tc.name === "navigate_superset_dashboard" || tc.name === "navigate_superset_chart") {
               // Navigation is handled client-side; just confirm
               result = `Navigation to ${tc.name === "navigate_superset_dashboard" ? "dashboard" : "chart"} ${Object.values(args)[0]} requested.`;
+            } else if (tc.name === "knowledge_base_list") {
+              // Knowledge base list tool - return the list of documents
+              try {
+                const docs = getKnowledgeDocuments();
+                if (docs.length === 0) {
+                  result = "No documents in the knowledge base. The knowledge base is empty.";
+                } else {
+                  const docList = docs.map(d => `- **${d.name}** (${formatBytes(d.size)}): ${d.description || "No description"}`).join("\n");
+                  result = `Available knowledge base documents (${docs.length}):\n${docList}\n\nTo get detailed content from a specific document, reference it by name in your query. The knowledge base content is automatically included in the system context.`;
+                }
+              } catch (e) {
+                result = `Error accessing knowledge base: ${e instanceof Error ? e.message : String(e)}`;
+              }
             } else {
               try {
                 const raw = await callMcpTool(tc.name, args);
