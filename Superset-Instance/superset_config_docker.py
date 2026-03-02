@@ -63,7 +63,7 @@ if _LOGO_CONFIG.get("logo"):
     LOGO_TOOLTIP = "Hyperset Analytics Portal"
     
     # Favicon configuration
-    FAVICONS = [{"href": "/static/assets/images/logo.png"}]
+    FAVICONS = [{"href": "/static/assets/images/favicon.png"}]
     
     logging.info(f"[Theme] Using custom Superset logo: {APP_ICON}")
     logging.info(f"[Theme] Logo mounted at: /app/superset/static/assets/images/logo.png")
