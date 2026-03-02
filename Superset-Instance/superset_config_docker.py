@@ -73,8 +73,8 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
             # Background colors
             "colorBgBase": "#FFFFFF",
             "colorBgContainer": "#FFFFFF",
-            "colorBgElevated": "#FFFBF7",
-            "colorBgLayout": "#FFFBF7",
+            "colorBgElevated": "#FFFFFF",
+            "colorBgLayout": "#FFFFFF",
             
             # Text colors
             "colorText": "#1A202C",
@@ -82,8 +82,8 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
             "colorTextTertiary": "#A0AEC0",
             
             # Border colors
-            "colorBorder": "#FFF5EE",
-            "colorBorderSecondary": "#FFF8F0",
+            "colorBorder": "#E5E5E5",
+            "colorBorderSecondary": "#F5F5F5",
             
             # Border radius
             "borderRadius": 8,
