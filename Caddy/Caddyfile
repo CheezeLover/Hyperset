@@ -81,6 +81,14 @@ auth.{$HYPERSET_DOMAIN} {
         header Access-Control-Allow-Origin "*"
     }
 
+    # Serve custom theme CSS for Superset
+    handle /superset-theme.css {
+        header Content-Type "text/css"
+        header Cache-Control "public, max-age=86400"
+        root * /Caddy
+        file_server
+    }
+
     reverse_proxy hyperset-portal:3000 {
         header_up X-Token-User-Id    {http.request.header.X-Token-User-Id}
         header_up X-Token-User-Email {http.request.header.X-Token-User-Email}
