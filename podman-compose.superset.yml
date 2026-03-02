@@ -232,6 +232,8 @@ services:
           --email admin@hyperset.local \\
           --password admin || true &&
         superset init &&
+        echo 'Loading example data...' &&
+        superset load_examples || echo 'Examples load skipped or failed' &&
         echo 'Superset initialization complete'
       "
     environment:
