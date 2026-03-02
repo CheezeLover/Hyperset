@@ -239,6 +239,10 @@ class HypersetSecurityManager(SupersetSecurityManager):
         Override that avoids passing g.user (a LocalProxy) to session.add().
         On first login (user creation), reads roles from Caddy header.
         On subsequent logins, just logs in without touching roles.
+        
+        NOTE: AUTH_ROLES_SYNC_AT_LOGIN = False means roles are set ONLY at 
+        user creation time. After that, roles are managed in Superset UI
+        and won't be overwritten by SSO headers on subsequent logins.
         """
         logger.info(f"[SecurityManager] auth_user_remote_user called with username={username}")
         user = self.find_user(username=username)
