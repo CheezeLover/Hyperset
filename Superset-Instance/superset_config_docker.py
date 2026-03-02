@@ -33,11 +33,33 @@ from superset.security import SupersetSecurityManager
 _THEME_CONFIG = {}
 _THEME_PATH = "/app/pythonpath/theme.json"
 
+# Set default logo paths
+APP_ICON = "/static/assets/images/superset-logo-horiz.png"
+APP_ICON_WIDTH = 126
+
+# Check if we should apply custom theming
+_SUPERSET_THEME = {}
+_THEME_COLORS = {}
+_LOGO_CONFIG = {}
+
 try:
     if os.path.exists(_THEME_PATH):
         with open(_THEME_PATH, 'r') as f:
             _THEME_CONFIG = json.load(f)
         logging.info(f"[Theme] Loaded theme from {_THEME_PATH}")
+        
+        # Check if Superset theming is enabled
+        _SUPERSET_THEME = _THEME_CONFIG.get("superset", {})
+        _SUPERSET_THEMING_ENABLED = _SUPERSET_THEME.get("enabled", True)
+        
+        if _SUPERSET_THEMING_ENABLED:
+            _THEME_COLORS = _SUPERSET_THEME.get("colors", {})
+            _LOGO_CONFIG = _THEME_CONFIG.get("logos", {}).get("superset", {})
+            
+            # Update logo paths if configured
+            if _LOGO_CONFIG.get("logo"):
+                APP_ICON = _LOGO_CONFIG["logo"]
+                logging.info(f"[Theme] Using custom logo: {APP_ICON}")
     else:
         # Try alternative path
         _ALT_THEME_PATH = "/etc/superset/theme.json"
@@ -50,29 +72,62 @@ try:
 except Exception as e:
     logging.error(f"[Theme] Error loading theme: {e}")
 
-# Check if Superset theming is enabled
-_SUPERSET_THEME = _THEME_CONFIG.get("superset", {})
-_SUPERSET_THEMING_ENABLED = _SUPERSET_THEME.get("enabled", True) and os.getenv("DEPLOY_WITH_SUPERSET", "false").lower() == "true"
-
-if _SUPERSET_THEMING_ENABLED and "colors" in _SUPERSET_THEME:
+# Generate custom CSS for Superset theming
+if _SUPERSET_THEME.get("enabled", False) and "colors" in _SUPERSET_THEME:
     _colors = _SUPERSET_THEME["colors"]
-    logging.info("[Theme] Applying custom Superset theme colors")
+    _primary = _colors.get("primary", "#FF6B35")
+    _primary_dark = _colors.get("primaryDark", "#E85A2D")
+    _secondary = _colors.get("secondary", "#2D3748")
     
-    # Map theme colors to Superset color configuration
-    # Note: These will be injected via EXTRA_CSS and theme overrides
-    _primary_color = _colors.get("primary", "#FF6B35")
-    _secondary_color = _colors.get("secondary", "#2D3748")
+    logging.info(f"[Theme] Applying custom Superset theme - primary: {_primary}")
     
-    # Store theme colors for CSS injection
-    THEME_CSS = f"""
-    :root {{
-        --hyperset-primary: {_primary_color};
-        --hyperset-secondary: {_secondary_color};
-    }}
+    # Custom CSS to override Superset's default colors
+    CUSTOM_CSS = f"""
+:root {{
+    --primary-color: {_primary};
+    --primary-dark: {_primary_dark};
+    --secondary-color: {_secondary};
+}}
+
+/* Override Superset primary colors */
+.btn-primary,
+.ant-btn-primary {{
+    background-color: {_primary} !important;
+    border-color: {_primary} !important;
+}}
+
+.btn-primary:hover,
+.ant-btn-primary:hover {{
+    background-color: {_primary_dark} !important;
+    border-color: {_primary_dark} !important;
+}}
+
+/* Navigation and header */
+.navbar,
+.header {{
+    background-color: {_primary} !important;
+}}
+
+/* Links */
+a,
+a:hover {{
+    color: {_primary};
+}}
+
+/* Active states */
+.nav-item.active,
+.ant-menu-item-selected {{
+    background-color: {_primary} !important;
+}}
+
+/* Brand/logo area */
+.navbar-brand {{
+    color: white !important;
+}}
     """
 else:
     logging.info("[Theme] Using default Superset theme")
-    THEME_CSS = ""
+    CUSTOM_CSS = ""
 
 # ---------------------------------------------------------------------------
 # Authentication — trust the X-Webauth-User header set by Caddy/Hyperset
@@ -168,6 +223,12 @@ FEATURE_FLAGS = {
     "ENABLE_TEMPLATE_PROCESSING": True,
     "ALERT_REPORTS": True,
 }
+
+# ---------------------------------------------------------------------------
+# Theme CSS Injection
+# ---------------------------------------------------------------------------
+# Inject custom theme CSS into Superset pages
+EXTRA_CSS = CUSTOM_CSS if 'CUSTOM_CSS' in globals() else ""
 
 # ---------------------------------------------------------------------------
 # Cache (Redis)
@@ -342,9 +403,16 @@ CUSTOM_SECURITY_MANAGER = HypersetSecurityManager
 #   1. Reads REMOTE_USER (set by the WSGI middleware above)
 #   2. Logs the user in via our patched auth_user_remote_user
 #   3. Redirects /login/ to the index if already authenticated
+#   4. Injects custom theme CSS
 # ---------------------------------------------------------------------------
 def FLASK_APP_MUTATOR(app):
     logger.info("[FLASK_APP_MUTATOR] Installing before_request hook")
+    
+    # Inject custom CSS into template context
+    if CUSTOM_CSS:
+        logger.info("[Theme] Injecting custom CSS into Superset")
+        # Store CSS in app config for injection
+        app.config['CUSTOM_CSS'] = CUSTOM_CSS
 
     @app.before_request
     def hyperset_auto_login():
@@ -399,6 +467,14 @@ logger.info(f"CUSTOM_SECURITY_MANAGER: HypersetSecurityManager")
 logger.info(f"ADDITIONAL_MIDDLEWARE: {ADDITIONAL_MIDDLEWARE}")
 logger.info(f"ENABLE_CORS: {ENABLE_CORS}")
 logger.info(f"CORS origins: {_portal_origin}")
+
+# Theme logging
+if _SUPERSET_THEME.get("enabled", False) and _THEME_COLORS:
+    logger.info(f"[Theme] Superset theming enabled with primary color: {_THEME_COLORS.get('primary', 'N/A')}")
+    logger.info(f"[Theme] Custom CSS length: {len(EXTRA_CSS)} characters")
+else:
+    logger.info("[Theme] Using default Superset theme")
+
 logger.info("=========================================")
 
 LOG_LEVEL = logging.INFO
