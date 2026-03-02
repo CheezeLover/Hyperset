@@ -227,8 +227,14 @@ FEATURE_FLAGS = {
 # ---------------------------------------------------------------------------
 # Theme CSS Injection
 # ---------------------------------------------------------------------------
-# Inject custom theme CSS into Superset pages
-EXTRA_CSS = CUSTOM_CSS if 'CUSTOM_CSS' in globals() else ""
+# Inject custom theme CSS via URL - CSS is served by Caddy at /superset-theme.css
+_hyperset_domain = os.getenv("HYPERSET_DOMAIN", "")
+if _hyperset_domain and _SUPERSET_THEME.get("enabled", False) and "colors" in _SUPERSET_THEME:
+    _css_url = f"https://superset.{_hyperset_domain}/superset-theme.css"
+    EXTRA_CSS = [_css_url]
+    logging.info(f"[Theme] Loading CSS from: {_css_url}")
+else:
+    EXTRA_CSS = []
 
 # ---------------------------------------------------------------------------
 # Cache (Redis)
@@ -471,7 +477,8 @@ logger.info(f"CORS origins: {_portal_origin}")
 # Theme logging
 if _SUPERSET_THEME.get("enabled", False) and _THEME_COLORS:
     logger.info(f"[Theme] Superset theming enabled with primary color: {_THEME_COLORS.get('primary', 'N/A')}")
-    logger.info(f"[Theme] Custom CSS length: {len(EXTRA_CSS)} characters")
+    if EXTRA_CSS:
+        logger.info(f"[Theme] Loading CSS from: {EXTRA_CSS}")
 else:
     logger.info("[Theme] Using default Superset theme")
 

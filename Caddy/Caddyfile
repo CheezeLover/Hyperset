@@ -179,6 +179,14 @@ superset.{$HYPERSET_DOMAIN} {
         file_server
     }
 
+    # Serve custom theme CSS
+    handle /superset-theme.css {
+        header Content-Type "text/css"
+        header Cache-Control "public, max-age=86400"
+        root * /Caddy
+        file_server
+    }
+
     # Theme and branding assets
     handle /theme.json {
         root * /Caddy
