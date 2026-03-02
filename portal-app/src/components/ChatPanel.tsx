@@ -763,8 +763,36 @@ function inlineRender(
         const linkText = linkMatch[1];
         const linkUrl  = linkMatch[2];
         const isSuperset = isSupersetUrlFn?.(linkUrl) ?? false;
+        const isIframeLink = linkText.toLowerCase() === "iframe" || linkText.toLowerCase().startsWith("iframe-");
 
-        if (isSuperset && onSupersetLink) {
+        if (isIframeLink && isSuperset) {
+          // Convert [iframe](url) to embedded iframe
+          const iframeTitle = linkText.replace(/^iframe(-ai:\d+)?/i, "").trim() || "Chart";
+          parts.push(
+            <div key={k++} style={{ margin: "12px 0" }}>
+              <div style={{
+                border: "1px solid var(--md-outline-var)",
+                borderRadius: "12px",
+                overflow: "hidden",
+                background: "var(--md-surface-cont)",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04)",
+              }}>
+                <iframe
+                  src={linkUrl}
+                  title={iframeTitle}
+                  style={{
+                    width: "100%",
+                    height: "300px",
+                    border: "none",
+                    display: "block"
+                  }}
+                  sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+                  allowFullScreen
+                />
+              </div>
+            </div>
+          );
+        } else if (isSuperset && onSupersetLink) {
           // Open in the Superset iframe panel instead of a new tab
           parts.push(
             <button
@@ -782,7 +810,6 @@ function inlineRender(
               {linkText}
               <svg viewBox="0 0 16 16" width={10} height={10}
                 fill="currentColor" style={{ marginLeft: 3, verticalAlign: "middle", opacity: 0.7 }}>
-                {/* "open in panel" icon — square with inward arrow */}
                 <path d="M2 2h5v1.5H3.5v9h9V11H14v4H2V2zm7 0h5v5h-1.5V4.56L7.28 9.78 6.22 8.72 11.44 3.5H9V2z"/>
               </svg>
             </button>
