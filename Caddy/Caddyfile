@@ -59,7 +59,7 @@ auth.{$HYPERSET_DOMAIN} {
 }
 
 # ── Theme & Branding Assets (available on all subdomains) ─────────
-{$HYPERSET_DOMAIN}, auth.{$HYPERSET_DOMAIN}, superset.{$HYPERSET_DOMAIN}, pages.{$HYPERSET_DOMAIN}, chat.{$HYPERSET_DOMAIN} {
+{$HYPERSET_DOMAIN}, superset.{$HYPERSET_DOMAIN}, pages.{$HYPERSET_DOMAIN}, chat.{$HYPERSET_DOMAIN} {
     # Serve theme.json for dynamic theming
     handle /theme.json {
         root * /Caddy
