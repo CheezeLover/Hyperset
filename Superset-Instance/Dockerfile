@@ -9,20 +9,13 @@ RUN apt-get update && \
         libpq5 && \
     rm -rf /var/lib/apt/lists/*
 
-# Find the correct pip and install psycopg2
-# Superset 6.0.0 may use system Python or a venv
-RUN pip install --no-cache-dir psycopg2-binary || \
-    /usr/local/bin/pip install --no-cache-dir psycopg2-binary || \
-    (which pip3 && pip3 install --no-cache-dir psycopg2-binary) || \
-    (ls /app/.venv/bin/pip* 2>/dev/null && /app/.venv/bin/pip install --no-cache-dir psycopg2-binary) || \
-    (ls /opt/venv/bin/pip* 2>/dev/null && /opt/venv/bin/pip install --no-cache-dir psycopg2-binary) || \
-    echo "WARNING: Could not install psycopg2"
+# Install psycopg2-binary in the system site-packages
+# First find where site-packages is located
+RUN SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])") && \
+    pip install --no-cache-dir --target="$SITE_PACKAGES" psycopg2-binary && \
+    echo "Installed to: $SITE_PACKAGES"
 
-# Verify installation with available Python
-RUN (python -c "import psycopg2; print('psycopg2 OK:', psycopg2.__version__)" 2>/dev/null) || \
-    (python3 -c "import psycopg2; print('psycopg2 OK:', psycopg2.__version__)" 2>/dev/null) || \
-    (/app/.venv/bin/python -c "import psycopg2; print('psycopg2 OK:', psycopg2.__version__)" 2>/dev/null) || \
-    echo "WARNING: psycopg2 not found"
+# Verify installation
+RUN python -c "import psycopg2; print('psycopg2 OK:', psycopg2.__version__)"
 
-# Switch back to superset user
 USER superset
