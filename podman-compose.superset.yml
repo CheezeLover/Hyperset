@@ -88,9 +88,6 @@ services:
     volumes:
       - ./Superset-Instance/superset_config_docker.py:/app/pythonpath/superset_config_docker.py:Z
       - ./theme.json:/app/pythonpath/theme.json:Z
-      - ./logos/logo.png:/app/superset/static/assets/images/logo.png:Z
-      - ./logos/logo.png:/app/superset/static/assets/images/favicon.png:Z
-      - ./logos:/app/static/assets/images/logos:Z
       - superset_home:/app/superset_home
     networks:
       - hyperset-net

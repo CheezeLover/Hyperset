@@ -56,11 +56,6 @@
       "dark": "/logos/hyperset-logo-dark.svg",
       "favicon": "/logos/favicon.ico",
       "appleTouchIcon": "/logos/apple-touch-icon.png"
-    },
-    "superset": {
-      "logo": "/static/assets/images/logos/hyperset-logo-small.png",
-      "icon": "/static/assets/images/logos/hyperset-logo-small.png",
-      "favicon": "/static/assets/images/logos/hyperset-logo-small.png"
     }
   },
   

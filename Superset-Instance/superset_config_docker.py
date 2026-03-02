@@ -46,35 +46,6 @@ except Exception as e:
 # Extract Superset theme configuration
 _SUPERSET_THEME = _THEME_CONFIG.get("superset", {})
 _SUPERSET_COLORS = _SUPERSET_THEME.get("colors", {})
-_LOGO_CONFIG = _THEME_CONFIG.get("logos", {}).get("superset", {})
-_BRANDING = _THEME_CONFIG.get("branding", {})
-
-# Set App name from theme
-if _BRANDING.get("appName"):
-    APP_NAME = _BRANDING["appName"]
-else:
-    APP_NAME = "Hyperset"
-
-# Set Superset logo from theme configuration
-if _LOGO_CONFIG.get("logo"):
-    APP_ICON = "/static/assets/images/logo.png"
-    APP_ICON_WIDTH = 200  # Width in pixels
-    LOGO_TARGET_PATH = '/'  # Where clicking the logo goes
-    LOGO_TOOLTIP = "Hyperset Analytics Portal"
-    
-    # Favicon configuration
-    FAVICONS = [{"href": "/static/assets/images/favicon.png"}]
-    
-    logging.info(f"[Theme] Using custom Superset logo: {APP_ICON}")
-    logging.info(f"[Theme] Logo mounted at: /app/superset/static/assets/images/logo.png")
-else:
-    # Default Superset logo
-    APP_ICON = "/static/assets/images/superset-logo-horiz.png"
-    APP_ICON_WIDTH = 126
-    LOGO_TARGET_PATH = '/'
-    LOGO_TOOLTIP = "Apache Superset"
-    FAVICONS = [{"href": "/static/assets/images/favicon.png"}]
-    logging.info("[Theme] Using default Superset logo")
 
 # Build THEME_DEFAULT with Ant Design v5 tokens
 if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
@@ -461,9 +432,6 @@ logger.info(f"ENABLE_CORS: {ENABLE_CORS}")
 logger.info(f"CORS origins: {_portal_origin}")
 
 # Theme logging
-logger.info(f"[Theme] App name: {APP_NAME}")
-logger.info(f"[Theme] App icon: {APP_ICON}")
-logger.info(f"[Theme] Favicon: {FAVICONS[0]['href'] if FAVICONS else 'default'}")
 if _SUPERSET_THEME.get("enabled", False) and _SUPERSET_COLORS:
     logger.info(f"[Theme] Superset theming enabled with primary color: {_SUPERSET_COLORS.get('primary', 'N/A')}")
     if 'THEME_DEFAULT' in globals() and THEME_DEFAULT:
