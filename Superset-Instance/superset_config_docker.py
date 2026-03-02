@@ -47,20 +47,32 @@ except Exception as e:
 _SUPERSET_THEME = _THEME_CONFIG.get("superset", {})
 _SUPERSET_COLORS = _SUPERSET_THEME.get("colors", {})
 _LOGO_CONFIG = _THEME_CONFIG.get("logos", {}).get("superset", {})
+_BRANDING = _THEME_CONFIG.get("branding", {})
+
+# Set App name from theme
+if _BRANDING.get("appName"):
+    APP_NAME = _BRANDING["appName"]
+else:
+    APP_NAME = "Hyperset"
 
 # Set Superset logo from theme configuration
 if _LOGO_CONFIG.get("logo"):
-    APP_ICON = _LOGO_CONFIG["logo"]
-    APP_ICON_WIDTH = 126  # Adjust based on your logo size
-    logging.info(f"[Theme] Using custom Superset logo: {APP_ICON}")
+    APP_ICON = "/static/assets/images/logos/hyperset-logo-small.png"
+    APP_ICON_WIDTH = 200  # Width in pixels
+    LOGO_TARGET_PATH = '/'  # Where clicking the logo goes
+    LOGO_TOOLTIP = "Hyperset Analytics Portal"
     
-    # Also set favicon if logo is configured
-    FAVICONS = [{"href": _LOGO_CONFIG.get("logo", APP_ICON)}]
-    logging.info(f"[Theme] Using custom favicon")
+    # Favicon configuration
+    FAVICONS = [{"href": "/static/assets/images/logos/hyperset-logo-small.png"}]
+    
+    logging.info(f"[Theme] Using custom Superset logo: {APP_ICON}")
+    logging.info(f"[Theme] Logo mounted at: /app/static/assets/images/logos/")
 else:
     # Default Superset logo
     APP_ICON = "/static/assets/images/superset-logo-horiz.png"
     APP_ICON_WIDTH = 126
+    LOGO_TARGET_PATH = '/'
+    LOGO_TOOLTIP = "Apache Superset"
     FAVICONS = [{"href": "/static/assets/images/favicon.png"}]
     logging.info("[Theme] Using default Superset logo")
 
@@ -449,6 +461,9 @@ logger.info(f"ENABLE_CORS: {ENABLE_CORS}")
 logger.info(f"CORS origins: {_portal_origin}")
 
 # Theme logging
+logger.info(f"[Theme] App name: {APP_NAME}")
+logger.info(f"[Theme] App icon: {APP_ICON}")
+logger.info(f"[Theme] Favicon: {FAVICONS[0]['href'] if FAVICONS else 'default'}")
 if _SUPERSET_THEME.get("enabled", False) and _SUPERSET_COLORS:
     logger.info(f"[Theme] Superset theming enabled with primary color: {_SUPERSET_COLORS.get('primary', 'N/A')}")
     if 'THEME_DEFAULT' in globals() and THEME_DEFAULT:
