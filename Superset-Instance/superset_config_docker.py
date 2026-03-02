@@ -151,11 +151,12 @@ CELERY_CONFIG = CeleryConfig
 # ---------------------------------------------------------------------------
 # Database
 # ---------------------------------------------------------------------------
-DB_HOST     = os.getenv("DB_HOST", "db")
-DB_PORT     = os.getenv("DB_PORT", "5432")
-DB_NAME     = os.getenv("DB_NAME", "superset")
-DB_USER     = os.getenv("DB_USER", "superset")
-DB_PASS     = os.getenv("DB_PASS", "superset")
+# Use DATABASE_* env vars (set in podman-compose.superset.yml)
+DB_HOST     = os.getenv("DATABASE_HOST", "hyperset-superset-db")
+DB_PORT     = os.getenv("DATABASE_PORT", "5432")
+DB_NAME     = os.getenv("DATABASE_DB", "superset")
+DB_USER     = os.getenv("DATABASE_USER", "superset")
+DB_PASS     = os.getenv("DATABASE_PASSWORD", "superset")
 
 SQLALCHEMY_DATABASE_URI = (
     f"postgresql+psycopg2://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
