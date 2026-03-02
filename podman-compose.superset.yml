@@ -62,6 +62,8 @@ services:
       - REDIS_RESULTS_DB=1
       # Superset security
       - SECRET_KEY=${SUPERSET_SECRET_KEY:-CHANGE_ME_RUN_openssl_rand_base64_42}
+      # Config file location (MUST be set for custom config to load)
+      - SUPERSET_CONFIG_PATH=/app/pythonpath/superset_config_docker.py
       # Hyperset integration
       - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
       - HYPERSET_ORIGIN=https://${HYPERSET_DOMAIN}
@@ -114,6 +116,8 @@ services:
       - REDIS_RESULTS_DB=1
       # Superset security
       - SECRET_KEY=${SUPERSET_SECRET_KEY:-CHANGE_ME_RUN_openssl_rand_base64_42}
+      # Config file location (MUST be set for custom config to load)
+      - SUPERSET_CONFIG_PATH=/app/pythonpath/superset_config_docker.py
       # Hyperset integration
       - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
       - HYPERSET_ORIGIN=https://${HYPERSET_DOMAIN}
@@ -161,6 +165,8 @@ services:
       - REDIS_RESULTS_DB=1
       # Superset security
       - SECRET_KEY=${SUPERSET_SECRET_KEY:-CHANGE_ME_RUN_openssl_rand_base64_42}
+      # Config file location (MUST be set for custom config to load)
+      - SUPERSET_CONFIG_PATH=/app/pythonpath/superset_config_docker.py
       # Hyperset integration
       - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
       - HYPERSET_ORIGIN=https://${HYPERSET_DOMAIN}
@@ -213,6 +219,8 @@ services:
       - REDIS_RESULTS_DB=1
       # Superset security
       - SECRET_KEY=${SUPERSET_SECRET_KEY:-CHANGE_ME_RUN_openssl_rand_base64_42}
+      # Config file location (MUST be set for custom config to load)
+      - SUPERSET_CONFIG_PATH=/app/pythonpath/superset_config_docker.py
     env_file:
       - ./.env
     volumes:
