@@ -3,7 +3,13 @@ import { listMcpTools, callMcpTool } from "@/lib/mcp-client";
 import OpenAI from "openai";
 import { getAdminSettings } from "@/lib/admin-settings";
 import { getUserFromRequest } from "@/lib/auth";
-import { getAllKnowledgeDocumentContents, getKnowledgeDocuments } from "@/lib/knowledge-base";
+import { 
+  getAllKnowledgeDocumentContents, 
+  getKnowledgeDocuments,
+  getRelevantKnowledgeContent,
+  getKnowledgeBaseStats,
+  searchKnowledgeBase
+} from "@/lib/knowledge-base";
 
 // ── Helper functions ───────────────────────────────────────────────────────
 function formatBytes(bytes: number): string {
@@ -264,16 +270,35 @@ export const POST = async (req: NextRequest) => {
     },
   ];
 
-  // Knowledge base tool - allows LLM to explicitly query available documents
+  // Knowledge base tools - allows LLM to explicitly query the knowledge base
+  // These should be considered FIRST before other tools when the question involves
+  // company policies, procedures, terminology, or domain-specific knowledge
   const knowledgeBaseTools: OpenAI.Chat.ChatCompletionTool[] = [
     {
       type: "function",
       function: {
         name: "knowledge_base_list",
-        description: "List all documents in the company knowledge base. Use this when you need to check what company-specific information is available, or when the user asks about policies, procedures, terminology, or domain-specific knowledge that might be documented.",
+        description: "**CALL THIS FIRST** when the user asks about company procedures, policies, terminology, or any question where company-specific context would help. Returns a list of all available knowledge base documents with descriptions and sizes. This helps you understand what company information is available before answering.",
         parameters: {
           type: "object",
           properties: {},
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "knowledge_base_search",
+        description: "**USE AFTER knowledge_base_list** to search for specific content within the knowledge base. Provide a search query to find relevant documents. Returns matching documents with relevance scores and excerpts.",
+        parameters: {
+          type: "object",
+          properties: {
+            query: { 
+              type: "string", 
+              description: "Search query to find relevant documents (e.g., 'on-time performance', 'safety procedures', 'revenue metrics')" 
+            },
+          },
+          required: ["query"],
         },
       },
     },
@@ -294,10 +319,12 @@ export const POST = async (req: NextRequest) => {
     const msg = (typeof lastUser?.content === "string" ? lastUser.content : "").toLowerCase();
 
     // Always-on: navigation + listing + embed/link + knowledge base (model always needs these)
+    // Knowledge base tools MUST be available for every request so they can be called FIRST
     const include = new Set([
       "navigate_superset_dashboard",
       "navigate_superset_chart",
       "knowledge_base_list",
+      "knowledge_base_search",
       "superset_dashboard_list",
       "superset_chart_list",
       "superset_dataset_list",
@@ -362,11 +389,22 @@ export const POST = async (req: NextRequest) => {
   const activeTools = filterToolsForContext(tools, userMessages);
 
   // Load knowledge base content to enrich the system prompt
-  const knowledgeBaseContent = getAllKnowledgeDocumentContents();
+  // Use relevance-based retrieval if we have user messages to query against
+  const lastUserMessage = [...userMessages].reverse().find((m) => m.role === "user");
+  const userQuery = typeof lastUserMessage?.content === "string" ? lastUserMessage.content : "";
+  
+  // Get relevant content based on user query (if available), otherwise get all
+  const knowledgeBaseContent = userQuery 
+    ? getRelevantKnowledgeContent(userQuery, 8000)
+    : getAllKnowledgeDocumentContents();
+  
+  const kbStats = getKnowledgeBaseStats();
   const knowledgeBaseSection = knowledgeBaseContent
     ? `
 ---
 ## 📚 COMPANY KNOWLEDGE BASE — READ THIS FIRST
+
+**Status**: ${kbStats.documentCount} documents loaded (${kbStats.totalSizeFormatted} / ${kbStats.maxSizeFormatted} used)
 
 The following documents contain company-specific information, vocabulary, procedures, and domain expertise. You MUST actively reference this knowledge when answering questions.
 
@@ -383,11 +421,20 @@ The following documents contain company-specific information, vocabulary, proced
 3. Use company terminology and definitions consistently
 4. If knowledge base contradicts your training data, prioritize the knowledge base
 5. Always cite the specific document name when using information from it
+6. Use the knowledge_base_list tool if you need to see all available documents
 
 ${knowledgeBaseContent}
 ---
 `
-    : "";
+    : `
+---
+## 📚 COMPANY KNOWLEDGE BASE
+
+**Status**: Knowledge base is empty. No company-specific documents have been uploaded yet.
+
+Administrators can upload documents through the Admin Settings > Knowledge Base panel.
+---
+`;
 
   // Build message list with optional system prompt
   const baseSystemContent = systemPrompt
@@ -687,17 +734,38 @@ Use \`navigate_superset_dashboard\` or \`navigate_superset_chart\` when the user
               // Navigation is handled client-side; just confirm
               result = `Navigation to ${tc.name === "navigate_superset_dashboard" ? "dashboard" : "chart"} ${Object.values(args)[0]} requested.`;
             } else if (tc.name === "knowledge_base_list") {
-              // Knowledge base list tool - return the list of documents
+              // Knowledge base list tool - return the list of documents with stats
               try {
+                const stats = getKnowledgeBaseStats();
                 const docs = getKnowledgeDocuments();
                 if (docs.length === 0) {
-                  result = "No documents in the knowledge base. The knowledge base is empty.";
+                  result = `Knowledge Base Status: Empty (${stats.documentCount} documents, ${stats.totalSizeFormatted} / ${stats.maxSizeFormatted} used)\n\nNo company-specific documents have been uploaded yet. Administrators can add documents through Admin Settings > Knowledge Base.`;
                 } else {
-                  const docList = docs.map(d => `- **${d.name}** (${formatBytes(d.size)}): ${d.description || "No description"}`).join("\n");
-                  result = `Available knowledge base documents (${docs.length}):\n${docList}\n\nTo get detailed content from a specific document, reference it by name in your query. The knowledge base content is automatically included in the system context.`;
+                  const docList = docs.map(d => `- **${d.name}** (${formatBytes(d.size)}${d.chunks ? `, ${d.chunks} chunks` : ''}): ${d.description || 'No description'}`).join('\n');
+                  result = `Knowledge Base Status: ${stats.documentCount} documents, ${stats.totalSizeFormatted} / ${stats.maxSizeFormatted} used (${stats.utilizationPercent}%)\n\nAvailable documents:\n${docList}\n\nTo search for specific content, use the knowledge_base_search tool with relevant keywords.`;
                 }
               } catch (e) {
                 result = `Error accessing knowledge base: ${e instanceof Error ? e.message : String(e)}`;
+              }
+            } else if (tc.name === "knowledge_base_search") {
+              // Knowledge base search tool - search for relevant content
+              try {
+                const searchQuery = args.query as string;
+                if (!searchQuery) {
+                  result = "Error: No search query provided. Please provide a query parameter.";
+                } else {
+                  const searchResults = searchKnowledgeBase(searchQuery);
+                  if (searchResults.length === 0) {
+                    result = `No results found for "${searchQuery}".\n\nTry using different keywords or check available documents with knowledge_base_list.`;
+                  } else {
+                    const resultsList = searchResults.slice(0, 5).map(r => 
+                      `- **${r.doc.name}** (relevance: ${r.relevance}): ${r.excerpt.slice(0, 150)}...`
+                    ).join('\n');
+                    result = `Search results for "${searchQuery}" (${searchResults.length} matches):\n${resultsList}\n\nThe most relevant documents have been loaded into the conversation context.`;
+                  }
+                }
+              } catch (e) {
+                result = `Error searching knowledge base: ${e instanceof Error ? e.message : String(e)}`;
               }
             } else {
               try {
