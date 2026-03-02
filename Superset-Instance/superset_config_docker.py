@@ -73,8 +73,8 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
             # Background colors
             "colorBgBase": "#FFFFFF",
             "colorBgContainer": "#FFFFFF",
-            "colorBgElevated": "#FFF8F5",
-            "colorBgLayout": "#FFF8F5",
+            "colorBgElevated": "#F7FAFC",
+            "colorBgLayout": "#F7FAFC",
             
             # Text colors
             "colorText": "#1A202C",
@@ -82,8 +82,8 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
             "colorTextTertiary": "#A0AEC0",
             
             # Border colors
-            "colorBorder": "#FFE5D9",
-            "colorBorderSecondary": "#FFEDE5",
+            "colorBorder": "#E2E8F0",
+            "colorBorderSecondary": "#EDF2F7",
             
             # Border radius
             "borderRadius": 8,
@@ -199,85 +199,6 @@ FEATURE_FLAGS = {
     "ENABLE_TEMPLATE_PROCESSING": True,
     "ALERT_REPORTS": True,
 }
-
-# ---------------------------------------------------------------------------
-# Theme Configuration (Ant Design v5 Token-based Theming)
-# ---------------------------------------------------------------------------
-# Load custom theme from shared config
-_THEME_CONFIG = {}
-_THEME_PATH = "/app/pythonpath/theme.json"
-
-try:
-    if os.path.exists(_THEME_PATH):
-        with open(_THEME_PATH, 'r') as f:
-            _THEME_CONFIG = json.load(f)
-        logging.info(f"[Theme] Loaded theme from {_THEME_PATH}")
-    else:
-        logging.warning(f"[Theme] theme.json not found at {_THEME_PATH}")
-except Exception as e:
-    logging.error(f"[Theme] Error loading theme: {e}")
-
-# Extract Superset theme configuration
-_SUPERSET_THEME = _THEME_CONFIG.get("superset", {})
-_SUPERSET_COLORS = _SUPERSET_THEME.get("colors", {})
-
-# Build THEME_DEFAULT with Ant Design v5 tokens
-if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
-    _primary = _SUPERSET_COLORS.get("primary", "#FF6B35")
-    _primary_dark = _SUPERSET_COLORS.get("primaryDark", "#E85A2D")
-    _secondary = _SUPERSET_COLORS.get("secondary", "#2D3748")
-    
-    logging.info(f"[Theme] Applying Ant Design theme - primary: {_primary}")
-    
-    THEME_DEFAULT = {
-        "token": {
-            # Primary color (buttons, links, accents)
-            "colorPrimary": _primary,
-            "colorPrimaryHover": _primary_dark,
-            "colorPrimaryActive": _primary_dark,
-            "colorPrimaryText": _primary,
-            "colorPrimaryTextHover": _primary_dark,
-            
-            # Success, warning, error colors
-            "colorSuccess": "#48BB78",
-            "colorWarning": "#ED8936",
-            "colorError": "#F56565",
-            "colorInfo": "#4299E1",
-            
-            # Background colors
-            "colorBgBase": "#FFFFFF",
-            "colorBgContainer": "#FFFFFF",
-            "colorBgElevated": "#FFF8F5",
-            "colorBgLayout": "#FFF8F5",
-            
-            # Text colors
-            "colorText": "#1A202C",
-            "colorTextSecondary": "#718096",
-            "colorTextTertiary": "#A0AEC0",
-            
-            # Border colors
-            "colorBorder": "#FFE5D9",
-            "colorBorderSecondary": "#FFEDE5",
-            
-            # Border radius
-            "borderRadius": 8,
-            "borderRadiusLG": 12,
-            "borderRadiusSM": 4,
-            
-            # Typography
-            "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-            "fontFamilyCode": "'Fira Code', Monaco, Consolas, monospace",
-        }
-    }
-    
-    # Enable theme administration in UI
-    ENABLE_UI_THEME_ADMINISTRATION = True
-    
-    logging.info(f"[Theme] THEME_DEFAULT configured with {len(THEME_DEFAULT['token'])} tokens")
-else:
-    logging.info("[Theme] Using default Superset theme (no custom colors found)")
-    THEME_DEFAULT = {}
-    ENABLE_UI_THEME_ADMINISTRATION = True
 
 # ---------------------------------------------------------------------------
 # Cache (Redis)

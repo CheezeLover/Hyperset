@@ -1,12 +1,12 @@
 /* ── Material Design 3 — Theme-aware Light scheme ─────────── */
 /* Colors are controlled via theme.json and applied by ThemeProvider */
 :root {
-  --md-surface:         var(--theme-background, #f5f3f0);
+  --md-surface:         var(--theme-background, #f7fafc);
   --md-surface-cont:    var(--theme-surface, #ffffff);
-  --md-surface-cont-hi: var(--theme-border, #eceae7);
-  --md-on-surface:      var(--theme-text, #1c1b1f);
-  --md-outline:         var(--theme-border-muted, #cac5be);
-  --md-outline-var:     var(--theme-border-light, #ddd8d2);
+  --md-surface-cont-hi: var(--theme-border, #e2e8f0);
+  --md-on-surface:      var(--theme-text, #1a202c);
+  --md-outline:         var(--theme-border-muted, #e2e8f0);
+  --md-outline-var:     var(--theme-border-light, #edf2f7);
 
   /* Primary colors */
   --md-primary:         var(--theme-primary, #20a7c9);
