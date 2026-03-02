@@ -106,7 +106,7 @@ export function getKnowledgeDocuments(): KnowledgeDocument[] {
     const data = readMetadataFromDisk();
     _cache = data ?? { documents: [] };
   }
-  return _cache.documents;
+  return _cache?.documents ?? [];
 }
 
 /** Get a single document by ID */
