@@ -1,0 +1,73 @@
+{
+  "name": "Hyperset Orange Theme",
+  "version": "1.0.0",
+  "description": "Orange-themed Hyperset deployment with custom branding",
+  
+  "hyperset": {
+    "colors": {
+      "primary": "#FF6B35",
+      "primaryDark": "#E85A2D",
+      "primaryLight": "#FF8A5C",
+      "secondary": "#2D3748",
+      "background": "#F7FAFC",
+      "surface": "#FFFFFF",
+      "text": "#1A202C",
+      "textMuted": "#718096",
+      "border": "#E2E8F0",
+      "success": "#48BB78",
+      "warning": "#ED8936",
+      "error": "#F56565",
+      "info": "#4299E1"
+    },
+    "typography": {
+      "fontFamily": "Inter, system-ui, sans-serif",
+      "headingFont": "Inter, system-ui, sans-serif"
+    },
+    "borderRadius": "8px",
+    "shadow": "0 4px 6px -1px rgba(0, 0, 0, 0.1)"
+  },
+  
+  "superset": {
+    "enabled": true,
+    "colors": {
+      "primary": "#FF6B35",
+      "primaryDark": "#E85A2D",
+      "secondary": "#2D3748",
+      "grayscale": {
+        "base": "#F7FAFC",
+        "light1": "#EDF2F7",
+        "light2": "#E2E8F0",
+        "light3": "#CBD5E0",
+        "light4": "#A0AEC0",
+        "light5": "#718096",
+        "dark1": "#4A5568",
+        "dark2": "#2D3748",
+        "dark3": "#1A202C"
+      }
+    },
+    "theme": {
+      "name": "HypersetOrange"
+    }
+  },
+  
+  "logos": {
+    "hyperset": {
+      "main": "/logos/hyperset-logo.svg",
+      "dark": "/logos/hyperset-logo-dark.svg",
+      "favicon": "/logos/favicon.ico",
+      "appleTouchIcon": "/logos/apple-touch-icon.png"
+    },
+    "superset": {
+      "logo": "/logos/superset-logo.svg",
+      "small": "/logos/superset-icon.svg",
+      "favicon": "/logos/superset-favicon.ico"
+    }
+  },
+  
+  "branding": {
+    "appName": "Hyperset",
+    "tagline": "Analytics Portal",
+    "companyName": "Your Company",
+    "copyright": "© 2026 Hyperset. All rights reserved."
+  }
+}

@@ -18,12 +18,61 @@
 # =============================================================================
 
 import os
+import json
 import logging
 
 from flask import redirect, request, g, session
 from flask_appbuilder.security.manager import AUTH_REMOTE_USER
 from flask_login import login_user, current_user
 from superset.security import SupersetSecurityManager
+
+# ---------------------------------------------------------------------------
+# Theme Configuration (loaded from theme.json if available)
+# ---------------------------------------------------------------------------
+# Load custom theme from shared config
+_THEME_CONFIG = {}
+_THEME_PATH = "/app/pythonpath/theme.json"
+
+try:
+    if os.path.exists(_THEME_PATH):
+        with open(_THEME_PATH, 'r') as f:
+            _THEME_CONFIG = json.load(f)
+        logging.info(f"[Theme] Loaded theme from {_THEME_PATH}")
+    else:
+        # Try alternative path
+        _ALT_THEME_PATH = "/etc/superset/theme.json"
+        if os.path.exists(_ALT_THEME_PATH):
+            with open(_ALT_THEME_PATH, 'r') as f:
+                _THEME_CONFIG = json.load(f)
+            logging.info(f"[Theme] Loaded theme from {_ALT_THEME_PATH}")
+        else:
+            logging.warning(f"[Theme] theme.json not found, using defaults")
+except Exception as e:
+    logging.error(f"[Theme] Error loading theme: {e}")
+
+# Check if Superset theming is enabled
+_SUPERSET_THEME = _THEME_CONFIG.get("superset", {})
+_SUPERSET_THEMING_ENABLED = _SUPERSET_THEME.get("enabled", True) and os.getenv("DEPLOY_WITH_SUPERSET", "false").lower() == "true"
+
+if _SUPERSET_THEMING_ENABLED and "colors" in _SUPERSET_THEME:
+    _colors = _SUPERSET_THEME["colors"]
+    logging.info("[Theme] Applying custom Superset theme colors")
+    
+    # Map theme colors to Superset color configuration
+    # Note: These will be injected via EXTRA_CSS and theme overrides
+    _primary_color = _colors.get("primary", "#FF6B35")
+    _secondary_color = _colors.get("secondary", "#2D3748")
+    
+    # Store theme colors for CSS injection
+    THEME_CSS = f"""
+    :root {{
+        --hyperset-primary: {_primary_color};
+        --hyperset-secondary: {_secondary_color};
+    }}
+    """
+else:
+    logging.info("[Theme] Using default Superset theme")
+    THEME_CSS = ""
 
 # ---------------------------------------------------------------------------
 # Authentication — trust the X-Webauth-User header set by Caddy/Hyperset
