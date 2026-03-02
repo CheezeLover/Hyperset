@@ -164,6 +164,12 @@ else
   if command -v podman &> /dev/null && podman ps --format "{{.Names}}" 2>/dev/null | grep -q "hyperset-caddy"; then
     log "Restarting services to apply theme..."
     
+    # Rebuild portal to include theme changes
+    log "Rebuilding portal with new theme..."
+    podman-compose -f podman-compose.yml build --no-cache portal 2>/dev/null || \
+      docker-compose -f podman-compose.yml build --no-cache portal 2>/dev/null || \
+      echo "Portal rebuild skipped (may need manual rebuild)"
+    
     # Restart Caddy to reload config
     podman restart hyperset-caddy 2>/dev/null || true
     

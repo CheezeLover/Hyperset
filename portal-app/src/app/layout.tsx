@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { getCurrentUser } from "@/lib/auth";
+import { ThemeProvider } from "@/components/ThemeProvider";
 
 export const metadata: Metadata = {
   title: "Hyperset",
@@ -18,7 +19,9 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body data-user-id={user.id} data-is-admin={user.isAdmin ? "true" : "false"}>
-        {children}
+        <ThemeProvider>
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );
