@@ -15,9 +15,9 @@ import path from "path";
 import crypto from "crypto";
 
 // ── Configuration ────────────────────────────────────────────────────────────
-const MAX_CONTEXT_LENGTH = 6000; // Characters to inject into prompt
-const MAX_KB_SIZE_MB = 20; // Max total size
-const MAX_DOC_SIZE_MB = 5; // Max per document
+const MAX_CONTEXT_LENGTH = 15000; // Characters to inject into prompt (increased from 6000)
+const MAX_KB_SIZE_MB = 50; // Max total size (increased from 20)
+const MAX_DOC_SIZE_MB = 10; // Max per document (increased from 5)
 
 // ── Simple paths ───────────────────────────────────────────────────────────
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -86,6 +86,12 @@ function buildContextString(docs: KnowledgeDocument[]): string {
   const sections: string[] = [];
   let totalLength = 0;
   
+  // Calculate how much space each document should get (at minimum)
+  // Reserve space for all documents to be at least partially included
+  const minSpacePerDoc = 500; // At least 500 chars per document
+  const availableForFull = MAX_CONTEXT_LENGTH - (docs.length * minSpacePerDoc);
+  const avgSpacePerDoc = Math.max(2000, Math.floor(availableForFull / docs.length));
+  
   for (const doc of docs) {
     try {
       const filePath = path.join(DOCUMENTS_DIR, `${doc.id}.md`);
@@ -99,20 +105,28 @@ function buildContextString(docs: KnowledgeDocument[]): string {
       }
       
       const header = `--- ${doc.name} ---\n`;
-      const section = header + content;
+      const sectionLength = header.length + content.length;
       
-      // Check if adding this would exceed limit
-      if (totalLength + section.length > MAX_CONTEXT_LENGTH) {
-        // Add truncated version if we have room
-        const remaining = MAX_CONTEXT_LENGTH - totalLength - header.length - 50;
-        if (remaining > 200) {
-          sections.push(header + content.slice(0, remaining) + "\n[truncated]");
-        }
-        break;
+      // Calculate how much of this document we can include
+      const remainingSpace = MAX_CONTEXT_LENGTH - totalLength - header.length - 100;
+      
+      if (sectionLength <= avgSpacePerDoc && totalLength + sectionLength <= MAX_CONTEXT_LENGTH) {
+        // Full document fits
+        sections.push(header + content);
+        totalLength += sectionLength;
+      } else if (remainingSpace > minSpacePerDoc) {
+        // Include partial content
+        const excerptLength = Math.min(content.length, remainingSpace - 50);
+        const excerpt = content.slice(0, excerptLength);
+        const isTruncated = excerptLength < content.length;
+        sections.push(header + excerpt + (isTruncated ? "\n[... document continues ...]" : ""));
+        totalLength += header.length + excerpt.length + (isTruncated ? 30 : 0);
+      } else {
+        // Minimal space - just include the header and description
+        const description = doc.description || "Company knowledge document";
+        sections.push(header + `[${description}]`);
+        totalLength += header.length + description.length + 2;
       }
-      
-      sections.push(section);
-      totalLength += section.length;
     } catch {
       // Skip files that can't be read
       continue;
