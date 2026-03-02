@@ -58,24 +58,6 @@ auth.{$HYPERSET_DOMAIN} {
     authenticate with myportal
 }
 
-# ── Theme & Branding Assets (available on all subdomains) ─────────
-{$HYPERSET_DOMAIN}, superset.{$HYPERSET_DOMAIN}, pages.{$HYPERSET_DOMAIN}, chat.{$HYPERSET_DOMAIN} {
-    # Serve theme.json for dynamic theming
-    handle /theme.json {
-        root * /Caddy
-        file_server
-        header Content-Type "application/json"
-        header Cache-Control "no-cache"
-    }
-    
-    # Serve logos and branding assets
-    handle /logos/* {
-        root * /
-        file_server
-        header Cache-Control "public, max-age=86400"
-    }
-}
-
 # ── Main portal (Next.js) ──────────────────────────────────────
 {$HYPERSET_DOMAIN} {
     tls internal {
@@ -83,19 +65,27 @@ auth.{$HYPERSET_DOMAIN} {
     }
     authorize with mypolicy
 
+    # Theme and branding assets
+    handle /theme.json {
+        root * /Caddy
+        file_server
+        header Content-Type "application/json"
+        header Cache-Control "no-cache"
+    }
+    
+    handle /logos/* {
+        root * /
+        file_server
+        header Cache-Control "public, max-age=86400"
+    }
+
     reverse_proxy hyperset-portal:3000 {
-        # caddy-security's "inject headers with claims" calls r.Header.Set()
-        # which overwrites any client-supplied value before this handler runs,
-        # so no explicit strip is needed — forwarding the already-validated
-        # headers directly is both correct and safe.
         header_up X-Token-User-Id    {http.request.header.X-Token-User-Id}
         header_up X-Token-User-Email {http.request.header.X-Token-User-Email}
         header_up X-Token-User-Roles {http.request.header.X-Token-User-Roles}
         flush_interval -1
     }
 
-    # HSTS — tell browsers to always use HTTPS for this domain (1 year).
-    # Only takes effect over TLS, which is always the case here.
     header Strict-Transport-Security "max-age=31536000; includeSubDomains"
 }
 
@@ -105,13 +95,26 @@ pages.{$HYPERSET_DOMAIN} {
         on_demand
     }
     authorize with mypolicy
+
+    # Theme and branding assets
+    handle /theme.json {
+        root * /Caddy
+        file_server
+        header Content-Type "application/json"
+        header Cache-Control "no-cache"
+    }
+    
+    handle /logos/* {
+        root * /
+        file_server
+        header Cache-Control "public, max-age=86400"
+    }
+
     reverse_proxy hyperset-pages:8000 {
-        # Remove the upstream X-Frame-Options so pages can be embedded in the portal
         header_down -X-Frame-Options
-        # Remove upstream CSP so we can set a tighter one below
         header_down -Content-Security-Policy
     }
-    # Only allow the portal origin to embed pages
+    
     header Content-Security-Policy "frame-ancestors 'self' https://{$HYPERSET_DOMAIN}"
     header Strict-Transport-Security "max-age=31536000; includeSubDomains"
 }
@@ -123,7 +126,20 @@ chat.{$HYPERSET_DOMAIN} {
     }
     authorize with mypolicy
 
-    # Forward API calls to the portal backend (auth, chat, chart-promote, etc.)
+    # Theme and branding assets
+    handle /theme.json {
+        root * /Caddy
+        file_server
+        header Content-Type "application/json"
+        header Cache-Control "no-cache"
+    }
+    
+    handle /logos/* {
+        root * /
+        file_server
+        header Cache-Control "public, max-age=86400"
+    }
+
     handle /api/* {
         reverse_proxy hyperset-portal:3000 {
             header_up X-Token-User-Id    {http.request.header.X-Token-User-Id}
@@ -133,7 +149,6 @@ chat.{$HYPERSET_DOMAIN} {
         }
     }
 
-    # Serve the standalone chat UI directly from Caddy (no Next.js rebuild needed)
     handle {
         root * /Caddy
         rewrite * /chat.html
@@ -164,18 +179,13 @@ superset.{$HYPERSET_DOMAIN} {
             header_up X-Webauth-User  {http.request.header.X-Token-User-Email}
             header_up X-Webauth-Email {http.request.header.X-Token-User-Email}
             header_up X-Webauth-Groups {http.request.header.X-Token-User-Roles}
-            # Strip Superset's own framing headers — Caddy sets the definitive
-            # frame-ancestors CSP below so the browser always gets a correct value.
             header_down -X-Frame-Options
             header_down -Content-Security-Policy
         }
 
-        # Inject bridge script before </body> using replace-response module
         replace </body> "<script src=\"/bridge.js\"></script></body>"
     }
 
-    # Only allow the portal and chat origins to embed Superset — this replaces the
-    # upstream headers stripped above and is the single authoritative framing policy.
     header Content-Security-Policy "frame-ancestors 'self' https://{$HYPERSET_DOMAIN} https://chat.{$HYPERSET_DOMAIN}"
     header Strict-Transport-Security "max-age=31536000; includeSubDomains"
 }
