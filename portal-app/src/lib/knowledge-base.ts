@@ -325,12 +325,12 @@ function calculateRelevance(query: string, content: string): number {
 
 /** Get knowledge base metadata with auto-import */
 export function getKnowledgeBaseMetadata(): KnowledgeBaseMetadata {
-  if (_metadataCache === undefined) {
+  if (_metadataCache === undefined || _metadataCache === null) {
     const data = readMetadataFromDisk();
     const metadata = data ?? { documents: [], totalSize: 0, lastUpdated: new Date().toISOString() };
     _metadataCache = autoImportOrphanedFiles(metadata);
   }
-  return _metadataCache;
+  return _metadataCache ?? { documents: [], totalSize: 0, lastUpdated: new Date().toISOString() };
 }
 
 /** Get all documents from the knowledge base */
