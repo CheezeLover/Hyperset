@@ -58,8 +58,8 @@
       "appleTouchIcon": "/logos/apple-touch-icon.png"
     },
     "superset": {
-      "logo": "/logos/superset-logo.svg",
-      "small": "/logos/superset-icon.svg",
+      "logo": "/logos/superset-logo.png",
+      "icon": "/logos/superset-icon.png",
       "favicon": "/logos/superset-favicon.ico"
     }
   },
