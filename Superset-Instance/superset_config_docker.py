@@ -214,13 +214,25 @@ class HypersetSecurityManager(SupersetSecurityManager):
         admin_key = os.getenv("HYPERSET_ADMIN_ROLE_HEADER", "hyperset/admin")
         user_key = os.getenv("HYPERSET_USER_ROLE_HEADER", "hyperset/user")
 
+        role = None
         if admin_key in caddy_roles:
-            return self.find_role("Admin")
+            role = self.find_role("Admin")
         elif user_key in caddy_roles:
-            return self.find_role("Gamma")
+            role = self.find_role("Gamma")
 
-        # Fallback
-        return self.find_role(self.auth_user_registration_role)
+        # Fallback to default registration role
+        if role is None:
+            default_role_name = self.auth_user_registration_role
+            role = self.find_role(default_role_name)
+            logger.info(f"[SecurityManager] Using default role: {default_role_name}")
+        
+        if role is None:
+            # Last resort - create/find the Gamma role
+            logger.error(f"[SecurityManager] Could not find any role! Attempting to use Gamma...")
+            role = self.find_role("Gamma") or self.find_role("Public")
+        
+        logger.info(f"[SecurityManager] Resolved role: {role}")
+        return role
 
     def auth_user_remote_user(self, username):
         """
@@ -236,19 +248,29 @@ class HypersetSecurityManager(SupersetSecurityManager):
             initial_role = self._resolve_initial_role()
             logger.info(f"[SecurityManager] Creating new user={username} with role={initial_role}")
             
+            # Safety check - ensure we have a valid role
+            if initial_role is None:
+                logger.error(f"[SecurityManager] ERROR: No role found for new user {username}! Using Gamma.")
+                initial_role = self.find_role("Gamma")
+            
             # Extract email from header if available
             email = request.environ.get("HTTP_X_WEBAUTH_EMAIL", "")
             if not email:
                 email = f"{username}@hyperset.local"
             
-            user = self.add_user(
-                username=username,
-                first_name=username.split("@")[0].title(),
-                last_name="",
-                email=email,
-                role=initial_role,
-            )
-            logger.info(f"[SecurityManager] Created user={username}, id={user.id if user else 'FAILED'}")
+            # Create the user
+            try:
+                user = self.add_user(
+                    username=username,
+                    first_name=username.split("@")[0].title(),
+                    last_name="",
+                    email=email,
+                    role=initial_role,
+                )
+                logger.info(f"[SecurityManager] Created user={username}, id={user.id if user else 'FAILED'}")
+            except Exception as e:
+                logger.error(f"[SecurityManager] ERROR creating user {username}: {e}")
+                raise
         else:
             logger.info(f"[SecurityManager] Found existing user={username}, user={user}")
         
