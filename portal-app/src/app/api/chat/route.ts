@@ -3,6 +3,7 @@ import { listMcpTools, callMcpTool } from "@/lib/mcp-client";
 import OpenAI from "openai";
 import { getAdminSettings } from "@/lib/admin-settings";
 import { getUserFromRequest } from "@/lib/auth";
+import { getAllKnowledgeDocumentContents } from "@/lib/knowledge-base";
 
 // ── Sliding-window rate limiter ────────────────────────────────────────────
 // 20 requests per 60-second window per authenticated user (email-keyed).
@@ -338,14 +339,16 @@ export const POST = async (req: NextRequest) => {
   const isMistral = /ministral|mistral/i.test(model);
   const activeTools = filterToolsForContext(tools, userMessages);
 
+  // Load knowledge base content to enrich the system prompt
+  const knowledgeBaseContent = getAllKnowledgeDocumentContents();
+  const knowledgeBaseSection = knowledgeBaseContent
+    ? `\n---\n## 📚 COMPANY KNOWLEDGE BASE\nThe following documents contain company-specific information, vocabulary, and procedures. Reference this knowledge when relevant to the user's questions.\n\n${knowledgeBaseContent}\n---\n`
+    : "";
+
   // Build message list with optional system prompt
-  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-    ...(systemPrompt
-      ? [{ role: "system" as const, content: systemPrompt }]
-      : [
-          {
-            role: "system" as const,
-            content: `# Hyperset — Data Analyst Assistant (Apache Superset)
+  const baseSystemContent = systemPrompt
+    ? systemPrompt
+    : `# Hyperset — Data Analyst Assistant (Apache Superset)
 You are Hyperset, a SQL-grounded data analyst with access to Apache Superset. Execute immediately — never ask for confirmation before running queries or creating charts.
 
 ---
@@ -475,7 +478,13 @@ Use \`navigate_superset_dashboard\` or \`navigate_superset_chart\` when the user
 - ❌ Wrap \`[iframe]\` embeds in backticks or code fences
 - ❌ Create dashboards before creating the charts that go in them`,
           },
-        ]),
+        ]);
+
+  // Prepend knowledge base section if available
+  const fullSystemContent = baseSystemContent + knowledgeBaseSection;
+
+  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+    { role: "system" as const, content: fullSystemContent },
     ...userMessages,
   ];
 
