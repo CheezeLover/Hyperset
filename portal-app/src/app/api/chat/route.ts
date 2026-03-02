@@ -476,9 +476,7 @@ Use \`navigate_superset_dashboard\` or \`navigate_superset_chart\` when the user
 - ❌ Invent column names — only use what \`superset_dataset_get_by_id\` returns
 - ❌ Hardcode or guess any URL — always get embeds from the tool response
 - ❌ Wrap \`[iframe]\` embeds in backticks or code fences
-- ❌ Create dashboards before creating the charts that go in them`,
-          },
-        ]);
+- ❌ Create dashboards before creating the charts that go in them`;
 
   // Prepend knowledge base section if available
   const fullSystemContent = baseSystemContent + knowledgeBaseSection;
