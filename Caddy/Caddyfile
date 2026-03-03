@@ -206,6 +206,9 @@ superset.{$HYPERSET_DOMAIN} {
         }
 
         replace </body> "<script src=\"/bridge.js\"></script></body>"
+        
+        # Force orange color on all links via injected CSS
+        replace </head> "<style>* { --antd-wave-shadow-color: #E85A2D !important; } a, a:link, a:visited, a:hover, a:active, .link, [class*='link'], td a, .ant-table-cell a, .ant-typography a { color: #E85A2D !important; text-decoration-color: #E85A2D !important; } a:hover, .link:hover, td a:hover { color: #FF6B35 !important; }</style></head>"
     }
 
     header Content-Security-Policy "frame-ancestors 'self' https://{$HYPERSET_DOMAIN} https://chat.{$HYPERSET_DOMAIN}"
