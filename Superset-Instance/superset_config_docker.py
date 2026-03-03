@@ -86,11 +86,12 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
             "colorError": "#F56565",
             "colorInfo": _link,  # Use link color instead of blue
             
-            # Background colors
+            # Background colors - subtle variation for visual separation
             "colorBgBase": "#FFFFFF",
             "colorBgContainer": "#FFFFFF",
-            "colorBgElevated": "#FFFFFF",
-            "colorBgLayout": "#FFFFFF",
+            "colorBgElevated": "#FAFAFA",  # Slightly off-white for elevated elements
+            "colorBgLayout": "#F5F5F5",  # Light gray for main layout background
+            "colorBgSpotlight": "#F0F0F0",  # Subtle gray for highlighted areas
             
             # Text colors - now controllable via theme.json
             "colorText": _text,
