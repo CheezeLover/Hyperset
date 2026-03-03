@@ -386,12 +386,12 @@ function Resizer({
   const [hovered, setHovered] = useState(false);
   const color =
     colorClass === "primary"
-      ? "var(--md-primary)"
-      : "var(--md-secondary)";
+      ? "#FFE5D9"  // Very light orange from theme (border color)
+      : "#E8E8E8"; // Very light gray for other panels
   const mutedColor =
     colorClass === "primary"
-      ? "var(--md-primary-muted)"
-      : "var(--md-secondary-muted)";
+      ? "#FFD4C4"  // Slightly darker orange for hover
+      : "#D0D0D0"; // Darker gray for hover
 
   return (
     <div
@@ -420,8 +420,8 @@ function Resizer({
           width: hovered ? 3 : 2,  // 25% less: 4->3, 3->2
           height: hovered ? 56 : 32,
           borderRadius: 2,
-          background: hovered ? color : "var(--md-on-surface)",  // Darker color when not hovered
-          opacity: hovered ? 1 : 0.6,
+          background: hovered ? mutedColor : color,  // Use theme colors
+          opacity: hovered ? 0.9 : 0.7,
           transition: "all 0.2s",
           pointerEvents: "none",
         }}
