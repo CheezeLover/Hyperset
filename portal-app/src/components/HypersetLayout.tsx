@@ -404,7 +404,7 @@ function Resizer({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        width: 9,  // 25% less than 12px
+        width: 5,  // Narrower strip
         background: backgroundColor,  // Light orange/gray background
         cursor: "col-resize",
         flexShrink: 0,
@@ -420,7 +420,7 @@ function Resizer({
           position: "absolute",
           top: "50%",
           left: "50%",
-          transform: "translate(-50%, -50%)",
+          transform: "translate(-50%, -50%)",  // Perfectly centered
           width: hovered ? 3 : 2,
           height: hovered ? 56 : 32,
           borderRadius: 2,
