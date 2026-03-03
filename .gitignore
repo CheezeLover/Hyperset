@@ -6,6 +6,11 @@
 *.env.production
 *.env.*.local
 
+# ── User Data — Contains sensitive information ─────────────────────────────────
+# User database with encrypted passwords — never commit this!
+Caddy/users.json
+*.users.json
+
 # ── OS / editor noise ─────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
