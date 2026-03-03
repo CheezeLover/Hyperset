@@ -53,7 +53,12 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
     _primary_dark = _SUPERSET_COLORS.get("primaryDark", "#E85A2D")
     _secondary = _SUPERSET_COLORS.get("secondary", "#2D3748")
     
-    logging.info(f"[Theme] Applying Ant Design theme - primary: {_primary}")
+    # Text colors - controllable via theme.json (default to black/dark)
+    _text = _SUPERSET_COLORS.get("text", "#000000")  # Main text - black
+    _text_secondary = _SUPERSET_COLORS.get("textSecondary", "#4A5568")  # Secondary text
+    _text_muted = _SUPERSET_COLORS.get("textMuted", "#718096")  # Muted text
+    
+    logging.info(f"[Theme] Applying Ant Design theme - primary: {_primary}, text: {_text}")
     
     THEME_DEFAULT = {
         "token": {
@@ -76,10 +81,10 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
             "colorBgElevated": "#FFFFFF",
             "colorBgLayout": "#FFFFFF",
             
-            # Text colors
-            "colorText": "#1A202C",
-            "colorTextSecondary": "#718096",
-            "colorTextTertiary": "#A0AEC0",
+            # Text colors - now controllable via theme.json
+            "colorText": _text,
+            "colorTextSecondary": _text_secondary,
+            "colorTextTertiary": _text_muted,
             
             # Border colors
             "colorBorder": "#E5E5E5",

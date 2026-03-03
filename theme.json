@@ -33,6 +33,9 @@
       "primary": "#FF6B35",
       "primaryDark": "#E85A2D",
       "secondary": "#2D3748",
+      "text": "#000000",
+      "textSecondary": "#4A5568",
+      "textMuted": "#718096",
       "grayscale": {
         "base": "#FFFFFF",
         "light1": "#F5F5F5",
