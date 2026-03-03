@@ -500,13 +500,51 @@ podman logs hyperset-caddy -f
 
 ---
 
-## 📞 Support & Contributing
+## 🙏 Acknowledgments
 
-**Issues:** Report bugs and feature requests on GitHub
+Hyperset builds upon the excellent work of the open-source community:
 
-**Contributing:** Pull requests welcome — bug fixes, documentation, new page examples, MCP tool enhancements
+### Core Dependencies
 
-**License:** MIT
+- **[Apache Superset](https://superset.apache.org/)** - The powerful analytics and visualization platform that makes data exploration possible. Thank you to the Apache Software Foundation and all Superset contributors.
+
+- **[Caddy Web Server](https://caddyserver.com/)** - The amazing automatic HTTPS server that handles all our reverse proxy, authentication, and security needs. Special thanks to Matt Holt and the Caddy team, plus Paul Greenberg (Greenpau) for the caddy-security plugin.
+
+- **[Next.js](https://nextjs.org/)** - The React framework that powers our portal. Thank you to Vercel for creating such a productive developer experience.
+
+### Modified Components
+
+- **Superset MCP Server** - Originally created by [Aptro](https://github.com/aptro) and licensed under MIT. We forked and significantly enhanced it with:
+  - Header-based SSO authentication (no credentials needed)
+  - HMAC-signed tokens for secure portal communication
+  - AI chart provenance and automatic cleanup system
+  - Full Hyperset integration
+
+### Infrastructure
+
+- **[PostgreSQL](https://www.postgresql.org/)** - The world's most advanced open-source relational database
+- **[Redis](https://redis.io/)** - The blazing-fast in-memory data store for caching and task queues
+- **[Podman](https://podman.io/)** - Rootless container management without daemon bloat
+
+### Special Thanks
+
+To all the maintainers, contributors, and communities behind these projects. Hyperset wouldn't exist without your dedication to open-source software.
+
+---
+
+## 📄 License
+
+MIT License - See [LICENSE](LICENSE) file for details.
+
+This project includes third-party components with their own licenses:
+- Superset-MCP: MIT License (Copyright 2025 Aptro) - See [Superset-MCP/LICENSE](Superset-MCP/LICENSE)
+- Apache Superset: Apache License 2.0
+- Caddy: Apache License 2.0
+- Next.js: MIT License
+- PostgreSQL: PostgreSQL License
+- Redis: BSD 3-Clause License
+
+See [NOTICE](NOTICE) file for full attribution details.
 
 ---
 

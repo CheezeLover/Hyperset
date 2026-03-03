@@ -1,0 +1,34 @@
+Hyperset
+Copyright (c) 2026 Hyperset Contributors
+
+This product includes software developed by:
+
+1. Aptro - Superset MCP Server foundation
+   The Superset-MCP module is derived from work originally created by Aptro
+   and licensed under the MIT License. Significant modifications were made
+   to add header-based SSO authentication, HMAC-signed tokens for security,
+   and the AI chart provenance and cleanup system.
+
+2. Apache Software Foundation - Apache Superset
+   Apache Superset is used as the analytics and visualization platform.
+   Licensed under the Apache License 2.0.
+
+3. Matt Holt / ZeroSSL - Caddy Web Server
+   Caddy is used as the reverse proxy and authentication gateway.
+   Includes caddy-security plugin by Paul Greenberg (Greenpau).
+   Licensed under the Apache License 2.0.
+
+4. Vercel, Inc. - Next.js Framework
+   Next.js is used for the Hyperset Portal frontend.
+   Licensed under the MIT License.
+
+5. The PostgreSQL Global Development Group - PostgreSQL
+   Used as the database backend in integrated mode.
+   Licensed under the PostgreSQL License.
+
+6. Redis Ltd. - Redis
+   Used for caching and task queue management in integrated mode.
+   Licensed under the BSD 3-Clause License.
+
+For full license texts, see the LICENSE file or visit the respective
+project websites.

@@ -2,7 +2,25 @@
 
 A Model Context Protocol (MCP) server that connects the Hyperset AI chat to an Apache Superset instance. It allows the AI assistant to query data, create charts and dashboards, and manage the Superset instance programmatically on behalf of authenticated users.
 
-> **Note:** This is Hyperset's custom fork. It uses header-based SSO authentication (no username/password), HMAC-signed tokens for security, and includes the AI chart provenance and cleanup system. It is **not** compatible with the upstream `@aptro/superset-mcp` configuration.
+> **Important:** This is Hyperset's custom fork of the original [Superset MCP](https://github.com/aptro/superset-mcp) by [Aptro](https://github.com/aptro). While it maintains compatibility with the MCP protocol, it has been significantly modified for the Hyperset architecture.
+
+## Key Differences from Upstream
+
+| Feature | Original (Aptro) | Hyperset Edition |
+|---------|------------------|------------------|
+| Authentication | Username/password required | Header-based SSO (X-Webauth-User) |
+| Security | Basic auth | HMAC-signed tokens |
+| AI Integration | Basic chart creation | Full provenance tracking with automatic cleanup |
+| Deployment | Standalone | Integrated with Hyperset stack |
+
+**Modifications made:**
+- Header-based SSO authentication (no username/password needed)
+- HMAC-signed tokens for secure communication with the Hyperset portal
+- AI chart provenance system (temporary/permanent tracking)
+- Automatic cleanup of stale AI-generated charts
+- Full integration with Hyperset's authentication and theming
+
+**License:** MIT License (Copyright 2025 Aptro) - See [LICENSE](LICENSE)
 
 ---
 
