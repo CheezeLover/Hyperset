@@ -57,10 +57,10 @@
   
   "logos": {
     "hyperset": {
-      "main": "/logos/hyperset-logo.svg",
-      "dark": "/logos/hyperset-logo-dark.svg",
-      "favicon": "/logos/favicon.ico",
-      "appleTouchIcon": "/logos/apple-touch-icon.png"
+      "main": "/logos/logo_hyperset.png",
+      "dark": "/logos/logo_hyperset.png",
+      "favicon": "/logos/logo_hyperset.png",
+      "appleTouchIcon": "/logos/logo_hyperset.png"
     }
   },
   
