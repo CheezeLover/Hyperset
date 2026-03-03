@@ -47,6 +47,19 @@ except Exception as e:
 _SUPERSET_THEME = _THEME_CONFIG.get("superset", {})
 _SUPERSET_COLORS = _SUPERSET_THEME.get("colors", {})
 
+# ---------------------------------------------------------------------------
+# Custom Logo Configuration
+# ---------------------------------------------------------------------------
+# Use custom Hyperset logo instead of Superset logo
+LOGO_TARGET_PATH = "/app/pythonpath/custom_logo.png"
+FAVICON_PATH = "/app/pythonpath/custom_logo.png"
+APP_ICON = "/app/pythonpath/custom_logo.png"
+
+# Banner text (shown next to logo)
+BANNER_ENABLED = False  # Disable default Superset banner
+
+logging.info(f"[Theme] Custom logo configured: {LOGO_TARGET_PATH}")
+
 # Build THEME_DEFAULT with Ant Design v5 tokens
 if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
     _primary = _SUPERSET_COLORS.get("primary", "#FF6B35")
