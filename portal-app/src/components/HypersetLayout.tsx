@@ -400,7 +400,7 @@ function Resizer({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        width: 12,
+        width: 9,  // 25% less than 12px
         background: "transparent",
         cursor: "col-resize",
         flexShrink: 0,
@@ -417,11 +417,11 @@ function Resizer({
           top: "50%",
           left: "50%",
           transform: "translate(-50%, -50%)",
-          width: hovered ? 4 : 3,
+          width: hovered ? 3 : 2,  // 25% less: 4->3, 3->2
           height: hovered ? 56 : 32,
           borderRadius: 2,
-          background: hovered ? mutedColor : "var(--md-outline-var)",
-          opacity: hovered ? 1 : 0.5,
+          background: hovered ? color : "var(--md-on-surface)",  // Darker color when not hovered
+          opacity: hovered ? 1 : 0.6,
           transition: "all 0.2s",
           pointerEvents: "none",
         }}

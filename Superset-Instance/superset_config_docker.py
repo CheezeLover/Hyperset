@@ -98,15 +98,9 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
             "colorTextSecondary": _text_secondary,
             "colorTextTertiary": _text_muted,
             
-            # Border colors - subtle but visible for separators
-            "colorBorder": "#E8E8E8",
-            "colorBorderSecondary": "#F0F0F0",
-            "colorSplit": "#D0D0D0",  # Vertical splitters/dividers - more visible
-            
-            # Fill colors for subtle backgrounds
-            "colorFill": "rgba(0, 0, 0, 0.03)",
-            "colorFillSecondary": "rgba(0, 0, 0, 0.06)",
-            "colorFillTertiary": "rgba(0, 0, 0, 0.1)",
+            # Border colors
+            "colorBorder": "#E5E5E5",
+            "colorBorderSecondary": "#F5F5F5",
             
             # Border radius
             "borderRadius": 8,
@@ -237,40 +231,6 @@ a:hover, .link:hover, .ant-table-cell a:hover,
 .ant-table-row a:hover, td a:hover, .table-cell a:hover,
 .ant-typography a:hover, .ant-list-item a:hover {
     color: #FF6B35 !important;
-}
-
-/* Enhance vertical separators and dividers for better visual separation */
-.ant-layout-sider,
-.ant-menu,
-.ant-layout-sider-trigger {
-    background-color: #FAFAFA !important;
-    border-right: 1px solid #E0E0E0 !important;
-}
-
-/* Resizable panel splitters */
-.resizable-panel-splitter,
-.panel-splitter,
-[class*="splitter"],
-[class*="resize-handle"],
-.ant-splitter {
-    background-color: #E8E8E8 !important;
-    border: 1px solid #D0D0D0 !important;
-    width: 4px !important;
-}
-
-/* Menu dividers */
-.ant-menu-item-divider,
-.ant-divider,
-.ant-dropdown-menu-item-divider {
-    border-color: #E0E0E0 !important;
-}
-
-/* Section separators */
-.section-separator,
-[class*="section-divider"],
-[class*="separator"] {
-    border-color: #D8D8D8 !important;
-    background-color: #F5F5F5 !important;
 }
 """
 
