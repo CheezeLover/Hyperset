@@ -84,7 +84,7 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
             "colorSuccess": "#48BB78",
             "colorWarning": "#ED8936",
             "colorError": "#F56565",
-            "colorInfo": "#4299E1",
+            "colorInfo": _link,  # Use link color instead of blue
             
             # Background colors
             "colorBgBase": "#FFFFFF",
@@ -215,6 +215,23 @@ FEATURE_FLAGS = {
     "ENABLE_TEMPLATE_PROCESSING": True,
     "ALERT_REPORTS": True,
 }
+
+# ---------------------------------------------------------------------------
+# Force all links to use orange color (overrides any custom CSS)
+# ---------------------------------------------------------------------------
+EXTRA_CSS = """
+/* Force all links to be orange */
+a, .link, [class*="link"], .ant-table-cell a, 
+.ant-table-row a, td a, .table-cell a,
+.ant-typography a, .ant-list-item a {
+    color: #E85A2D !important;
+}
+a:hover, .link:hover, .ant-table-cell a:hover,
+.ant-table-row a:hover, td a:hover, .table-cell a:hover,
+.ant-typography a:hover, .ant-list-item a:hover {
+    color: #FF6B35 !important;
+}
+"""
 
 # ---------------------------------------------------------------------------
 # Cache (Redis)
