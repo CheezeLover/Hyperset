@@ -88,7 +88,6 @@ services:
     volumes:
       - ./Superset-Instance/superset_config_docker.py:/app/pythonpath/superset_config_docker.py:Z
       - ./theme.json:/app/pythonpath/theme.json:Z
-      - ./logos/logo_hyperset.png:/app/pythonpath/custom_logo.png:Z
       - superset_home:/app/superset_home
     networks:
       - hyperset-net
@@ -149,8 +148,6 @@ services:
       - ./.env
     volumes:
       - ./Superset-Instance/superset_config_docker.py:/app/pythonpath/superset_config_docker.py:Z
-      - ./theme.json:/app/pythonpath/theme.json:Z
-      - ./logos/logo_hyperset.png:/app/pythonpath/custom_logo.png:Z
       - superset_home:/app/superset_home
     networks:
       - hyperset-net
@@ -160,7 +157,7 @@ services:
       superset-redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "celery", "inspect", "ping", "--app=superset.tasks.celery_app:app"]
+      test: ["CMD-SHELL", "celery inspect ping --app=superset.tasks.celery_app:app -d celery@$$HOSTNAME"]
       interval: 30s
       timeout: 10s
       retries: 5

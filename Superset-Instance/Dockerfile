@@ -18,8 +18,4 @@ RUN SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])") &
 # Verify installation
 RUN python -c "import psycopg2; print('psycopg2 OK:', psycopg2.__version__)"
 
-# Create directory for custom assets
-RUN mkdir -p /app/pythonpath && \
-    chown -R superset:superset /app/pythonpath
-
 USER superset
