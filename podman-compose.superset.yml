@@ -227,13 +227,13 @@ services:
         sleep 15 &&
         echo 'Running database upgrade...' &&
         superset db upgrade &&
-        echo 'Creating admin user...' &&
+      echo 'Creating admin user...' &&
         superset fab create-admin \\
           --username admin \\
           --firstname Admin \\
           --lastname User \\
           --email admin@hyperset.local \\
-          --password admin || echo 'Admin user may already exist' &&
+          --password ${SUPERSET_ADMIN_PASSWORD:-admin} || echo 'Admin user may already exist' &&
         echo 'Initializing Superset...' &&
         superset init &&
         echo 'Loading examples (this may take 2-3 minutes)...' &&

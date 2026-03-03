@@ -54,6 +54,12 @@ if [ -f .env ]; then
         check_passed "SUPERSET_SECRET_KEY appears to be configured"
     fi
     
+    if grep -q "SUPERSET_ADMIN_PASSWORD=CHANGE_ME" .env 2>/dev/null || grep -q 'SUPERSET_ADMIN_PASSWORD="CHANGE_ME' .env 2>/dev/null; then
+        check_failed "SUPERSET_ADMIN_PASSWORD is using default placeholder"
+    else
+        check_passed "SUPERSET_ADMIN_PASSWORD appears to be configured"
+    fi
+    
     if grep -q "AUTH_CRYPTO_KEY=CHANGE_ME" .env 2>/dev/null || grep -q 'AUTH_CRYPTO_KEY="CHANGE_ME' .env 2>/dev/null; then
         check_failed "AUTH_CRYPTO_KEY is using default placeholder"
     else
