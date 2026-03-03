@@ -18,12 +18,109 @@
 # =============================================================================
 
 import os
+import json
 import logging
 
 from flask import redirect, request, g, session
 from flask_appbuilder.security.manager import AUTH_REMOTE_USER
 from flask_login import login_user, current_user
 from superset.security import SupersetSecurityManager
+
+# ---------------------------------------------------------------------------
+# Theme Configuration (Ant Design v5 Token-based Theming)
+# ---------------------------------------------------------------------------
+# Load custom theme from shared config
+_THEME_CONFIG = {}
+_THEME_PATH = "/app/pythonpath/theme.json"
+
+try:
+    if os.path.exists(_THEME_PATH):
+        with open(_THEME_PATH, 'r') as f:
+            _THEME_CONFIG = json.load(f)
+        logging.info(f"[Theme] Loaded theme from {_THEME_PATH}")
+    else:
+        logging.warning(f"[Theme] theme.json not found at {_THEME_PATH}")
+except Exception as e:
+    logging.error(f"[Theme] Error loading theme: {e}")
+
+# Extract Superset theme configuration
+_SUPERSET_THEME = _THEME_CONFIG.get("superset", {})
+_SUPERSET_COLORS = _SUPERSET_THEME.get("colors", {})
+
+# Build THEME_DEFAULT with Ant Design v5 tokens
+if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
+    _primary = _SUPERSET_COLORS.get("primary", "#FF6B35")
+    _primary_dark = _SUPERSET_COLORS.get("primaryDark", "#E85A2D")
+    _secondary = _SUPERSET_COLORS.get("secondary", "#2D3748")
+    
+    # Text colors - controllable via theme.json (default to black/dark)
+    _text = _SUPERSET_COLORS.get("text", "#000000")  # Main text - black
+    _text_secondary = _SUPERSET_COLORS.get("textSecondary", "#4A5568")  # Secondary text
+    _text_muted = _SUPERSET_COLORS.get("textMuted", "#718096")  # Muted text
+    
+    # Link colors - controllable via theme.json (default to dark orange/brown)
+    _link = _SUPERSET_COLORS.get("link", "#E85A2D")  # Clickable links - dark orange
+    _link_hover = _SUPERSET_COLORS.get("linkHover", "#FF6B35")  # Link hover - bright orange
+    
+    logging.info(f"[Theme] Applying Ant Design theme - primary: {_primary}, text: {_text}, link: {_link}")
+    
+    THEME_DEFAULT = {
+        "token": {
+            # Primary color (buttons, accents)
+            "colorPrimary": _primary,
+            "colorPrimaryHover": _primary_dark,
+            "colorPrimaryActive": _primary_dark,
+            
+            # Primary text - use dark text instead of orange for better readability
+            "colorPrimaryText": _text,
+            "colorPrimaryTextHover": _link,
+            
+            # Link colors - for clickable text
+            "colorLink": _link,
+            "colorLinkHover": _link_hover,
+            "colorLinkActive": _primary_dark,
+            
+            # Success, warning, error colors
+            "colorSuccess": "#48BB78",
+            "colorWarning": "#ED8936",
+            "colorError": "#F56565",
+            "colorInfo": _link,  # Use link color instead of blue
+            
+            # Background colors - subtle variation for visual separation
+            "colorBgBase": "#FFFFFF",
+            "colorBgContainer": "#FFFFFF",
+            "colorBgElevated": "#FAFAFA",  # Slightly off-white for elevated elements
+            "colorBgLayout": "#F5F5F5",  # Light gray for main layout background
+            "colorBgSpotlight": "#F0F0F0",  # Subtle gray for highlighted areas
+            
+            # Text colors - now controllable via theme.json
+            "colorText": _text,
+            "colorTextSecondary": _text_secondary,
+            "colorTextTertiary": _text_muted,
+            
+            # Border colors
+            "colorBorder": "#E5E5E5",
+            "colorBorderSecondary": "#F5F5F5",
+            
+            # Border radius
+            "borderRadius": 8,
+            "borderRadiusLG": 12,
+            "borderRadiusSM": 4,
+            
+            # Typography
+            "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+            "fontFamilyCode": "'Fira Code', Monaco, Consolas, monospace",
+        }
+    }
+    
+    # Enable theme administration in UI
+    ENABLE_UI_THEME_ADMINISTRATION = True
+    
+    logging.info(f"[Theme] THEME_DEFAULT configured with {len(THEME_DEFAULT['token'])} tokens")
+else:
+    logging.info("[Theme] Using default Superset theme (no custom colors found)")
+    THEME_DEFAULT = {}
+    ENABLE_UI_THEME_ADMINISTRATION = True
 
 # ---------------------------------------------------------------------------
 # Authentication — trust the X-Webauth-User header set by Caddy/Hyperset
@@ -121,6 +218,23 @@ FEATURE_FLAGS = {
 }
 
 # ---------------------------------------------------------------------------
+# Force all links to use orange color (overrides any custom CSS)
+# ---------------------------------------------------------------------------
+EXTRA_CSS = """
+/* Force all links to be orange */
+a, .link, [class*="link"], .ant-table-cell a, 
+.ant-table-row a, td a, .table-cell a,
+.ant-typography a, .ant-list-item a {
+    color: #E85A2D !important;
+}
+a:hover, .link:hover, .ant-table-cell a:hover,
+.ant-table-row a:hover, td a:hover, .table-cell a:hover,
+.ant-typography a:hover, .ant-list-item a:hover {
+    color: #FF6B35 !important;
+}
+"""
+
+# ---------------------------------------------------------------------------
 # Cache (Redis)
 # ---------------------------------------------------------------------------
 REDIS_HOST     = os.getenv("REDIS_HOST", "redis")
@@ -151,11 +265,12 @@ CELERY_CONFIG = CeleryConfig
 # ---------------------------------------------------------------------------
 # Database
 # ---------------------------------------------------------------------------
-DB_HOST     = os.getenv("DB_HOST", "db")
-DB_PORT     = os.getenv("DB_PORT", "5432")
-DB_NAME     = os.getenv("DB_NAME", "superset")
-DB_USER     = os.getenv("DB_USER", "superset")
-DB_PASS     = os.getenv("DB_PASS", "superset")
+# Use DATABASE_* env vars (set in podman-compose.superset.yml)
+DB_HOST     = os.getenv("DATABASE_HOST", "hyperset-superset-db")
+DB_PORT     = os.getenv("DATABASE_PORT", "5432")
+DB_NAME     = os.getenv("DATABASE_DB", "superset")
+DB_USER     = os.getenv("DATABASE_USER", "superset")
+DB_PASS     = os.getenv("DATABASE_PASSWORD", "superset")
 
 SQLALCHEMY_DATABASE_URI = (
     f"postgresql+psycopg2://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
@@ -184,6 +299,9 @@ class HypersetRemoteUserMiddleware:
         user = environ.get("HTTP_X_WEBAUTH_USER", "")
         if user:
             environ["REMOTE_USER"] = user
+            logger.info(f"[Middleware] Set REMOTE_USER={user} from X-Webauth-User header")
+        else:
+            logger.warning(f"[Middleware] No X-Webauth-User header found! Headers: {dict((k,v) for k,v in environ.items() if k.startswith('HTTP_'))}")
         return self.app(environ, start_response)
 
 ADDITIONAL_MIDDLEWARE = [HypersetRemoteUserMiddleware]
@@ -210,42 +328,76 @@ class HypersetSecurityManager(SupersetSecurityManager):
         admin_key = os.getenv("HYPERSET_ADMIN_ROLE_HEADER", "hyperset/admin")
         user_key = os.getenv("HYPERSET_USER_ROLE_HEADER", "hyperset/user")
 
+        role = None
         if admin_key in caddy_roles:
-            return self.find_role("Admin")
+            role = self.find_role("Admin")
         elif user_key in caddy_roles:
-            return self.find_role("Gamma")
+            role = self.find_role("Gamma")
 
-        # Fallback
-        return self.find_role(self.auth_user_registration_role)
+        # Fallback to default registration role
+        if role is None:
+            default_role_name = self.auth_user_registration_role
+            role = self.find_role(default_role_name)
+            logger.info(f"[SecurityManager] Using default role: {default_role_name}")
+        
+        if role is None:
+            # Last resort - create/find the Gamma role
+            logger.error(f"[SecurityManager] Could not find any role! Attempting to use Gamma...")
+            role = self.find_role("Gamma") or self.find_role("Public")
+        
+        logger.info(f"[SecurityManager] Resolved role: {role}")
+        return role
 
     def auth_user_remote_user(self, username):
         """
         Override that avoids passing g.user (a LocalProxy) to session.add().
         On first login (user creation), reads roles from Caddy header.
         On subsequent logins, just logs in without touching roles.
+        
+        NOTE: AUTH_ROLES_SYNC_AT_LOGIN = False means roles are set ONLY at 
+        user creation time. After that, roles are managed in Superset UI
+        and won't be overwritten by SSO headers on subsequent logins.
         """
+        logger.info(f"[SecurityManager] auth_user_remote_user called with username={username}")
         user = self.find_user(username=username)
-
+        
         if user is None and self.auth_user_registration:
             # New user — resolve role from Caddy header
             initial_role = self._resolve_initial_role()
-
+            logger.info(f"[SecurityManager] Creating new user={username} with role={initial_role}")
+            
+            # Safety check - ensure we have a valid role
+            if initial_role is None:
+                logger.error(f"[SecurityManager] ERROR: No role found for new user {username}! Using Gamma.")
+                initial_role = self.find_role("Gamma")
+            
             # Extract email from header if available
             email = request.environ.get("HTTP_X_WEBAUTH_EMAIL", "")
             if not email:
                 email = f"{username}@hyperset.local"
-
-            user = self.add_user(
-                username=username,
-                first_name=username.split("@")[0].title(),
-                last_name="",
-                email=email,
-                role=initial_role,
-            )
-
+            
+            # Create the user
+            try:
+                user = self.add_user(
+                    username=username,
+                    first_name=username.split("@")[0].title(),
+                    last_name="",
+                    email=email,
+                    role=initial_role,
+                )
+                logger.info(f"[SecurityManager] Created user={username}, id={user.id if user else 'FAILED'}")
+            except Exception as e:
+                logger.error(f"[SecurityManager] ERROR creating user {username}: {e}")
+                raise
+        else:
+            logger.info(f"[SecurityManager] Found existing user={username}, user={user}")
+        
         if user:
             login_user(user)
             g.user = user
+            logger.info(f"[SecurityManager] Logged in user={username}")
+        else:
+            logger.error(f"[SecurityManager] Failed to login user={username}")
         return user
 
 CUSTOM_SECURITY_MANAGER = HypersetSecurityManager
@@ -257,6 +409,7 @@ CUSTOM_SECURITY_MANAGER = HypersetSecurityManager
 #   3. Redirects /login/ to the index if already authenticated
 # ---------------------------------------------------------------------------
 def FLASK_APP_MUTATOR(app):
+    logger.info("[FLASK_APP_MUTATOR] Installing before_request hook")
 
     @app.before_request
     def hyperset_auto_login():
@@ -265,12 +418,16 @@ def FLASK_APP_MUTATOR(app):
             return None
 
         remote_user = request.environ.get("REMOTE_USER", "")
+        logger.info(f"[AutoLogin] path={request.path}, REMOTE_USER={remote_user}, current_user={current_user}")
+        
         if not remote_user:
+            logger.warning(f"[AutoLogin] No REMOTE_USER found for path={request.path}")
             return None
 
         # Already logged in as the correct user — nothing to do
         if current_user and current_user.is_authenticated:
             if current_user.username == remote_user:
+                logger.info(f"[AutoLogin] Already logged in as {remote_user}")
                 if request.path.rstrip("/") == "/login":
                     return redirect("/superset/welcome/")
                 return None
@@ -281,6 +438,7 @@ def FLASK_APP_MUTATOR(app):
         if user:
             login_user(user)
             g.user = user
+            logger.info(f"[AutoLogin] Successfully logged in {remote_user}")
 
             if request.path.rstrip("/") == "/login":
                 next_url = request.args.get("next", "/superset/welcome/")
@@ -288,10 +446,33 @@ def FLASK_APP_MUTATOR(app):
                 if not next_url.startswith("/") or next_url.startswith("//"):
                     next_url = "/superset/welcome/"
                 return redirect(next_url)
+        else:
+            logger.error(f"[AutoLogin] Failed to auth user {remote_user}")
 
         return None
 
 # ---------------------------------------------------------------------------
-# Logging
+# Logging and Debug
 # ---------------------------------------------------------------------------
+import logging
+logger = logging.getLogger(__name__)
+logger.info("=== Hyperset Superset Config Loaded ===")
+logger.info(f"AUTH_TYPE: {AUTH_TYPE}")
+logger.info(f"REMOTE_USER_ENV_VAR: {REMOTE_USER_ENV_VAR}")
+logger.info(f"AUTH_USER_REGISTRATION: {AUTH_USER_REGISTRATION}")
+logger.info(f"CUSTOM_SECURITY_MANAGER: HypersetSecurityManager")
+logger.info(f"ADDITIONAL_MIDDLEWARE: {ADDITIONAL_MIDDLEWARE}")
+logger.info(f"ENABLE_CORS: {ENABLE_CORS}")
+logger.info(f"CORS origins: {_portal_origin}")
+
+# Theme logging
+if _SUPERSET_THEME.get("enabled", False) and _SUPERSET_COLORS:
+    logger.info(f"[Theme] Superset theming enabled with primary color: {_SUPERSET_COLORS.get('primary', 'N/A')}")
+    if 'THEME_DEFAULT' in globals() and THEME_DEFAULT:
+        logger.info(f"[Theme] THEME_DEFAULT configured with {len(THEME_DEFAULT.get('token', {}))} tokens")
+else:
+    logger.info("[Theme] Using default Superset theme")
+
+logger.info("=========================================")
+
 LOG_LEVEL = logging.INFO

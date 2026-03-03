@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 50" fill="none">
+  <!-- Hyperset Logo - Orange Theme -->
+  <g transform="translate(10, 10)">
+    <!-- Infinity Symbol / Analytics Icon in Orange -->
+    <path d="M10 15c0-5 4-9 9-9s9 4 9 9-4 9-9 9-9-4-9-9z" fill="#FF6B35"/>
+    <path d="M28 15c0-5 4-9 9-9s9 4 9 9-4 9-9 9-9-4-9-9z" fill="#FF8A5C"/>
+    <path d="M19 15h9" stroke="#FF6B35" stroke-width="2"/>
+    
+    <!-- Text -->
+    <text x="55" y="22" font-family="Inter, system-ui, sans-serif" font-size="20" font-weight="600" fill="#1A202C">
+      Hyperset
+    </text>
+    <text x="55" y="32" font-family="Inter, system-ui, sans-serif" font-size="10" fill="#718096">
+      Analytics Portal
+    </text>
+  </g>
+</svg>

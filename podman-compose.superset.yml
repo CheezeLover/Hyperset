@@ -1,0 +1,283 @@
+# podman-compose.superset.yml
+# Extended Hyperset stack with integrated Superset instance
+# This file is conditionally included when DEPLOY_WITH_SUPERSET=true
+
+services:
+  # PostgreSQL database for Superset
+  superset-db:
+    image: docker.io/library/postgres:15-alpine
+    container_name: hyperset-superset-db
+    environment:
+      - POSTGRES_USER=superset
+      - POSTGRES_PASSWORD=superset
+      - POSTGRES_DB=superset
+    volumes:
+      - superset_db_data:/var/lib/postgresql/data
+    networks:
+      - hyperset-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U superset -d superset"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Redis for caching and Celery
+  superset-redis:
+    image: docker.io/library/redis:7-alpine
+    container_name: hyperset-superset-redis
+    volumes:
+      - superset_redis_data:/data
+    networks:
+      - hyperset-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # Superset application server
+  superset-app:
+    build:
+      context: ./Superset-Instance
+      dockerfile: Dockerfile
+    image: localhost/hyperset-superset:latest
+    container_name: hyperset-superset
+    environment:
+      # Database configuration (these override config file settings)
+      - DATABASE_DIALECT=postgresql
+      - DATABASE_USER=superset
+      - DATABASE_PASSWORD=superset
+      - DATABASE_HOST=hyperset-superset-db
+      - DATABASE_PORT=5432
+      - DATABASE_DB=superset
+      # Also set DB_* vars for compatibility
+      - DB_HOST=hyperset-superset-db
+      - DB_PORT=5432
+      - DB_NAME=superset
+      - DB_USER=superset
+      - DB_PASS=superset
+      # Examples database (same as main for integrated deployment)
+      - EXAMPLES_USER=superset
+      - EXAMPLES_PASSWORD=superset
+      - EXAMPLES_HOST=hyperset-superset-db
+      - EXAMPLES_PORT=5432
+      - EXAMPLES_DB=superset
+      # Redis configuration
+      - REDIS_HOST=hyperset-superset-redis
+      - REDIS_PORT=6379
+      - REDIS_CELERY_DB=0
+      - REDIS_RESULTS_DB=1
+      # Superset security
+      - SECRET_KEY=${SUPERSET_SECRET_KEY:-CHANGE_ME_RUN_openssl_rand_base64_42}
+      # Config file location (MUST be set for custom config to load)
+      - SUPERSET_CONFIG_PATH=/app/pythonpath/superset_config_docker.py
+      # Hyperset integration
+      - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
+      - HYPERSET_ORIGIN=https://${HYPERSET_DOMAIN}
+      - HYPERSET_ADMIN_ROLE_HEADER=hyperset/admin
+      - HYPERSET_USER_ROLE_HEADER=hyperset/user
+      # Port configuration
+      - SUPERSET_PORT=8088
+      - SUPERSET_APP_ROOT=/
+      # Log level
+      - SUPERSET_LOG_LEVEL=INFO
+    env_file:
+      - ./.env
+    volumes:
+      - ./Superset-Instance/superset_config_docker.py:/app/pythonpath/superset_config_docker.py:Z
+      - ./theme.json:/app/pythonpath/theme.json:Z
+      - superset_home:/app/superset_home
+    networks:
+      - hyperset-net
+    # NOTE: No port binding here - Superset is accessed only through Caddy proxy
+    # at https://superset.${HYPERSET_DOMAIN} with SSO headers
+    depends_on:
+      superset-db:
+        condition: service_healthy
+      superset-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  # Superset Celery worker
+  superset-worker:
+    build:
+      context: ./Superset-Instance
+      dockerfile: Dockerfile
+    image: localhost/hyperset-superset:latest
+    container_name: hyperset-superset-worker
+    command: ["celery", "worker", "--app=superset.tasks.celery_app:app", "-l", "INFO"]
+    environment:
+      # Database configuration
+      - DATABASE_DIALECT=postgresql
+      - DATABASE_USER=superset
+      - DATABASE_PASSWORD=superset
+      - DATABASE_HOST=hyperset-superset-db
+      - DATABASE_PORT=5432
+      - DATABASE_DB=superset
+      # Also set DB_* vars for compatibility
+      - DB_HOST=hyperset-superset-db
+      - DB_PORT=5432
+      - DB_NAME=superset
+      - DB_USER=superset
+      - DB_PASS=superset
+      # Redis configuration
+      - REDIS_HOST=hyperset-superset-redis
+      - REDIS_PORT=6379
+      - REDIS_CELERY_DB=0
+      - REDIS_RESULTS_DB=1
+      # Superset security
+      - SECRET_KEY=${SUPERSET_SECRET_KEY:-CHANGE_ME_RUN_openssl_rand_base64_42}
+      # Config file location (MUST be set for custom config to load)
+      - SUPERSET_CONFIG_PATH=/app/pythonpath/superset_config_docker.py
+      # Hyperset integration
+      - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
+      - HYPERSET_ORIGIN=https://${HYPERSET_DOMAIN}
+      - HYPERSET_ADMIN_ROLE_HEADER=hyperset/admin
+      - HYPERSET_USER_ROLE_HEADER=hyperset/user
+      # Worker settings
+      - CELERYD_CONCURRENCY=2
+    env_file:
+      - ./.env
+    volumes:
+      - ./Superset-Instance/superset_config_docker.py:/app/pythonpath/superset_config_docker.py:Z
+      - superset_home:/app/superset_home
+    networks:
+      - hyperset-net
+    depends_on:
+      superset-db:
+        condition: service_healthy
+      superset-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "celery inspect ping --app=superset.tasks.celery_app:app -d celery@$$HOSTNAME"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  # Superset Celery beat (scheduler)
+  superset-beat:
+    build:
+      context: ./Superset-Instance
+      dockerfile: Dockerfile
+    image: localhost/hyperset-superset:latest
+    container_name: hyperset-superset-beat
+    command: ["celery", "beat", "--app=superset.tasks.celery_app:app", "-l", "INFO"]
+    environment:
+      # Database configuration
+      - DATABASE_DIALECT=postgresql
+      - DATABASE_USER=superset
+      - DATABASE_PASSWORD=superset
+      - DATABASE_HOST=hyperset-superset-db
+      - DATABASE_PORT=5432
+      - DATABASE_DB=superset
+      # Also set DB_* vars for compatibility
+      - DB_HOST=hyperset-superset-db
+      - DB_PORT=5432
+      - DB_NAME=superset
+      - DB_USER=superset
+      - DB_PASS=superset
+      # Redis configuration
+      - REDIS_HOST=hyperset-superset-redis
+      - REDIS_PORT=6379
+      - REDIS_CELERY_DB=0
+      - REDIS_RESULTS_DB=1
+      # Superset security
+      - SECRET_KEY=${SUPERSET_SECRET_KEY:-CHANGE_ME_RUN_openssl_rand_base64_42}
+      # Config file location (MUST be set for custom config to load)
+      - SUPERSET_CONFIG_PATH=/app/pythonpath/superset_config_docker.py
+      # Hyperset integration
+      - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
+      - HYPERSET_ORIGIN=https://${HYPERSET_DOMAIN}
+      - HYPERSET_ADMIN_ROLE_HEADER=hyperset/admin
+      - HYPERSET_USER_ROLE_HEADER=hyperset/user
+    env_file:
+      - ./.env
+    volumes:
+      - ./Superset-Instance/superset_config_docker.py:/app/pythonpath/superset_config_docker.py:Z
+      - superset_home:/app/superset_home
+    networks:
+      - hyperset-net
+    depends_on:
+      superset-db:
+        condition: service_healthy
+      superset-redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Superset initialization (db upgrade, init, create admin)
+  superset-init:
+    build:
+      context: ./Superset-Instance
+      dockerfile: Dockerfile
+    image: localhost/hyperset-superset:latest
+    container_name: hyperset-superset-init
+    command: >
+      bash -c "
+        echo 'Waiting for database...' &&
+        sleep 15 &&
+        echo 'Running database upgrade...' &&
+        superset db upgrade &&
+      echo 'Creating admin user...' &&
+        superset fab create-admin \\
+          --username admin \\
+          --firstname Admin \\
+          --lastname User \\
+          --email admin@hyperset.local \\
+          --password ${SUPERSET_ADMIN_PASSWORD:-admin} || echo 'Admin user may already exist' &&
+        echo 'Initializing Superset...' &&
+        superset init &&
+        echo 'Loading examples (this may take 2-3 minutes)...' &&
+        timeout 300 superset load_examples || echo 'Examples loading completed or timed out' &&
+        echo 'Superset initialization complete'
+      "
+    environment:
+      # Database configuration
+      - DATABASE_DIALECT=postgresql
+      - DATABASE_USER=superset
+      - DATABASE_PASSWORD=superset
+      - DATABASE_HOST=hyperset-superset-db
+      - DATABASE_PORT=5432
+      - DATABASE_DB=superset
+      # Also set DB_* vars for compatibility
+      - DB_HOST=hyperset-superset-db
+      - DB_PORT=5432
+      - DB_NAME=superset
+      - DB_USER=superset
+      - DB_PASS=superset
+      # Redis configuration
+      - REDIS_HOST=hyperset-superset-redis
+      - REDIS_PORT=6379
+      - REDIS_CELERY_DB=0
+      - REDIS_RESULTS_DB=1
+      # Superset security
+      - SECRET_KEY=${SUPERSET_SECRET_KEY:-CHANGE_ME_RUN_openssl_rand_base64_42}
+      # Config file location (MUST be set for custom config to load)
+      - SUPERSET_CONFIG_PATH=/app/pythonpath/superset_config_docker.py
+    env_file:
+      - ./.env
+    volumes:
+      - ./Superset-Instance/superset_config_docker.py:/app/pythonpath/superset_config_docker.py:Z
+      - superset_home:/app/superset_home
+    networks:
+      - hyperset-net
+    depends_on:
+      superset-db:
+        condition: service_healthy
+      superset-redis:
+        condition: service_healthy
+    restart: "no"
+
+volumes:
+  superset_db_data:
+  superset_redis_data:
+  superset_home:

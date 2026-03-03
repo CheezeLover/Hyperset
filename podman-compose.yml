@@ -17,6 +17,8 @@ services:
       - ./Caddy/users.json:/data/users.json:Z
       - ./Caddy/bridge.js:/Caddy/bridge.js:Z
       - ./Caddy/chat.html:/Caddy/chat.html:Z
+      - ./theme.json:/Caddy/theme.json:Z
+      - ./logos:/Caddy/logos:Z
       - caddy_data:/data/caddy
       - caddy_config:/config
     networks:
@@ -54,7 +56,8 @@ services:
 
   portal:
     build:
-      context: ./portal-app
+      context: .
+      dockerfile: ./portal-app/Dockerfile
       # Next.js webpack compilation is memory-hungry; shm_size gives it enough
       # shared memory and the NODE_OPTIONS env is set in the Dockerfile.
       shm_size: "256m"
@@ -74,6 +77,8 @@ services:
       # Session encryption key for admin settings storage
       - SESSION_SECRET=${SESSION_SECRET}
       - NODE_ENV=production
+    volumes:
+      - ./theme.json:/app/theme.json:Z
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/config"]
       interval: 10s

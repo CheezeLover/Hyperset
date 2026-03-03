@@ -49,6 +49,42 @@ enabling AI assistants to interact with and control a Superset instance programm
 # Load environment variables from .env file
 load_dotenv()
 
+# ===== Security: SQL Validation =====
+FORBIDDEN_SQL_PATTERNS = [
+    r'\b(DROP|TRUNCATE)\s+(TABLE|DATABASE|SCHEMA|INDEX)\b',
+    r'\b(ALTER)\s+(TABLE|DATABASE|SCHEMA|USER|ROLE)\b',
+    r'\b(GRANT|REVOKE)\b',
+    r';.*;',  # Multiple statements
+    r'--',    # SQL comments
+    r'/\*.*\*/',
+]
+
+def validate_sql(sql: str) -> None:
+    """
+    Validate SQL query for dangerous patterns.
+    Raises ValueError if forbidden patterns are detected.
+    """
+    sql_upper = sql.upper()
+    for pattern in FORBIDDEN_SQL_PATTERNS:
+        if re.search(pattern, sql_upper):
+            raise ValueError(f"Forbidden SQL pattern detected. Query rejected for security reasons.")
+    
+    # Additional checks
+    if len(sql) > 50000:  # Prevent extremely large queries
+        raise ValueError("SQL query too large (max 50KB)")
+
+def sanitize_header(value: str) -> str:
+    """
+    Sanitize header values to prevent header injection attacks.
+    Removes newlines, control characters, and limits length.
+    """
+    if not value:
+        return ""
+    # Remove CR, LF, and other control characters
+    sanitized = re.sub(r'[\r\n\x00-\x1f\x7f]', '', str(value))
+    # Limit length to prevent abuse
+    return sanitized[:256]
+
 # Load chart type catalog
 _CHART_CATALOG: Dict[str, Any] = {}
 _CHART_CATALOG_PATH = Path(__file__).parent / "chart_type.json"
@@ -274,10 +310,11 @@ async def superset_request(
         return {"error": f"Authentication failed: {e}"}
     logger.info("MCP call: %s %s (user=%s)", method.upper(), endpoint, identity.username)
     
-    # Headers locaux à cet appel
+    # Headers locaux à cet appel - SECURITY: Sanitize to prevent header injection
     req_headers = {
-        "X-Webauth-User": identity.username,
-        "X-Webauth-Email": identity.email,
+        "X-Webauth-User": sanitize_header(identity.username),
+        "X-Webauth-Email": sanitize_header(identity.email),
+        "X-Webauth-Groups": sanitize_header(" ".join(identity.roles)),
     }
     
     if method.lower() != "get":
@@ -1119,6 +1156,12 @@ async def superset_sqllab_execute_query(
     Returns:
         A dictionary with query results or execution status for async queries
     """
+    # SECURITY: Validate SQL before execution
+    try:
+        validate_sql(sql)
+    except ValueError as e:
+        return {"error": f"SQL validation failed: {str(e)}"}
+    
     payload = {
         "database_id": database_id,
         "sql": sql,
