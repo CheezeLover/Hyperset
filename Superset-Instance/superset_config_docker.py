@@ -58,16 +58,27 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
     _text_secondary = _SUPERSET_COLORS.get("textSecondary", "#4A5568")  # Secondary text
     _text_muted = _SUPERSET_COLORS.get("textMuted", "#718096")  # Muted text
     
-    logging.info(f"[Theme] Applying Ant Design theme - primary: {_primary}, text: {_text}")
+    # Link colors - controllable via theme.json (default to dark orange/brown)
+    _link = _SUPERSET_COLORS.get("link", "#E85A2D")  # Clickable links - dark orange
+    _link_hover = _SUPERSET_COLORS.get("linkHover", "#FF6B35")  # Link hover - bright orange
+    
+    logging.info(f"[Theme] Applying Ant Design theme - primary: {_primary}, text: {_text}, link: {_link}")
     
     THEME_DEFAULT = {
         "token": {
-            # Primary color (buttons, links, accents)
+            # Primary color (buttons, accents)
             "colorPrimary": _primary,
             "colorPrimaryHover": _primary_dark,
             "colorPrimaryActive": _primary_dark,
-            "colorPrimaryText": _primary,
-            "colorPrimaryTextHover": _primary_dark,
+            
+            # Primary text - use dark text instead of orange for better readability
+            "colorPrimaryText": _text,
+            "colorPrimaryTextHover": _link,
+            
+            # Link colors - for clickable text
+            "colorLink": _link,
+            "colorLinkHover": _link_hover,
+            "colorLinkActive": _primary_dark,
             
             # Success, warning, error colors
             "colorSuccess": "#48BB78",

@@ -36,6 +36,8 @@
       "text": "#000000",
       "textSecondary": "#4A5568",
       "textMuted": "#718096",
+      "link": "#E85A2D",
+      "linkHover": "#FF6B35",
       "grayscale": {
         "base": "#FFFFFF",
         "light1": "#F5F5F5",
