@@ -384,14 +384,18 @@ function Resizer({
   onTouchStart: React.TouchEventHandler;
 }) {
   const [hovered, setHovered] = useState(false);
-  const color =
+  const backgroundColor =
     colorClass === "primary"
-      ? "#FFE5D9"  // Very light orange from theme (border color)
-      : "#E8E8E8"; // Very light gray for other panels
-  const mutedColor =
+      ? "#FFE5D9"  // Very light orange background for chat separator
+      : "#F5F5F5"; // Very light gray background for others
+  const barColor =
     colorClass === "primary"
-      ? "#FFD4C4"  // Slightly darker orange for hover
-      : "#D0D0D0"; // Darker gray for hover
+      ? "#E85A2D"  // Classic dark orange for the bar
+      : "#A0AEC0"; // Gray for other bars
+  const barHoverColor =
+    colorClass === "primary"
+      ? "#FF6B35"  // Bright orange on hover
+      : "#718096"; // Darker gray on hover
 
   return (
     <div
@@ -401,7 +405,7 @@ function Resizer({
       onMouseLeave={() => setHovered(false)}
       style={{
         width: 9,  // 25% less than 12px
-        background: "transparent",
+        background: backgroundColor,  // Light orange/gray background
         cursor: "col-resize",
         flexShrink: 0,
         position: "relative",
@@ -417,11 +421,11 @@ function Resizer({
           top: "50%",
           left: "50%",
           transform: "translate(-50%, -50%)",
-          width: hovered ? 3 : 2,  // 25% less: 4->3, 3->2
+          width: hovered ? 3 : 2,
           height: hovered ? 56 : 32,
           borderRadius: 2,
-          background: hovered ? mutedColor : color,  // Use theme colors
-          opacity: hovered ? 0.9 : 0.7,
+          background: hovered ? barHoverColor : barColor,  // Dark orange bar
+          opacity: 1,
           transition: "all 0.2s",
           pointerEvents: "none",
         }}
