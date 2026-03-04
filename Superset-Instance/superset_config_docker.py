@@ -319,38 +319,6 @@ a:hover, .link:hover, .ant-table-cell a:hover,
     color: #FF6B35 !important;
 }
 
-/* Light mode - default/secondary buttons */
-.ant-btn-default,
-.ant-btn:not(.ant-btn-primary):not(.ant-btn-link):not(.ant-btn-text):not(.ant-btn-dangerous) {
-    background-color: transparent !important;
-    border-color: #E85A2D !important;
-    color: #E85A2D !important;
-}
-
-.ant-btn-default:hover,
-.ant-btn:not(.ant-btn-primary):not(.ant-btn-link):not(.ant-btn-text):not(.ant-btn-dangerous):hover {
-    background-color: rgba(232, 90, 45, 0.1) !important;
-    border-color: #FF6B35 !important;
-    color: #FF6B35 !important;
-}
-
-/* Light mode - info buttons */
-.ant-btn.ant-btn-info,
-button[class*="info"],
-.btn-info {
-    background-color: transparent !important;
-    border-color: #E85A2D !important;
-    color: #E85A2D !important;
-}
-
-.ant-btn.ant-btn-info:hover,
-button[class*="info"]:hover,
-.btn-info:hover {
-    background-color: rgba(232, 90, 45, 0.1) !important;
-    border-color: #FF6B35 !important;
-    color: #FF6B35 !important;
-}
-
 /* Dark mode - force orange primary color */
 @media (prefers-color-scheme: dark) {
     /* Primary buttons */
@@ -522,70 +490,6 @@ button[class*="info"]:hover,
     .header-actions button {
         background-color: #FF8A5C !important;
         border-color: #FF8A5C !important;
-        color: #0A0A0A !important;
-    }
-    
-    /* Default/secondary buttons - force orange instead of teal */
-    .ant-btn-default,
-    .ant-btn:not(.ant-btn-primary):not(.ant-btn-link):not(.ant-btn-text):not(.ant-btn-dangerous) {
-        background-color: transparent !important;
-        border-color: #FF8A5C !important;
-        color: #FF8A5C !important;
-    }
-    
-    .ant-btn-default:hover,
-    .ant-btn:not(.ant-btn-primary):not(.ant-btn-link):not(.ant-btn-text):not(.ant-btn-dangerous):hover {
-        background-color: rgba(255, 138, 92, 0.1) !important;
-        border-color: #FF6B35 !important;
-        color: #FF6B35 !important;
-    }
-    
-    /* Info buttons and any button using info color */
-    .ant-btn.ant-btn-info,
-    button[class*="info"],
-    .btn-info {
-        background-color: transparent !important;
-        border-color: #FF8A5C !important;
-        color: #FF8A5C !important;
-    }
-    
-    .ant-btn.ant-btn-info:hover,
-    button[class*="info"]:hover,
-    .btn-info:hover {
-        background-color: rgba(255, 138, 92, 0.1) !important;
-        border-color: #FF6B35 !important;
-        color: #FF6B35 !important;
-    }
-    
-    /* Force all buttons that might use teal/blue colors */
-    button[style*="background-color: rgb(30, 144, 255)"],
-    button[style*="background-color: #1E90FF"],
-    button[style*="background-color: #1890ff"],
-    button[style*="background-color: #20a7c9"] {
-        background-color: transparent !important;
-        border-color: #FF8A5C !important;
-        color: #FF8A5C !important;
-    }
-    
-    button[style*="background-color: rgb(30, 144, 255)"]:hover,
-    button[style*="background-color: #1E90FF"]:hover,
-    button[style*="background-color: #1890ff"]:hover,
-    button[style*="background-color: #20a7c9"]:hover {
-        background-color: rgba(255, 138, 92, 0.1) !important;
-        border-color: #FF6B35 !important;
-        color: #FF6B35 !important;
-    }
-    
-    /* Icon buttons */
-    .ant-btn-icon-only {
-        color: #FF8A5C !important;
-        border-color: #FF8A5C !important;
-    }
-    
-    .ant-btn-icon-only:hover {
-        color: #FF6B35 !important;
-        border-color: #FF6B35 !important;
-        background-color: rgba(255, 138, 92, 0.1) !important;
     }
 }
 """
