@@ -51,6 +51,14 @@ except Exception as e:
 _SUPERSET_THEME = _THEME_CONFIG.get("superset", {})
 _SUPERSET_COLORS = _SUPERSET_THEME.get("colors", {})
 _SUPERSET_COLORS_DARK = _SUPERSET_THEME.get("colorsDark", {})
+
+print(f"[Theme] ===== THEME CONFIG LOADING =====")
+print(f"[Theme] Loaded theme.json: {_THEME_CONFIG.get('name', 'Unknown')}")
+print(f"[Theme] Superset enabled: {_SUPERSET_THEME.get('enabled', False)}")
+print(f"[Theme] Colors loaded: {bool(_SUPERSET_COLORS)}")
+print(f"[Theme] ColorsDark loaded: {bool(_SUPERSET_COLORS_DARK)}")
+print(f"[Theme] colorsDark content: {_SUPERSET_COLORS_DARK}")
+
 logging.info(f"[Theme] Loaded colorsDark: {_SUPERSET_COLORS_DARK}")
 
 # Build THEME_DEFAULT with Ant Design v5 tokens
@@ -123,6 +131,8 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
     ENABLE_UI_THEME_ADMINISTRATION = True
     
     # Dark theme configuration - read from theme.json
+    logging.info(f"[Theme] Loading dark theme from colorsDark: {_SUPERSET_COLORS_DARK}")
+    
     _primary_dark_mode = _SUPERSET_COLORS_DARK.get("primary", "#FF8A5C")
     _primary_dark_dark = _SUPERSET_COLORS_DARK.get("primaryDark", "#FF6B35")
     _text_dark = _SUPERSET_COLORS_DARK.get("text", "#E4E1E6")
@@ -138,62 +148,67 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
     
     logging.info(f"[Theme] Dark mode variables - primary: {_primary_dark_mode}, bg: {_bg_dark}, text: {_text_dark}")
     
-    THEME_NIGHT = {
-        "algorithm": "dark",
-        "token": {
-            # Primary color (buttons, accents) - lighter orange for dark mode
-            "colorPrimary": _primary_dark_mode,
-            "colorPrimaryHover": _link_dark,
-            "colorPrimaryActive": _primary_dark_dark,
-            
-            # Primary text
-            "colorPrimaryText": _text_dark,
-            "colorPrimaryTextHover": _primary_dark_mode,
-            
-            # Link colors
-            "colorLink": _link_dark,
-            "colorLinkHover": _link_hover_dark,
-            "colorLinkActive": _primary_dark_dark,
-            
-            # Success, warning, error colors
-            "colorSuccess": "#48BB78",
-            "colorWarning": "#ED8936",
-            "colorError": "#F56565",
-            "colorInfo": _link_dark,
-            
-            # Background colors - dark mode
-            "colorBgBase": _bg_dark,
-            "colorBgContainer": _surface_dark,
-            "colorBgElevated": _surface_high_dark,
-            "colorBgLayout": _bg_dark,
-            "colorBgSpotlight": _surface_high_dark,
-            
-            # Text colors - dark mode
-            "colorText": _text_dark,
-            "colorTextSecondary": _text_secondary_dark,
-            "colorTextTertiary": _text_muted_dark,
-            
-            # Border colors - dark mode
-            "colorBorder": _border_dark,
-            "colorBorderSecondary": _border_secondary_dark,
-            
-            # Border radius
-            "borderRadius": 8,
-            "borderRadiusLG": 12,
-            "borderRadiusSM": 4,
-            
-            # Typography
-            "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-            "fontFamilyCode": "'Fira Code', Monaco, Consolas, monospace",
-        }
+    THEME_NIGHT_TOKENS = {
+        # Primary color (buttons, accents) - lighter orange for dark mode
+        "colorPrimary": _primary_dark_mode,
+        "colorPrimaryHover": _link_dark,
+        "colorPrimaryActive": _primary_dark_dark,
+        
+        # Primary text
+        "colorPrimaryText": _text_dark,
+        "colorPrimaryTextHover": _primary_dark_mode,
+        
+        # Link colors
+        "colorLink": _link_dark,
+        "colorLinkHover": _link_hover_dark,
+        "colorLinkActive": _primary_dark_dark,
+        
+        # Success, warning, error colors
+        "colorSuccess": "#48BB78",
+        "colorWarning": "#ED8936",
+        "colorError": "#F56565",
+        "colorInfo": _link_dark,
+        
+        # Background colors - dark mode
+        "colorBgBase": _bg_dark,
+        "colorBgContainer": _surface_dark,
+        "colorBgElevated": _surface_high_dark,
+        "colorBgLayout": _bg_dark,
+        "colorBgSpotlight": _surface_high_dark,
+        
+        # Text colors - dark mode
+        "colorText": _text_dark,
+        "colorTextSecondary": _text_secondary_dark,
+        "colorTextTertiary": _text_muted_dark,
+        
+        # Border colors - dark mode
+        "colorBorder": _border_dark,
+        "colorBorderSecondary": _border_secondary_dark,
+        
+        # Border radius
+        "borderRadius": 8,
+        "borderRadiusLG": 12,
+        "borderRadiusSM": 4,
+        
+        # Typography
+        "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+        "fontFamilyCode": "'Fira Code', Monaco, Consolas, monospace",
     }
     
-    # Debug logging
-    logging.info(f"[Theme] THEME_NIGHT keys: {list(THEME_NIGHT.keys())}")
-    logging.info(f"[Theme] THEME_NIGHT token count: {len(THEME_NIGHT.get('token', {}))}")
-    if THEME_NIGHT.get('token'):
-        logging.info(f"[Theme] THEME_NIGHT token sample: colorPrimary={THEME_NIGHT['token'].get('colorPrimary')}, colorBgBase={THEME_NIGHT['token'].get('colorBgBase')}")
+    THEME_NIGHT = {
+        "algorithm": "dark",
+        "token": THEME_NIGHT_TOKENS
+    }
     
+    print(f"[Theme] ===== THEME_NIGHT CREATED =====")
+    print(f"[Theme] THEME_NIGHT keys: {list(THEME_NIGHT.keys())}")
+    print(f"[Theme] THEME_NIGHT['algorithm']: {THEME_NIGHT.get('algorithm')}")
+    print(f"[Theme] THEME_NIGHT['token'] count: {len(THEME_NIGHT.get('token', {}))}")
+    print(f"[Theme] THEME_NIGHT['token'] sample: colorPrimary={THEME_NIGHT['token'].get('colorPrimary')}, colorBgBase={THEME_NIGHT['token'].get('colorBgBase')}")
+    
+    logging.info(f"[Theme] THEME_NIGHT created with keys: {list(THEME_NIGHT.keys())}")
+    logging.info(f"[Theme] THEME_NIGHT['token'] count: {len(THEME_NIGHT.get('token', {}))}")
+    logging.info(f"[Theme] THEME_NIGHT['token'] sample: colorPrimary={THEME_NIGHT['token'].get('colorPrimary')}, colorBgBase={THEME_NIGHT['token'].get('colorBgBase')}")
     logging.info(f"[Theme] THEME_DEFAULT configured with {len(THEME_DEFAULT['token'])} tokens")
     logging.info(f"[Theme] THEME_NIGHT configured with {len(THEME_NIGHT['token'])} tokens")
 else:
