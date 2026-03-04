@@ -32,6 +32,7 @@
     "colors": {
       "primary": "#FF6B35",
       "primaryDark": "#E85A2D",
+      "primaryLight": "#FF8A5C",
       "secondary": "#2D3748",
       "text": "#000000",
       "textSecondary": "#4A5568",
@@ -49,6 +50,22 @@
         "dark2": "#404040",
         "dark3": "#262626"
       }
+    },
+    "colorsDark": {
+      "primary": "#FF8A5C",
+      "primaryDark": "#FF6B35",
+      "primaryLight": "#FFB088",
+      "secondary": "#4A5568",
+      "text": "#E4E1E6",
+      "textSecondary": "#A0A0A8",
+      "textMuted": "#808088",
+      "link": "#FF8A5C",
+      "linkHover": "#FF6B35",
+      "background": "#1A1A1E",
+      "surface": "#242428",
+      "surfaceHigh": "#2E2E33",
+      "border": "#49474E",
+      "borderSecondary": "#3A383F"
     },
     "theme": {
       "name": "HypersetOrange"

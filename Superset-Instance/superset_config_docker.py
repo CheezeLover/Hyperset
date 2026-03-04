@@ -46,6 +46,7 @@ except Exception as e:
 # Extract Superset theme configuration
 _SUPERSET_THEME = _THEME_CONFIG.get("superset", {})
 _SUPERSET_COLORS = _SUPERSET_THEME.get("colors", {})
+_SUPERSET_COLORS_DARK = _SUPERSET_THEME.get("colorsDark", {})
 
 # Build THEME_DEFAULT with Ant Design v5 tokens
 if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
@@ -116,44 +117,57 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
     # Enable theme administration in UI
     ENABLE_UI_THEME_ADMINISTRATION = True
     
-    # Dark theme configuration with orange colors
+    # Dark theme configuration - read from theme.json
+    _primary_dark_mode = _SUPERSET_COLORS_DARK.get("primary", "#FF8A5C")
+    _primary_dark_dark = _SUPERSET_COLORS_DARK.get("primaryDark", "#FF6B35")
+    _text_dark = _SUPERSET_COLORS_DARK.get("text", "#E4E1E6")
+    _text_secondary_dark = _SUPERSET_COLORS_DARK.get("textSecondary", "#A0A0A8")
+    _text_muted_dark = _SUPERSET_COLORS_DARK.get("textMuted", "#808088")
+    _link_dark = _SUPERSET_COLORS_DARK.get("link", "#FF8A5C")
+    _link_hover_dark = _SUPERSET_COLORS_DARK.get("linkHover", "#FF6B35")
+    _bg_dark = _SUPERSET_COLORS_DARK.get("background", "#1A1A1E")
+    _surface_dark = _SUPERSET_COLORS_DARK.get("surface", "#242428")
+    _surface_high_dark = _SUPERSET_COLORS_DARK.get("surfaceHigh", "#2E2E33")
+    _border_dark = _SUPERSET_COLORS_DARK.get("border", "#49474E")
+    _border_secondary_dark = _SUPERSET_COLORS_DARK.get("borderSecondary", "#3A383F")
+    
     THEME_DARK = {
         "token": {
             # Primary color (buttons, accents) - lighter orange for dark mode
-            "colorPrimary": "#FF8A5C",
-            "colorPrimaryHover": "#FF6B35",
-            "colorPrimaryActive": "#E85A2D",
+            "colorPrimary": _primary_dark_mode,
+            "colorPrimaryHover": _link_dark,
+            "colorPrimaryActive": _primary_dark_dark,
             
             # Primary text
-            "colorPrimaryText": "#E4E1E6",
-            "colorPrimaryTextHover": "#FF8A5C",
+            "colorPrimaryText": _text_dark,
+            "colorPrimaryTextHover": _primary_dark_mode,
             
             # Link colors
-            "colorLink": "#FF8A5C",
-            "colorLinkHover": "#FF6B35",
-            "colorLinkActive": "#E85A2D",
+            "colorLink": _link_dark,
+            "colorLinkHover": _link_hover_dark,
+            "colorLinkActive": _primary_dark_dark,
             
             # Success, warning, error colors
             "colorSuccess": "#48BB78",
             "colorWarning": "#ED8936",
             "colorError": "#F56565",
-            "colorInfo": "#FF8A5C",
+            "colorInfo": _link_dark,
             
             # Background colors - dark mode
-            "colorBgBase": "#1A1A1E",
-            "colorBgContainer": "#242428",
-            "colorBgElevated": "#2E2E33",
-            "colorBgLayout": "#1A1A1E",
-            "colorBgSpotlight": "#2E2E33",
+            "colorBgBase": _bg_dark,
+            "colorBgContainer": _surface_dark,
+            "colorBgElevated": _surface_high_dark,
+            "colorBgLayout": _bg_dark,
+            "colorBgSpotlight": _surface_high_dark,
             
             # Text colors - dark mode
-            "colorText": "#E4E1E6",
-            "colorTextSecondary": "#A0A0A8",
-            "colorTextTertiary": "#808088",
+            "colorText": _text_dark,
+            "colorTextSecondary": _text_secondary_dark,
+            "colorTextTertiary": _text_muted_dark,
             
             # Border colors - dark mode
-            "colorBorder": "#49474E",
-            "colorBorderSecondary": "#3A383F",
+            "colorBorder": _border_dark,
+            "colorBorderSecondary": _border_secondary_dark,
             
             # Border radius
             "borderRadius": 8,
