@@ -145,6 +145,11 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
     # Force theme registration on startup
     PRELOAD_PERMSSIONS = True
     
+    # Set default theme names for Superset to recognize
+    # This tells Superset which themes to use by default
+    THEME_MODEL_DEFAULT = "default"
+    THEME_MODEL_DARK = "dark"
+    
     # Dark theme configuration - read from theme.json
     logging.info(f"[Theme] Loading dark theme from colorsDark: {_SUPERSET_COLORS_DARK}")
     
@@ -234,6 +239,19 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
     }
     print(f"[Theme] THEME_OVERRIDES configured with themes: {list(THEME_OVERRIDES.keys())}", flush=True)
     logging.info(f"[Theme] THEME_OVERRIDES configured with {len(THEME_OVERRIDES)} themes: {list(THEME_OVERRIDES.keys())}")
+    
+    # Explicitly set both theme variables at module level for Superset to find
+    # This ensures they're available when Superset's theme manager looks for them
+    print(f"[Theme] Final check - THEME_DEFAULT: {len(THEME_DEFAULT.get('token', {}))} tokens", flush=True)
+    print(f"[Theme] Final check - THEME_NIGHT: algorithm={THEME_NIGHT.get('algorithm')}, {len(THEME_NIGHT.get('token', {}))} tokens", flush=True)
+    
+    # Make absolutely sure these are set as global variables
+    # Superset will look for these in the module's global namespace
+    globals()['THEME_DEFAULT'] = THEME_DEFAULT
+    globals()['THEME_NIGHT'] = THEME_NIGHT
+    globals()['THEME_OVERRIDES'] = THEME_OVERRIDES
+    
+    print(f"[Theme] Themes exported to globals - THEME_DEFAULT id: {id(THEME_DEFAULT)}, THEME_NIGHT id: {id(THEME_NIGHT)}", flush=True)
 else:
     logging.info("[Theme] Using default Superset theme (no custom colors found)")
     THEME_DEFAULT = {}
