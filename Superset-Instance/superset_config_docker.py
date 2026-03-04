@@ -384,42 +384,61 @@ a:hover, .link:hover, .ant-table-cell a:hover,
 
 /* Dark mode - force orange primary color with proper contrast */
 @media (prefers-color-scheme: dark) {
-    /* Primary buttons - ensure text is always dark on orange background */
-    .ant-btn-primary,
-    .ant-btn-primary:not(.ant-btn-dangerous) {
+    /* Primary buttons - MAXIMUM SPECIFICITY for CSS-in-JS */
+    html body button[class*="ant-btn-primary"],
+    html body .ant-btn-primary,
+    html body [class*="superset-button-primary"],
+    html body button.ant-btn-primary,
+    html body .ant-btn.css-1icr8cr.ant-btn-primary {
         background-color: #FF8A5C !important;
         border-color: #FF8A5C !important;
-        color: #0A0A0A !important; /* Force dark text for contrast */
+        color: #0A0A0A !important;
     }
-    .ant-btn-primary span,
-    .ant-btn-primary .anticon,
-    .ant-btn-primary:not(.ant-btn-dangerous) span,
-    .ant-btn-primary:not(.ant-btn-dangerous) .anticon {
-        color: #0A0A0A !important; /* Ensure all child elements have dark text */
+    
+    /* Force text color with maximum specificity */
+    html body button[class*="ant-btn-primary"] > span,
+    html body .ant-btn-primary > span,
+    html body [class*="superset-button-primary"] > span,
+    html body button.ant-btn-primary span,
+    html body .ant-btn-primary span,
+    html body .ant-btn-primary .ant-btn-icon + span {
+        color: #0A0A0A !important;
     }
-    .ant-btn-primary:hover,
-    .ant-btn-primary:not(.ant-btn-dangerous):hover {
+    
+    /* SVG icons */
+    html body button[class*="ant-btn-primary"] svg,
+    html body .ant-btn-primary svg,
+    html body [class*="superset-button-primary"] svg {
+        fill: #0A0A0A !important;
+        color: #0A0A0A !important;
+    }
+    
+    /* Hover states */
+    html body button[class*="ant-btn-primary"]:hover,
+    html body .ant-btn-primary:hover,
+    html body [class*="superset-button-primary"]:hover {
         background-color: #FF6B35 !important;
         border-color: #FF6B35 !important;
-        color: #0A0A0A !important; /* Keep dark text on hover */
+        color: #0A0A0A !important;
     }
-    .ant-btn-primary:hover span,
-    .ant-btn-primary:hover .anticon,
-    .ant-btn-primary:not(.ant-btn-dangerous):hover span,
-    .ant-btn-primary:not(.ant-btn-dangerous):hover .anticon {
-        color: #0A0A0A !important; /* Keep child elements dark on hover */
+    html body button[class*="ant-btn-primary"]:hover > span,
+    html body .ant-btn-primary:hover > span,
+    html body [class*="superset-button-primary"]:hover > span {
+        color: #0A0A0A !important;
     }
-    .ant-btn-primary:active,
-    .ant-btn-primary:not(.ant-btn-dangerous):active {
+    
+    /* Active states */
+    html body button[class*="ant-btn-primary"]:active,
+    html body .ant-btn-primary:active,
+    html body [class*="superset-button-primary"]:active {
         background-color: #E85A2D !important;
         border-color: #E85A2D !important;
-        color: #0A0A0A !important; /* Keep dark text when active */
+        color: #0A0A0A !important;
     }
-    .ant-btn-primary:active span,
-    .ant-btn-primary:active .anticon,
-    .ant-btn-primary:not(.ant-btn-dangerous):active span,
-    .ant-btn-primary:not(.ant-btn-dangerous):active .anticon {
-        color: #0A0A0A !important; /* Keep child elements dark when active */
+    html body button[class*="ant-btn-primary"]:active > span,
+    html body .ant-btn-primary:active > span,
+    html body [class*="superset-button-primary"]:active > span {
+        color: #0A0A0A !important;
     }
     
     /* Primary color text and accents */
@@ -458,15 +477,44 @@ a:hover, .link:hover, .ant-table-cell a:hover,
         background-color: #FF8A5C !important;
     }
     
-    /* Menu items */
-    .ant-menu-item-selected,
+    /* Menu items - ensure contrast on selected/active items */
+    .ant-menu-item,
+    .ant-menu-submenu {
+        color: #E4E1E6 !important; /* Default light text */
+    }
+    .ant-menu-item a,
+    .ant-menu-submenu a {
+        color: #E4E1E6 !important; /* Default link color */
+    }
     .ant-menu-item:hover,
-    .ant-menu-submenu-selected,
     .ant-menu-submenu:hover {
+        color: #FF8A5C !important; /* Orange on hover */
+        background-color: rgba(255, 138, 92, 0.1) !important;
+    }
+    .ant-menu-item:hover a,
+    .ant-menu-submenu:hover a {
         color: #FF8A5C !important;
+    }
+    /* Selected menu items - MUST have dark text for contrast */
+    .ant-menu-item-selected,
+    .ant-menu-item-selected:hover,
+    .ant-menu-submenu-selected,
+    .ant-menu-submenu-selected:hover {
+        background-color: #FF8A5C !important;
+        color: #0A0A0A !important;
+    }
+    .ant-menu-item-selected a,
+    .ant-menu-item-selected:hover a,
+    .ant-menu-item-selected .ant-menu-title-content a,
+    .ant-menu-item-selected .ant-menu-title-content a.is-active {
+        color: #0A0A0A !important; /* Dark text on orange background */
+        font-weight: 600;
     }
     .ant-menu-item-selected::after {
         border-bottom-color: #FF8A5C !important;
+    }
+    .ant-menu-submenu-selected .ant-menu-submenu-title {
+        color: #0A0A0A !important;
     }
     
     /* Spin/loading */
@@ -580,24 +628,32 @@ a:hover, .link:hover, .ant-table-cell a:hover,
         color: #FF8A5C !important;
     }
     
-    /* Ant Design primary colors - ensure dark text on orange */
-    .ant-btn-primary:not(.ant-btn-dangerous) {
+    /* Ant Design primary colors - MAXIMUM SPECIFICITY for CSS-in-JS */
+    html body .ant-btn-primary,
+    html body .ant-btn-primary:not(.ant-btn-dangerous),
+    html body [class*="ant-btn-primary"] {
         background-color: #FF8A5C !important;
         border-color: #FF8A5C !important;
         color: #0A0A0A !important;
     }
-    .ant-btn-primary:not(.ant-btn-dangerous) span,
-    .ant-btn-primary:not(.ant-btn-dangerous) .anticon {
-        color: #0A0A0A !important; /* Ensure all child elements have dark text */
+    
+    html body .ant-btn-primary span,
+    html body .ant-btn-primary span.ant-btn-icon + span,
+    html body .ant-btn-primary:not(.ant-btn-dangerous) span,
+    html body [class*="ant-btn-primary"] span {
+        color: #0A0A0A !important;
     }
-    .ant-btn-primary:not(.ant-btn-dangerous):hover {
+    
+    html body .ant-btn-primary:hover,
+    html body .ant-btn-primary:not(.ant-btn-dangerous):hover {
         background-color: #FF6B35 !important;
         border-color: #FF6B35 !important;
         color: #0A0A0A !important;
     }
-    .ant-btn-primary:not(.ant-btn-dangerous):hover span,
-    .ant-btn-primary:not(.ant-btn-dangerous):hover .anticon {
-        color: #0A0A0A !important; /* Keep child elements dark on hover */
+    
+    html body .ant-btn-primary:hover span,
+    html body .ant-btn-primary:not(.ant-btn-dangerous):hover span {
+        color: #0A0A0A !important;
     }
     
     /* DataTables and grid */
@@ -841,24 +897,43 @@ DARK_MODE_CSS = """
         --ant-primary-color-active: #E85A2D !important;
     }
     
-    /* Override all Ant Design primary colors - ensure proper contrast */
-    .ant-btn-primary {
+    /* MAXIMUM SPECIFICITY: Override all primary buttons including CSS-in-JS */
+    html body button[class*="ant-btn-primary"],
+    html body .ant-btn-primary,
+    html body [class*="superset-button-primary"],
+    html body button.ant-btn.ant-btn-primary {
         background-color: #FF8A5C !important;
         border-color: #FF8A5C !important;
-        color: #0A0A0A !important; /* Dark text for contrast on orange */
+        color: #0A0A0A !important;
     }
-    .ant-btn-primary span,
-    .ant-btn-primary .anticon {
-        color: #0A0A0A !important; /* Ensure all child elements have dark text */
+    
+    /* Target the text span inside buttons with maximum specificity */
+    html body button[class*="ant-btn-primary"] span.ant-btn-icon + span,
+    html body .ant-btn-primary span.ant-btn-icon + span,
+    html body [class*="superset-button-primary"] span,
+    html body button.ant-btn-primary span,
+    html body .ant-btn-primary span {
+        color: #0A0A0A !important;
     }
-    .ant-btn-primary:hover {
+    
+    /* Target any text content inside primary buttons */
+    html body button[class*="ant-btn-primary"] .ant-btn-icon ~ span,
+    html body .ant-btn-primary .ant-btn-icon ~ span {
+        color: #0A0A0A !important;
+    }
+    
+    /* Hover states */
+    html body button[class*="ant-btn-primary"]:hover,
+    html body .ant-btn-primary:hover,
+    html body button.ant-btn.ant-btn-primary:hover {
         background-color: #FF6B35 !important;
         border-color: #FF6B35 !important;
         color: #0A0A0A !important;
     }
-    .ant-btn-primary:hover span,
-    .ant-btn-primary:hover .anticon {
-        color: #0A0A0A !important; /* Keep child elements dark on hover */
+    
+    html body button[class*="ant-btn-primary"]:hover span,
+    html body .ant-btn-primary:hover span {
+        color: #0A0A0A !important;
     }
     
     /* Other primary-colored elements (not buttons) - split by element type */
@@ -873,9 +948,34 @@ DARK_MODE_CSS = """
         border-color: #FF8A5C !important;
     }
     
-    /* Text-only elements - orange color */
-    .ant-tabs-tab-active,
+    /* Menu items - ensure contrast */
+    .ant-menu-item,
+    .ant-menu-submenu {
+        color: #E4E1E6 !important;
+    }
+    .ant-menu-item a {
+        color: #E4E1E6 !important;
+    }
+    .ant-menu-item:hover {
+        color: #FF8A5C !important;
+        background-color: rgba(255, 138, 92, 0.1) !important;
+    }
+    .ant-menu-item:hover a {
+        color: #FF8A5C !important;
+    }
+    /* Selected menu items - dark text on orange bg */
     .ant-menu-item-selected {
+        background-color: #FF8A5C !important;
+        color: #0A0A0A !important;
+    }
+    .ant-menu-item-selected a,
+    .ant-menu-item-selected .ant-menu-title-content a {
+        color: #0A0A0A !important;
+        font-weight: 600;
+    }
+    
+    /* Tabs */
+    .ant-tabs-tab-active {
         color: #FF8A5C !important;
     }
     
@@ -922,11 +1022,17 @@ DARK_MODE_CSS = """
         color: #FF6B35 !important;
     }
     
-    /* Disabled primary buttons */
+    /* Disabled primary buttons - ensure text stays dark */
+    button[class*="ant-btn-primary"][disabled],
     .ant-btn-primary[disabled],
-    .ant-btn-primary[disabled]:hover {
+    .superset-button-primary[disabled] {
         background-color: rgba(255, 138, 92, 0.4) !important;
         border-color: rgba(255, 138, 92, 0.4) !important;
+        color: rgba(10, 10, 10, 0.5) !important;
+    }
+    button[class*="ant-btn-primary"][disabled] *,
+    .ant-btn-primary[disabled] *,
+    .superset-button-primary[disabled] * {
         color: rgba(10, 10, 10, 0.5) !important;
     }
     .ant-btn-primary[disabled] span,
