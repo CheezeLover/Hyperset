@@ -38,9 +38,9 @@
     --md-outline-var:     var(--theme-dark-border, #3a383f);
 
     --md-primary:         var(--theme-dark-primary, #FF8A5C);
-    --md-primary-muted:   var(--theme-dark-primary-dark, #E85A2D);
+    --md-primary-muted:   var(--theme-dark-primary-dark, #FF6B35);
     --md-primary-cont:    var(--theme-dark-primary, rgba(255, 138, 92, 0.2));
-    --md-on-primary-cont: var(--theme-dark-primary-light, #FFD4C5);
+    --md-on-primary-cont: var(--theme-dark-primary-text, #0A0A0A);
 
     --md-secondary:       var(--theme-dark-secondary, #e8845f);
     --md-secondary-muted: var(--theme-dark-secondary, #c75b39);

@@ -35,10 +35,10 @@
       "accent": "#FB923C"
     },
     "colorsDark": {
-      "primary": "#FB923C",
-      "primaryDark": "#F97316",
-      "primaryLight": "#FDBA74",
-      "primaryLighter": "#FED7AA",
+      "primary": "#FF8A5C",
+      "primaryDark": "#FF6B35",
+      "primaryLight": "#FFB088",
+      "primaryLighter": "#FFD4C5",
       "secondary": "#9CA3AF",
       "secondaryLight": "#D1D5DB",
       "background": "#0A0A0A",
@@ -60,10 +60,10 @@
       "error": "#F87171",
       "errorLight": "#FCA5A5",
       "errorBackground": "#7F1D1D",
-      "info": "#FB923C",
-      "infoLight": "#FDBA74",
+      "info": "#FF8A5C",
+      "infoLight": "#FFB088",
       "infoBackground": "#7C2D12",
-      "accent": "#F97316"
+      "accent": "#FF6B35"
     },
     "typography": {
       "fontFamily": "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
@@ -137,10 +137,10 @@
       }
     },
     "colorsDark": {
-      "primary": "#FB923C",
-      "primaryDark": "#F97316",
-      "primaryLight": "#FDBA74",
-      "primaryLighter": "#FED7AA",
+      "primary": "#FF8A5C",
+      "primaryDark": "#FF6B35",
+      "primaryLight": "#FFB088",
+      "primaryLighter": "#FFD4C5",
       "secondary": "#9CA3AF",
       "secondaryLight": "#D1D5DB",
       "background": "#0A0A0A",
@@ -151,9 +151,9 @@
       "textSecondary": "#E5E5E5",
       "textMuted": "#A3A3A3",
       "textInverse": "#0A0A0A",
-      "link": "#FB923C",
-      "linkHover": "#FDBA74",
-      "linkActive": "#FED7AA",
+      "link": "#FF8A5C",
+      "linkHover": "#FF6B35",
+      "linkActive": "#FFB088",
       "border": "#404040",
       "borderSecondary": "#525252",
       "success": "#34D399",
@@ -206,20 +206,20 @@
       },
       "buttonDark": {
         "primary": {
-          "background": "#FB923C",
+          "background": "#FF8A5C",
           "text": "#0A0A0A",
-          "border": "#FB923C",
-          "hoverBackground": "#F97316",
+          "border": "#FF8A5C",
+          "hoverBackground": "#FF6B35",
           "hoverText": "#0A0A0A",
-          "activeBackground": "#FDBA74",
+          "activeBackground": "#E85A2D",
           "activeText": "#0A0A0A"
         },
         "secondary": {
           "background": "transparent",
-          "text": "#FB923C",
-          "border": "#FB923C",
-          "hoverBackground": "#7C2D12",
-          "hoverText": "#FDBA74"
+          "text": "#FF8A5C",
+          "border": "#FF8A5C",
+          "hoverBackground": "rgba(255, 138, 92, 0.1)",
+          "hoverText": "#FF6B35"
         },
         "danger": {
           "background": "#F87171",

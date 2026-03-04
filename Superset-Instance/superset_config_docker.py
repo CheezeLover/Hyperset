@@ -381,16 +381,26 @@ a:hover, .link:hover, .ant-table-cell a:hover,
     color: #FF6B35 !important;
 }
 
-/* Dark mode - force orange primary color */
+/* Dark mode - force orange primary color with proper contrast */
 @media (prefers-color-scheme: dark) {
-    /* Primary buttons */
-    .ant-btn-primary {
+    /* Primary buttons - ensure text is always dark on orange background */
+    .ant-btn-primary,
+    .ant-btn-primary:not(.ant-btn-dangerous) {
         background-color: #FF8A5C !important;
         border-color: #FF8A5C !important;
+        color: #0A0A0A !important; /* Force dark text for contrast */
     }
-    .ant-btn-primary:hover {
+    .ant-btn-primary:hover,
+    .ant-btn-primary:not(.ant-btn-dangerous):hover {
         background-color: #FF6B35 !important;
         border-color: #FF6B35 !important;
+        color: #0A0A0A !important; /* Keep dark text on hover */
+    }
+    .ant-btn-primary:active,
+    .ant-btn-primary:not(.ant-btn-dangerous):active {
+        background-color: #E85A2D !important;
+        border-color: #E85A2D !important;
+        color: #0A0A0A !important; /* Keep dark text when active */
     }
     
     /* Primary color text and accents */
@@ -552,6 +562,35 @@ a:hover, .link:hover, .ant-table-cell a:hover,
     .header-actions button {
         background-color: #FF8A5C !important;
         border-color: #FF8A5C !important;
+        color: #0A0A0A !important;
+    }
+    .header-actions .btn:hover,
+    .header-actions button:hover {
+        background-color: #FF6B35 !important;
+        border-color: #FF6B35 !important;
+        color: #0A0A0A !important;
+    }
+    
+    /* Secondary buttons (ghost/outline style) - ensure contrast on dark background */
+    .ant-btn-default,
+    .ant-btn-secondary {
+        background-color: transparent !important;
+        border-color: #FF8A5C !important;
+        color: #FF8A5C !important;
+    }
+    .ant-btn-default:hover,
+    .ant-btn-secondary:hover {
+        background-color: rgba(255, 138, 92, 0.1) !important;
+        border-color: #FF6B35 !important;
+        color: #FF6B35 !important;
+    }
+    
+    /* Disabled buttons */
+    .ant-btn-primary[disabled],
+    .ant-btn-primary[disabled]:hover {
+        background-color: rgba(255, 138, 92, 0.4) !important;
+        border-color: rgba(255, 138, 92, 0.4) !important;
+        color: rgba(10, 10, 10, 0.5) !important;
     }
 }
 """
@@ -735,12 +774,22 @@ DARK_MODE_CSS = """
         --ant-primary-color-active: #E85A2D !important;
     }
     
-    /* Override all Ant Design primary colors */
-    .ant-btn-primary,
+    /* Override all Ant Design primary colors - ensure proper contrast */
+    .ant-btn-primary {
+        background-color: #FF8A5C !important;
+        border-color: #FF8A5C !important;
+        color: #0A0A0A !important; /* Dark text for contrast on orange */
+    }
+    .ant-btn-primary:hover {
+        background-color: #FF6B35 !important;
+        border-color: #FF6B35 !important;
+        color: #0A0A0A !important;
+    }
+    
+    /* Other primary-colored elements (not buttons) */
     .ant-radio-checked .ant-radio-inner,
     .ant-checkbox-checked .ant-checkbox-inner,
     .ant-switch-checked,
-    .ant-btn-link,
     .ant-tabs-tab-active,
     .ant-menu-item-selected,
     .ant-pagination-item-active,
@@ -753,6 +802,16 @@ DARK_MODE_CSS = """
         background-color: #FF8A5C !important;
         border-color: #FF8A5C !important;
         color: #FF8A5C !important;
+    }
+    
+    /* Button links - keep orange text on transparent background */
+    .ant-btn-link {
+        color: #FF8A5C !important;
+        background-color: transparent !important;
+        border-color: transparent !important;
+    }
+    .ant-btn-link:hover {
+        color: #FF6B35 !important;
     }
     
     /* Links */
