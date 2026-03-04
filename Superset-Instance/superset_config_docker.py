@@ -132,6 +132,7 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
     _border_secondary_dark = _SUPERSET_COLORS_DARK.get("borderSecondary", "#3A383F")
     
     THEME_DARK = {
+        "algorithm": "dark",
         "token": {
             # Primary color (buttons, accents) - lighter orange for dark mode
             "colorPrimary": _primary_dark_mode,
