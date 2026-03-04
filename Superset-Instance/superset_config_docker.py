@@ -128,7 +128,7 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
         "fontFamilyCode": "'Fira Code', Monaco, Consolas, monospace",
     }
     
-    # Create THEME_DEFAULT with same structure as THEME_NIGHT
+    # Create THEME_DEFAULT with same structure as THEME_DARK
     THEME_DEFAULT = {
         "token": THEME_DEFAULT_TOKENS
     }
@@ -168,7 +168,7 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
     
     logging.info(f"[Theme] Dark mode variables - primary: {_primary_dark_mode}, bg: {_bg_dark}, text: {_text_dark}")
     
-    THEME_NIGHT_TOKENS = {
+    THEME_DARK_TOKENS = {
         # Primary color (buttons, accents) - lighter orange for dark mode
         "colorPrimary": _primary_dark_mode,
         "colorPrimaryHover": _link_dark,
@@ -215,27 +215,27 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
         "fontFamilyCode": "'Fira Code', Monaco, Consolas, monospace",
     }
     
-    THEME_NIGHT = {
+    THEME_DARK = {
         "algorithm": "dark",
-        "token": THEME_NIGHT_TOKENS
+        "token": THEME_DARK_TOKENS
     }
     
-    print(f"[Theme] ===== THEME_NIGHT CREATED =====", flush=True)
-    print(f"[Theme] THEME_NIGHT keys: {list(THEME_NIGHT.keys())}", flush=True)
-    print(f"[Theme] THEME_NIGHT['algorithm']: {THEME_NIGHT.get('algorithm')}", flush=True)
-    print(f"[Theme] THEME_NIGHT['token'] count: {len(THEME_NIGHT.get('token', {}))}", flush=True)
-    print(f"[Theme] THEME_NIGHT['token'] sample: colorPrimary={THEME_NIGHT['token'].get('colorPrimary')}, colorBgBase={THEME_NIGHT['token'].get('colorBgBase')}", flush=True)
+    print(f"[Theme] ===== THEME_DARK CREATED =====", flush=True)
+    print(f"[Theme] THEME_DARK keys: {list(THEME_DARK.keys())}", flush=True)
+    print(f"[Theme] THEME_DARK['algorithm']: {THEME_DARK.get('algorithm')}", flush=True)
+    print(f"[Theme] THEME_DARK['token'] count: {len(THEME_DARK.get('token', {}))}", flush=True)
+    print(f"[Theme] THEME_DARK['token'] sample: colorPrimary={THEME_DARK['token'].get('colorPrimary')}, colorBgBase={THEME_DARK['token'].get('colorBgBase')}", flush=True)
     sys.stdout.flush()
     
     logging.info(f"[Theme] ===== FINAL THEME CONFIGURATION =====")
     logging.info(f"[Theme] THEME_DEFAULT keys: {list(THEME_DEFAULT.keys())}, token count: {len(THEME_DEFAULT.get('token', {}))}")
-    logging.info(f"[Theme] THEME_NIGHT keys: {list(THEME_NIGHT.keys())}, token count: {len(THEME_NIGHT.get('token', {}))}")
-    logging.info(f"[Theme] THEME_NIGHT algorithm: {THEME_NIGHT.get('algorithm')}")
+    logging.info(f"[Theme] THEME_DARK keys: {list(THEME_DARK.keys())}, token count: {len(THEME_DARK.get('token', {}))}")
+    logging.info(f"[Theme] THEME_DARK algorithm: {THEME_DARK.get('algorithm')}")
     
     # Also set THEME_OVERRIDES to ensure both themes are available
     THEME_OVERRIDES = {
         "default": THEME_DEFAULT,
-        "dark": THEME_NIGHT
+        "dark": THEME_DARK
     }
     print(f"[Theme] THEME_OVERRIDES configured with themes: {list(THEME_OVERRIDES.keys())}", flush=True)
     logging.info(f"[Theme] THEME_OVERRIDES configured with {len(THEME_OVERRIDES)} themes: {list(THEME_OVERRIDES.keys())}")
@@ -243,15 +243,15 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
     # Explicitly set both theme variables at module level for Superset to find
     # This ensures they're available when Superset's theme manager looks for them
     print(f"[Theme] Final check - THEME_DEFAULT: {len(THEME_DEFAULT.get('token', {}))} tokens", flush=True)
-    print(f"[Theme] Final check - THEME_NIGHT: algorithm={THEME_NIGHT.get('algorithm')}, {len(THEME_NIGHT.get('token', {}))} tokens", flush=True)
+    print(f"[Theme] Final check - THEME_DARK: algorithm={THEME_DARK.get('algorithm')}, {len(THEME_DARK.get('token', {}))} tokens", flush=True)
     
     # Make absolutely sure these are set as global variables
     # Superset will look for these in the module's global namespace
     globals()['THEME_DEFAULT'] = THEME_DEFAULT
-    globals()['THEME_NIGHT'] = THEME_NIGHT
+    globals()['THEME_DARK'] = THEME_DARK
     globals()['THEME_OVERRIDES'] = THEME_OVERRIDES
     
-    print(f"[Theme] Themes exported to globals - THEME_DEFAULT id: {id(THEME_DEFAULT)}, THEME_NIGHT id: {id(THEME_NIGHT)}", flush=True)
+    print(f"[Theme] Themes exported to globals - THEME_DEFAULT id: {id(THEME_DEFAULT)}, THEME_DARK id: {id(THEME_DARK)}", flush=True)
 else:
     logging.info("[Theme] Using default Superset theme (no custom colors found)")
     THEME_DEFAULT = {}
@@ -789,9 +789,9 @@ def FLASK_APP_MUTATOR(app):
     
     # Debug: Log theme configuration
     logger.info(f"[FLASK_APP_MUTATOR] THEME_DEFAULT present: {'THEME_DEFAULT' in globals()}")
-    logger.info(f"[FLASK_APP_MUTATOR] THEME_NIGHT present: {'THEME_NIGHT' in globals()}")
-    if 'THEME_NIGHT' in globals():
-        logger.info(f"[FLASK_APP_MUTATOR] THEME_NIGHT content: {THEME_NIGHT}")
+    logger.info(f"[FLASK_APP_MUTATOR] THEME_DARK present: {'THEME_DARK' in globals()}")
+    if 'THEME_DARK' in globals():
+        logger.info(f"[FLASK_APP_MUTATOR] THEME_DARK content: {THEME_DARK}")
     if 'THEME_OVERRIDES' in globals():
         logger.info(f"[FLASK_APP_MUTATOR] THEME_OVERRIDES keys: {list(THEME_OVERRIDES.keys())}")
     
@@ -802,11 +802,11 @@ def FLASK_APP_MUTATOR(app):
         import json
         theme_info = {
             'THEME_DEFAULT_present': 'THEME_DEFAULT' in globals(),
-            'THEME_NIGHT_present': 'THEME_NIGHT' in globals(),
+            'THEME_DARK_present': 'THEME_DARK' in globals(),
             'THEME_OVERRIDES_present': 'THEME_OVERRIDES' in globals(),
         }
-        if 'THEME_NIGHT' in globals():
-            theme_info['THEME_NIGHT'] = THEME_NIGHT
+        if 'THEME_DARK' in globals():
+            theme_info['THEME_DARK'] = THEME_DARK
         if 'THEME_DEFAULT' in globals():
             theme_info['THEME_DEFAULT_keys'] = list(THEME_DEFAULT.keys()) if THEME_DEFAULT else []
         return Response(json.dumps(theme_info, indent=2), mimetype='application/json')
@@ -884,11 +884,11 @@ if _SUPERSET_THEME.get("enabled", False) and _SUPERSET_COLORS:
     logger.info(f"[Theme] Superset theming enabled with primary color: {_SUPERSET_COLORS.get('primary', 'N/A')}")
     if 'THEME_DEFAULT' in globals() and THEME_DEFAULT:
         logger.info(f"[Theme] THEME_DEFAULT configured with {len(THEME_DEFAULT.get('token', {}))} tokens")
-    if 'THEME_NIGHT' in globals() and THEME_NIGHT:
-        logger.info(f"[Theme] THEME_NIGHT configured with {len(THEME_NIGHT.get('token', {}))} tokens")
-        logger.info(f"[Theme] THEME_NIGHT algorithm: {THEME_NIGHT.get('algorithm', 'none')}")
+    if 'THEME_DARK' in globals() and THEME_DARK:
+        logger.info(f"[Theme] THEME_DARK configured with {len(THEME_DARK.get('token', {}))} tokens")
+        logger.info(f"[Theme] THEME_DARK algorithm: {THEME_DARK.get('algorithm', 'none')}")
     else:
-        logger.warning("[Theme] THEME_NIGHT not configured!")
+        logger.warning("[Theme] THEME_DARK not configured!")
 else:
     logger.info("[Theme] Using default Superset theme")
 
