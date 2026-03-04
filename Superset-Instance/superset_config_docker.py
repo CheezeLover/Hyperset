@@ -136,7 +136,7 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
     _border_dark = _SUPERSET_COLORS_DARK.get("border", "#49474E")
     _border_secondary_dark = _SUPERSET_COLORS_DARK.get("borderSecondary", "#3A383F")
     
-    THEME_DARK = {
+    THEME_NIGHT = {
         "algorithm": "dark",
         "token": {
             # Primary color (buttons, accents) - lighter orange for dark mode
@@ -187,7 +187,7 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
     }
     
     logging.info(f"[Theme] THEME_DEFAULT configured with {len(THEME_DEFAULT['token'])} tokens")
-    logging.info(f"[Theme] THEME_DARK configured with {len(THEME_DARK['token'])} tokens")
+    logging.info(f"[Theme] THEME_NIGHT configured with {len(THEME_NIGHT['token'])} tokens")
 else:
     logging.info("[Theme] Using default Superset theme (no custom colors found)")
     THEME_DEFAULT = {}
@@ -796,11 +796,11 @@ if _SUPERSET_THEME.get("enabled", False) and _SUPERSET_COLORS:
     logger.info(f"[Theme] Superset theming enabled with primary color: {_SUPERSET_COLORS.get('primary', 'N/A')}")
     if 'THEME_DEFAULT' in globals() and THEME_DEFAULT:
         logger.info(f"[Theme] THEME_DEFAULT configured with {len(THEME_DEFAULT.get('token', {}))} tokens")
-    if 'THEME_DARK' in globals() and THEME_DARK:
-        logger.info(f"[Theme] THEME_DARK configured with {len(THEME_DARK.get('token', {}))} tokens")
-        logger.info(f"[Theme] THEME_DARK algorithm: {THEME_DARK.get('algorithm', 'none')}")
+    if 'THEME_NIGHT' in globals() and THEME_NIGHT:
+        logger.info(f"[Theme] THEME_NIGHT configured with {len(THEME_NIGHT.get('token', {}))} tokens")
+        logger.info(f"[Theme] THEME_NIGHT algorithm: {THEME_NIGHT.get('algorithm', 'none')}")
     else:
-        logger.warning("[Theme] THEME_DARK not configured!")
+        logger.warning("[Theme] THEME_NIGHT not configured!")
 else:
     logger.info("[Theme] Using default Superset theme")
 
