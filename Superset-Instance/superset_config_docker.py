@@ -783,6 +783,41 @@ a:hover, .link:hover, .ant-table-cell a:hover,
     .ant-btn-primary[disabled]:hover .anticon {
         color: rgba(10, 10, 10, 0.5) !important;
     }
+    
+    /* FINAL NUCLEAR OVERRIDE: Ensure button text is NEVER orange on orange bg */
+    button,
+    button[class] {
+        color: inherit;
+    }
+    
+    button span,
+    button [class*="icon"] + span,
+    button > span:first-child,
+    button > span:last-child,
+    button > span:only-child {
+        color: inherit !important;
+    }
+    
+    /* Force computed color for buttons with orange backgrounds */
+    button[style*="background"],
+    button[class*="primary"],
+    .ant-btn-primary,
+    [class*="button-primary"] {
+        color: #0A0A0A !important;
+    }
+    
+    button[style*="background"] span,
+    button[class*="primary"] span,
+    .ant-btn-primary span,
+    [class*="button-primary"] span {
+        color: #0A0A0A !important;
+    }
+    
+    /* Override any orange text color on elements that have orange backgrounds */
+    [style*="background-color: rgb(255, 138, 92)"] [style*="color: rgb(255"],
+    [style*="background-color: #FF8A5C"] [style*="color: #FF8A5C"] {
+        color: #0A0A0A !important;
+    }
 }
 """
 
@@ -1143,6 +1178,53 @@ DARK_MODE_CSS = """
     .nvd3 .nv-groups path.nv-area {
         fill: #FF8A5C !important;
         stroke: #FF8A5C !important;
+    }
+    
+    /* FINAL NUCLEAR OVERRIDE: Ensure button text is NEVER orange on orange bg */
+    /* This must be last to override all previous color rules */
+    button,
+    button[class],
+    button[class][class],
+    [role="button"] {
+        color: inherit;
+    }
+    
+    button span,
+    button [class*="icon"] + span,
+    button [class*="Icon"] + span,
+    button > span:first-child,
+    button > span:last-child,
+    button > span:only-child {
+        color: inherit !important;
+    }
+    
+    /* Force computed color for buttons with orange backgrounds */
+    button[style*="background"],
+    button[class*="primary"],
+    .ant-btn-primary,
+    [class*="button-primary"] {
+        color: #0A0A0A !important;
+    }
+    
+    button[style*="background"] span,
+    button[class*="primary"] span,
+    .ant-btn-primary span,
+    [class*="button-primary"] span {
+        color: #0A0A0A !important;
+    }
+    
+    /* Target status pills in tables specifically */
+    td span,
+    .ant-table-cell span,
+    [class*="status"] {
+        color: inherit !important;
+    }
+    
+    /* Override any orange text color on elements that have orange backgrounds */
+    [style*="background-color: rgb(255, 138, 92)"] [style*="color: rgb(255"],
+    [style*="background-color: #FF8A5C"] [style*="color: #FF8A5C"],
+    [style*="background-color: #FF8A5C"] [style*="color: rgb(255"] {
+        color: #0A0A0A !important;
     }
 }
 </style>
