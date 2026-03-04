@@ -384,14 +384,60 @@ a:hover, .link:hover, .ant-table-cell a:hover,
 
 /* Dark mode - force orange primary color with proper contrast */
 @media (prefers-color-scheme: dark) {
-    /* Primary buttons - MAXIMUM SPECIFICITY for CSS-in-JS */
-    html body button[class*="ant-btn-primary"],
-    html body .ant-btn-primary,
-    html body [class*="superset-button-primary"],
-    html body button.ant-btn-primary,
-    html body .ant-btn.css-1icr8cr.ant-btn-primary {
+    /* NUCLEAR OPTION: Use :where to increase specificity while keeping it low enough */
+    /* Target ALL buttons with specific background colors and force dark text */
+    button[style*="background-color: rgb(255, 138, 92)"],
+    button[style*="background: rgb(255, 138, 92)"],
+    button[style*="background-color: #FF8A5C"],
+    button[style*="background: #FF8A5C"],
+    button[style*="background-color: rgb(255, 107, 53)"],
+    button[style*="background: rgb(255, 107, 53)"],
+    .ant-btn-primary,
+    .ant-btn-primary[type="button"] {
+        background-color: #FF8A5C !important;
+        color: #0A0A0A !important;
+        border-color: #FF8A5C !important;
+    }
+    
+    /* Target any element inside buttons with orange bg */
+    button[style*="background-color: rgb(255, 138, 92)"] *,
+    button[style*="background: rgb(255, 138, 92)"] *,
+    button[style*="background-color: #FF8A5C"] *,
+    button[style*="background: #FF8A5C"] *,
+    .ant-btn-primary *,
+    .ant-btn-primary span,
+    .ant-btn-primary [class] {
+        color: #0A0A0A !important;
+        fill: #0A0A0A !important;
+    }
+    
+    /* Target buttons by their position in the DOM */
+    .superset-button,
+    [class*="superset-button"],
+    button[class*="ant-btn"] {
+        color: inherit;
+    }
+    
+    button[class*="ant-btn-primary"] {
         background-color: #FF8A5C !important;
         border-color: #FF8A5C !important;
+        color: #0A0A0A !important;
+    }
+    
+    button[class*="ant-btn-primary"] span,
+    button[class*="ant-btn-primary"] [class*="superset"] {
+        color: #0A0A0A !important;
+    }
+    
+    /* Hover states */
+    button[class*="ant-btn-primary"]:hover,
+    .ant-btn-primary:hover {
+        background-color: #FF6B35 !important;
+        border-color: #FF6B35 !important;
+    }
+    
+    button[class*="ant-btn-primary"]:hover span,
+    .ant-btn-primary:hover span {
         color: #0A0A0A !important;
     }
     
@@ -656,6 +702,28 @@ a:hover, .link:hover, .ant-table-cell a:hover,
         color: #0A0A0A !important;
     }
     
+    /* AGGRESSIVE: Force all span elements inside any button to inherit color */
+    button span {
+        color: inherit !important;
+    }
+    
+    /* Target buttons by their position in header */
+    header button[class*="primary"] span,
+    nav button[class*="primary"] span,
+    .ant-layout-header button[class*="primary"] span {
+        color: #0A0A0A !important;
+    }
+    
+    /* Target status badges/pills in tables */
+    .ant-tag,
+    [class*="badge"],
+    [class*="pill"],
+    span[class*="status"],
+    td span,
+    .ant-table-cell span {
+        color: inherit !important;
+    }
+    
     /* DataTables and grid */
     .ReactVirtualized__Table__rowColumn,
     .ReactVirtualized__Grid__innerScrollContainer {
@@ -897,43 +965,61 @@ DARK_MODE_CSS = """
         --ant-primary-color-active: #E85A2D !important;
     }
     
-    /* MAXIMUM SPECIFICITY: Override all primary buttons including CSS-in-JS */
-    html body button[class*="ant-btn-primary"],
-    html body .ant-btn-primary,
-    html body [class*="superset-button-primary"],
-    html body button.ant-btn.ant-btn-primary {
+    /* NUCLEAR APPROACH: Target elements by computed style attributes */
+    /* This targets buttons with orange backgrounds regardless of how classes are generated */
+    button[class*="ant-btn"][class*="primary"],
+    [class*="superset-button"][class*="primary"] {
         background-color: #FF8A5C !important;
         border-color: #FF8A5C !important;
         color: #0A0A0A !important;
     }
     
-    /* Target the text span inside buttons with maximum specificity */
-    html body button[class*="ant-btn-primary"] span.ant-btn-icon + span,
-    html body .ant-btn-primary span.ant-btn-icon + span,
-    html body [class*="superset-button-primary"] span,
-    html body button.ant-btn-primary span,
-    html body .ant-btn-primary span {
+    button[class*="ant-btn"][class*="primary"] span,
+    [class*="superset-button"][class*="primary"] span {
         color: #0A0A0A !important;
     }
     
-    /* Target any text content inside primary buttons */
-    html body button[class*="ant-btn-primary"] .ant-btn-icon ~ span,
-    html body .ant-btn-primary .ant-btn-icon ~ span {
+    /* Target specific DOM patterns */
+    button > span:first-child:last-child,
+    button > .ant-btn-icon + span {
+        color: inherit !important;
+    }
+    
+    button[class*="primary"] > span,
+    button[class*="primary"] > .ant-btn-icon + span {
         color: #0A0A0A !important;
     }
     
-    /* Hover states */
-    html body button[class*="ant-btn-primary"]:hover,
-    html body .ant-btn-primary:hover,
-    html body button.ant-btn.ant-btn-primary:hover {
+    /* Hover */
+    button[class*="ant-btn"][class*="primary"]:hover,
+    [class*="superset-button"][class*="primary"]:hover {
         background-color: #FF6B35 !important;
         border-color: #FF6B35 !important;
+    }
+    
+    button[class*="ant-btn"][class*="primary"]:hover span {
         color: #0A0A0A !important;
     }
     
-    html body button[class*="ant-btn-primary"]:hover span,
-    html body .ant-btn-primary:hover span {
+    /* AGGRESSIVE: Force all span elements inside any button to inherit color */
+    button span {
+        color: inherit !important;
+    }
+    
+    /* Target buttons by their position in header */
+    header button[class*="primary"] span,
+    nav button[class*="primary"] span,
+    .ant-layout-header button[class*="primary"] span {
         color: #0A0A0A !important;
+    }
+    
+    /* Target status badges/pills */
+    .ant-tag,
+    [class*="badge"],
+    [class*="pill"],
+    span[class*="status"],
+    td span {
+        color: inherit !important;
     }
     
     /* Other primary-colored elements (not buttons) - split by element type */
