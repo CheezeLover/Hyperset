@@ -222,6 +222,7 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
     
     print(f"[Theme] ===== THEME_DARK CREATED =====", flush=True)
     print(f"[Theme] THEME_DARK keys: {list(THEME_DARK.keys())}", flush=True)
+    print(f"[Theme] THEME_DARK full content: {THEME_DARK}", flush=True)
     print(f"[Theme] THEME_DARK['token'] count: {len(THEME_DARK.get('token', {}))}", flush=True)
     print(f"[Theme] THEME_DARK['token'] sample: colorPrimary={THEME_DARK['token'].get('colorPrimary')}, colorBgBase={THEME_DARK['token'].get('colorBgBase')}", flush=True)
     sys.stdout.flush()
