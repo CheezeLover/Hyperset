@@ -662,14 +662,80 @@ class HypersetSecurityManager(SupersetSecurityManager):
 
 CUSTOM_SECURITY_MANAGER = HypersetSecurityManager
 
+# Dark mode CSS to inject into HTML responses
+DARK_MODE_CSS = """
+<style id="hyperset-dark-mode-fix">
+/* Force dark mode orange theme - injected by Hyperset config */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --ant-primary-color: #FF8A5C !important;
+        --ant-primary-color-hover: #FF6B35 !important;
+        --ant-primary-color-active: #E85A2D !important;
+    }
+    
+    /* Override all Ant Design primary colors */
+    .ant-btn-primary,
+    .ant-radio-checked .ant-radio-inner,
+    .ant-checkbox-checked .ant-checkbox-inner,
+    .ant-switch-checked,
+    .ant-btn-link,
+    .ant-tabs-tab-active,
+    .ant-menu-item-selected,
+    .ant-pagination-item-active,
+    .ant-select-item-option-selected,
+    .ant-tag,
+    .ant-progress-bg,
+    .ant-slider-track,
+    .ant-slider-handle,
+    .ant-spin-dot-item {
+        background-color: #FF8A5C !important;
+        border-color: #FF8A5C !important;
+        color: #FF8A5C !important;
+    }
+    
+    /* Links */
+    a, .ant-typography a, .ant-table-cell a {
+        color: #FF8A5C !important;
+    }
+    
+    /* Charts - force orange */
+    .superset-chart svg *[fill="#1E90FF"],
+    .superset-chart svg *[fill="#1890ff"],
+    .superset-chart svg *[fill="#20a7c9"],
+    .superset-chart svg *[fill="#40a9ff"],
+    .nvd3 .nv-groups path.nv-line,
+    .nvd3 .nv-bar,
+    .nvd3 .nv-groups path.nv-area {
+        fill: #FF8A5C !important;
+        stroke: #FF8A5C !important;
+    }
+}
+</style>
+"""
+
 # ---------------------------------------------------------------------------
 # FLASK_APP_MUTATOR — installs a before_request hook that:
 #   1. Reads REMOTE_USER (set by the WSGI middleware above)
 #   2. Logs the user in via our patched auth_user_remote_user
 #   3. Redirects /login/ to the index if already authenticated
+#   4. Injects dark mode CSS into HTML responses
 # ---------------------------------------------------------------------------
 def FLASK_APP_MUTATOR(app):
     logger.info("[FLASK_APP_MUTATOR] Installing before_request hook")
+
+    @app.after_request
+    def inject_dark_mode_css(response):
+        """Inject dark mode CSS into HTML responses"""
+        if response.content_type and 'text/html' in response.content_type:
+            try:
+                html = response.get_data(as_text=True)
+                if '</head>' in html:
+                    html = html.replace('</head>', DARK_MODE_CSS + '</head>')
+                    response.set_data(html)
+                    logger.debug("[Theme] Injected dark mode CSS")
+            except Exception as e:
+                logger.error(f"[Theme] Error injecting CSS: {e}")
+        return response
 
     @app.before_request
     def hyperset_auto_login():
