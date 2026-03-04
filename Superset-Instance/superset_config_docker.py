@@ -27,6 +27,7 @@ from flask_login import login_user, current_user
 from superset.security import SupersetSecurityManager
 
 # Confirm this config file is being loaded
+print("[Config] superset_config_docker.py is being loaded")
 logging.info("[Config] superset_config_docker.py is being loaded")
 
 # ---------------------------------------------------------------------------
