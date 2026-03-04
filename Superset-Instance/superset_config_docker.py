@@ -116,7 +116,58 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
     # Enable theme administration in UI
     ENABLE_UI_THEME_ADMINISTRATION = True
     
+    # Dark theme configuration with orange colors
+    THEME_DARK = {
+        "token": {
+            # Primary color (buttons, accents) - lighter orange for dark mode
+            "colorPrimary": "#FF8A5C",
+            "colorPrimaryHover": "#FF6B35",
+            "colorPrimaryActive": "#E85A2D",
+            
+            # Primary text
+            "colorPrimaryText": "#E4E1E6",
+            "colorPrimaryTextHover": "#FF8A5C",
+            
+            # Link colors
+            "colorLink": "#FF8A5C",
+            "colorLinkHover": "#FF6B35",
+            "colorLinkActive": "#E85A2D",
+            
+            # Success, warning, error colors
+            "colorSuccess": "#48BB78",
+            "colorWarning": "#ED8936",
+            "colorError": "#F56565",
+            "colorInfo": "#FF8A5C",
+            
+            # Background colors - dark mode
+            "colorBgBase": "#1A1A1E",
+            "colorBgContainer": "#242428",
+            "colorBgElevated": "#2E2E33",
+            "colorBgLayout": "#1A1A1E",
+            "colorBgSpotlight": "#2E2E33",
+            
+            # Text colors - dark mode
+            "colorText": "#E4E1E6",
+            "colorTextSecondary": "#A0A0A8",
+            "colorTextTertiary": "#808088",
+            
+            # Border colors - dark mode
+            "colorBorder": "#49474E",
+            "colorBorderSecondary": "#3A383F",
+            
+            # Border radius
+            "borderRadius": 8,
+            "borderRadiusLG": 12,
+            "borderRadiusSM": 4,
+            
+            # Typography
+            "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+            "fontFamilyCode": "'Fira Code', Monaco, Consolas, monospace",
+        }
+    }
+    
     logging.info(f"[Theme] THEME_DEFAULT configured with {len(THEME_DEFAULT['token'])} tokens")
+    logging.info(f"[Theme] THEME_DARK configured with {len(THEME_DARK['token'])} tokens")
 else:
     logging.info("[Theme] Using default Superset theme (no custom colors found)")
     THEME_DEFAULT = {}
