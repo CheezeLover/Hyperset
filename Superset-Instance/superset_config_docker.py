@@ -80,54 +80,64 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
     
     logging.info(f"[Theme] Applying Ant Design theme - primary: {_primary}, text: {_text}, link: {_link}")
     
-    THEME_DEFAULT = {
-        "token": {
-            # Primary color (buttons, accents)
-            "colorPrimary": _primary,
-            "colorPrimaryHover": _primary_dark,
-            "colorPrimaryActive": _primary_dark,
-            
-            # Primary text - use dark text instead of orange for better readability
-            "colorPrimaryText": _text,
-            "colorPrimaryTextHover": _link,
-            
-            # Link colors - for clickable text
-            "colorLink": _link,
-            "colorLinkHover": _link_hover,
-            "colorLinkActive": _primary_dark,
-            
-            # Success, warning, error colors
-            "colorSuccess": "#48BB78",
-            "colorWarning": "#ED8936",
-            "colorError": "#F56565",
-            "colorInfo": _link,  # Use link color instead of blue
-            
-            # Background colors - subtle variation for visual separation
-            "colorBgBase": "#FFFFFF",
-            "colorBgContainer": "#FFFFFF",
-            "colorBgElevated": "#FAFAFA",  # Slightly off-white for elevated elements
-            "colorBgLayout": "#F5F5F5",  # Light gray for main layout background
-            "colorBgSpotlight": "#F0F0F0",  # Subtle gray for highlighted areas
-            
-            # Text colors - now controllable via theme.json
-            "colorText": _text,
-            "colorTextSecondary": _text_secondary,
-            "colorTextTertiary": _text_muted,
-            
-            # Border colors
-            "colorBorder": "#E5E5E5",
-            "colorBorderSecondary": "#F5F5F5",
-            
-            # Border radius
-            "borderRadius": 8,
-            "borderRadiusLG": 12,
-            "borderRadiusSM": 4,
-            
-            # Typography
-            "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-            "fontFamilyCode": "'Fira Code', Monaco, Consolas, monospace",
-        }
+    # Build light theme tokens
+    THEME_DEFAULT_TOKENS = {
+        # Primary color (buttons, accents)
+        "colorPrimary": _primary,
+        "colorPrimaryHover": _primary_dark,
+        "colorPrimaryActive": _primary_dark,
+        
+        # Primary text - use dark text instead of orange for better readability
+        "colorPrimaryText": _text,
+        "colorPrimaryTextHover": _link,
+        
+        # Link colors - for clickable text
+        "colorLink": _link,
+        "colorLinkHover": _link_hover,
+        "colorLinkActive": _primary_dark,
+        
+        # Success, warning, error colors
+        "colorSuccess": "#48BB78",
+        "colorWarning": "#ED8936",
+        "colorError": "#F56565",
+        "colorInfo": _link,  # Use link color instead of blue
+        
+        # Background colors - subtle variation for visual separation
+        "colorBgBase": "#FFFFFF",
+        "colorBgContainer": "#FFFFFF",
+        "colorBgElevated": "#FAFAFA",  # Slightly off-white for elevated elements
+        "colorBgLayout": "#F5F5F5",  # Light gray for main layout background
+        "colorBgSpotlight": "#F0F0F0",  # Subtle gray for highlighted areas
+        
+        # Text colors - now controllable via theme.json
+        "colorText": _text,
+        "colorTextSecondary": _text_secondary,
+        "colorTextTertiary": _text_muted,
+        
+        # Border colors
+        "colorBorder": "#E5E5E5",
+        "colorBorderSecondary": "#F5F5F5",
+        
+        # Border radius
+        "borderRadius": 8,
+        "borderRadiusLG": 12,
+        "borderRadiusSM": 4,
+        
+        # Typography
+        "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+        "fontFamilyCode": "'Fira Code', Monaco, Consolas, monospace",
     }
+    
+    # Create THEME_DEFAULT with same structure as THEME_NIGHT
+    THEME_DEFAULT = {
+        "token": THEME_DEFAULT_TOKENS
+    }
+    
+    print(f"[Theme] ===== THEME_DEFAULT CREATED =====", flush=True)
+    print(f"[Theme] THEME_DEFAULT keys: {list(THEME_DEFAULT.keys())}", flush=True)
+    print(f"[Theme] THEME_DEFAULT['token'] count: {len(THEME_DEFAULT.get('token', {}))}", flush=True)
+    print(f"[Theme] THEME_DEFAULT['token'] sample: colorPrimary={THEME_DEFAULT['token'].get('colorPrimary')}, colorBgBase={THEME_DEFAULT['token'].get('colorBgBase')}", flush=True)
+    sys.stdout.flush()
     
     # Enable theme administration in UI
     ENABLE_UI_THEME_ADMINISTRATION = True
@@ -212,11 +222,10 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
     print(f"[Theme] THEME_NIGHT['token'] sample: colorPrimary={THEME_NIGHT['token'].get('colorPrimary')}, colorBgBase={THEME_NIGHT['token'].get('colorBgBase')}", flush=True)
     sys.stdout.flush()
     
-    logging.info(f"[Theme] THEME_NIGHT created with keys: {list(THEME_NIGHT.keys())}")
-    logging.info(f"[Theme] THEME_NIGHT['token'] count: {len(THEME_NIGHT.get('token', {}))}")
-    logging.info(f"[Theme] THEME_NIGHT['token'] sample: colorPrimary={THEME_NIGHT['token'].get('colorPrimary')}, colorBgBase={THEME_NIGHT['token'].get('colorBgBase')}")
-    logging.info(f"[Theme] THEME_DEFAULT configured with {len(THEME_DEFAULT['token'])} tokens")
-    logging.info(f"[Theme] THEME_NIGHT configured with {len(THEME_NIGHT['token'])} tokens")
+    logging.info(f"[Theme] ===== FINAL THEME CONFIGURATION =====")
+    logging.info(f"[Theme] THEME_DEFAULT keys: {list(THEME_DEFAULT.keys())}, token count: {len(THEME_DEFAULT.get('token', {}))}")
+    logging.info(f"[Theme] THEME_NIGHT keys: {list(THEME_NIGHT.keys())}, token count: {len(THEME_NIGHT.get('token', {}))}")
+    logging.info(f"[Theme] THEME_NIGHT algorithm: {THEME_NIGHT.get('algorithm')}")
     
     # Also set THEME_OVERRIDES to ensure both themes are available
     THEME_OVERRIDES = {
@@ -224,6 +233,7 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
         "dark": THEME_NIGHT
     }
     print(f"[Theme] THEME_OVERRIDES configured with themes: {list(THEME_OVERRIDES.keys())}", flush=True)
+    logging.info(f"[Theme] THEME_OVERRIDES configured with {len(THEME_OVERRIDES)} themes: {list(THEME_OVERRIDES.keys())}")
 else:
     logging.info("[Theme] Using default Superset theme (no custom colors found)")
     THEME_DEFAULT = {}
