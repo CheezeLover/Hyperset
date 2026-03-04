@@ -216,7 +216,6 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
     }
     
     THEME_DARK = {
-        "algorithm": "dark",
         "token": THEME_DARK_TOKENS
     }
     
@@ -806,7 +805,9 @@ def FLASK_APP_MUTATOR(app):
         }
         if 'THEME_DARK' in globals():
             theme_info['THEME_DARK'] = THEME_DARK
+            theme_info['THEME_DARK_keys'] = list(THEME_DARK.keys()) if THEME_DARK else []
         if 'THEME_DEFAULT' in globals():
+            theme_info['THEME_DEFAULT'] = THEME_DEFAULT
             theme_info['THEME_DEFAULT_keys'] = list(THEME_DEFAULT.keys()) if THEME_DEFAULT else []
         return Response(json.dumps(theme_info, indent=2), mimetype='application/json')
 
