@@ -297,6 +297,120 @@ a:hover, .link:hover, .ant-table-cell a:hover,
 .ant-typography a:hover, .ant-list-item a:hover {
     color: #FF6B35 !important;
 }
+
+/* Dark mode - force orange primary color */
+@media (prefers-color-scheme: dark) {
+    /* Primary buttons */
+    .ant-btn-primary {
+        background-color: #FF8A5C !important;
+        border-color: #FF8A5C !important;
+    }
+    .ant-btn-primary:hover {
+        background-color: #FF6B35 !important;
+        border-color: #FF6B35 !important;
+    }
+    
+    /* Primary color text and accents */
+    .ant-btn-link,
+    .ant-typography a,
+    .ant-table-cell a,
+    .ant-list-item a,
+    a,
+    .link,
+    [class*="link"] {
+        color: #FF8A5C !important;
+    }
+    
+    .ant-btn-link:hover,
+    .ant-typography a:hover,
+    .ant-table-cell a:hover,
+    a:hover,
+    .link:hover {
+        color: #FF6B35 !important;
+    }
+    
+    /* Radio buttons, checkboxes, switches */
+    .ant-radio-checked .ant-radio-inner,
+    .ant-checkbox-checked .ant-checkbox-inner,
+    .ant-switch-checked {
+        background-color: #FF8A5C !important;
+        border-color: #FF8A5C !important;
+    }
+    
+    /* Tabs */
+    .ant-tabs-tab-active,
+    .ant-tabs-tab.ant-tabs-tab-active {
+        color: #FF8A5C !important;
+    }
+    .ant-tabs-ink-bar {
+        background-color: #FF8A5C !important;
+    }
+    
+    /* Menu items */
+    .ant-menu-item-selected,
+    .ant-menu-item:hover,
+    .ant-menu-submenu-selected,
+    .ant-menu-submenu:hover {
+        color: #FF8A5C !important;
+    }
+    .ant-menu-item-selected::after {
+        border-bottom-color: #FF8A5C !important;
+    }
+    
+    /* Spin/loading */
+    .ant-spin-dot-item {
+        background-color: #FF8A5C !important;
+    }
+    
+    /* Progress bars */
+    .ant-progress-bg {
+        background-color: #FF8A5C !important;
+    }
+    
+    /* Sliders */
+    .ant-slider-track {
+        background-color: #FF8A5C !important;
+    }
+    .ant-slider-handle {
+        border-color: #FF8A5C !important;
+    }
+    
+    /* Selected items, tags */
+    .ant-select-item-option-selected,
+    .ant-tag,
+    .ant-picker-cell-selected .ant-picker-cell-inner {
+        background-color: rgba(255, 138, 92, 0.2) !important;
+        color: #FF8A5C !important;
+    }
+    
+    /* Charts and visualizations primary color */
+    .superset-legacy-chart-nvd3 .nv-point-paths path,
+    .superset-legacy-chart-nvd3 .nv-groups path.nv-line,
+    .superset-legacy-chart-nvd3 .nv-groups path.nv-area,
+    .superset-legacy-chart-nvd3 .nv-bar,
+    .superset-chart svg path[fill="#1E90FF"],
+    .superset-chart svg path[fill="#20a7c9"] {
+        fill: #FF8A5C !important;
+    }
+    .superset-chart svg path[stroke="#1E90FF"],
+    .superset-chart svg path[stroke="#20a7c9"] {
+        stroke: #FF8A5C !important;
+    }
+    
+    /* Dropdown hover */
+    .ant-dropdown-menu-item:hover,
+    .ant-dropdown-menu-submenu-title:hover {
+        background-color: rgba(255, 138, 92, 0.1) !important;
+    }
+    
+    /* Pagination */
+    .ant-pagination-item-active {
+        border-color: #FF8A5C !important;
+    }
+    .ant-pagination-item-active a {
+        color: #FF8A5C !important;
+    }
+}
 """
 
 # ---------------------------------------------------------------------------
