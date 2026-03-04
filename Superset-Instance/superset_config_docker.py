@@ -292,6 +292,21 @@ FEATURE_FLAGS = {
 # Force all links to use orange color (overrides any custom CSS)
 # ---------------------------------------------------------------------------
 EXTRA_CSS = """
+/* CSS Variables for theming */
+:root {
+    --primary-color: #FF6B35;
+    --primary-dark: #E85A2D;
+    --primary-light: #FF8A5C;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --primary-color: #FF8A5C;
+        --primary-dark: #FF6B35;
+        --primary-light: #FFB088;
+    }
+}
+
 /* Force all links to be orange */
 a, .link, [class*="link"], .ant-table-cell a, 
 .ant-table-row a, td a, .table-cell a,
@@ -389,18 +404,39 @@ a:hover, .link:hover, .ant-table-cell a:hover,
         color: #FF8A5C !important;
     }
     
-    /* Charts and visualizations primary color */
+    /* Charts and visualizations - comprehensive override */
     .superset-legacy-chart-nvd3 .nv-point-paths path,
     .superset-legacy-chart-nvd3 .nv-groups path.nv-line,
     .superset-legacy-chart-nvd3 .nv-groups path.nv-area,
     .superset-legacy-chart-nvd3 .nv-bar,
     .superset-chart svg path[fill="#1E90FF"],
-    .superset-chart svg path[fill="#20a7c9"] {
+    .superset-chart svg path[fill="#20a7c9"],
+    .superset-chart svg path[fill="#1890ff"],
+    .superset-chart svg path[fill="#40a9ff"],
+    .superset-chart svg path[fill="#69c0ff"],
+    .superset-chart svg path[fill="#91d5ff"],
+    .superset-chart svg path[fill="#bae7ff"],
+    .superset-chart svg path[fill="#e6f7ff"],
+    svg [fill="#1E90FF"],
+    svg [fill="#20a7c9"],
+    svg [fill="#1890ff"] {
         fill: #FF8A5C !important;
     }
     .superset-chart svg path[stroke="#1E90FF"],
-    .superset-chart svg path[stroke="#20a7c9"] {
+    .superset-chart svg path[stroke="#20a7c9"],
+    .superset-chart svg path[stroke="#1890ff"],
+    svg [stroke="#1E90FF"],
+    svg [stroke="#20a7c9"] {
         stroke: #FF8A5C !important;
+    }
+    
+    /* Chart legends and labels */
+    .nvd3 text,
+    .nvd3 .nv-axis text,
+    .nvd3 .nv-legend-text,
+    .chart-container text,
+    svg text {
+        fill: #E4E1E6 !important;
     }
     
     /* Dropdown hover */
@@ -415,6 +451,45 @@ a:hover, .link:hover, .ant-table-cell a:hover,
     }
     .ant-pagination-item-active a {
         color: #FF8A5C !important;
+    }
+    
+    /* Force all blue colors to orange */
+    *[style*="#1E90FF"],
+    *[style*="#1890ff"],
+    *[style*="#20a7c9"],
+    *[style*="#40a9ff"] {
+        color: #FF8A5C !important;
+        background-color: #FF8A5C !important;
+        border-color: #FF8A5C !important;
+    }
+}
+
+/* Additional aggressive overrides for dark mode */
+@media (prefers-color-scheme: dark) {
+    /* Override inline styles */
+    [style*="color: rgb(30, 144, 255)"],
+    [style*="color: #1E90FF"],
+    [style*="color: #1890ff"] {
+        color: #FF8A5C !important;
+    }
+    
+    /* Ant Design primary colors */
+    .ant-btn-primary:not(.ant-btn-dangerous) {
+        background-color: #FF8A5C !important;
+        border-color: #FF8A5C !important;
+    }
+    
+    /* DataTables and grid */
+    .ReactVirtualized__Table__rowColumn,
+    .ReactVirtualized__Grid__innerScrollContainer {
+        color: #E4E1E6 !important;
+    }
+    
+    /* Header actions */
+    .header-actions .btn,
+    .header-actions button {
+        background-color: #FF8A5C !important;
+        border-color: #FF8A5C !important;
     }
 }
 """
