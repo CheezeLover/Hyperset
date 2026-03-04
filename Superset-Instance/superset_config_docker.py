@@ -216,11 +216,13 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
     }
     
     THEME_DARK = {
+        "algorithm": "dark",
         "token": THEME_DARK_TOKENS
     }
     
     print(f"[Theme] ===== THEME_DARK CREATED =====", flush=True)
     print(f"[Theme] THEME_DARK keys: {list(THEME_DARK.keys())}", flush=True)
+    print(f"[Theme] THEME_DARK['algorithm']: {THEME_DARK.get('algorithm')}", flush=True)
     print(f"[Theme] THEME_DARK['token'] count: {len(THEME_DARK.get('token', {}))}", flush=True)
     print(f"[Theme] THEME_DARK['token'] sample: colorPrimary={THEME_DARK['token'].get('colorPrimary')}, colorBgBase={THEME_DARK['token'].get('colorBgBase')}", flush=True)
     sys.stdout.flush()
@@ -228,6 +230,7 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
     logging.info(f"[Theme] ===== FINAL THEME CONFIGURATION =====")
     logging.info(f"[Theme] THEME_DEFAULT keys: {list(THEME_DEFAULT.keys())}, token count: {len(THEME_DEFAULT.get('token', {}))}")
     logging.info(f"[Theme] THEME_DARK keys: {list(THEME_DARK.keys())}, token count: {len(THEME_DARK.get('token', {}))}")
+    logging.info(f"[Theme] THEME_DARK algorithm: {THEME_DARK.get('algorithm')}")
     
     # Also set THEME_OVERRIDES to ensure both themes are available
     THEME_OVERRIDES = {
@@ -240,7 +243,7 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
     # Explicitly set both theme variables at module level for Superset to find
     # This ensures they're available when Superset's theme manager looks for them
     print(f"[Theme] Final check - THEME_DEFAULT: {len(THEME_DEFAULT.get('token', {}))} tokens", flush=True)
-    print(f"[Theme] Final check - THEME_DARK: {len(THEME_DARK.get('token', {}))} tokens", flush=True)
+    print(f"[Theme] Final check - THEME_DARK: algorithm={THEME_DARK.get('algorithm')}, {len(THEME_DARK.get('token', {}))} tokens", flush=True)
     
     # Make absolutely sure these are set as global variables
     # Superset will look for these in the module's global namespace
@@ -883,6 +886,7 @@ if _SUPERSET_THEME.get("enabled", False) and _SUPERSET_COLORS:
         logger.info(f"[Theme] THEME_DEFAULT configured with {len(THEME_DEFAULT.get('token', {}))} tokens")
     if 'THEME_DARK' in globals() and THEME_DARK:
         logger.info(f"[Theme] THEME_DARK configured with {len(THEME_DARK.get('token', {}))} tokens")
+        logger.info(f"[Theme] THEME_DARK algorithm: {THEME_DARK.get('algorithm', 'none')}")
     else:
         logger.warning("[Theme] THEME_DARK not configured!")
 else:
