@@ -216,6 +216,7 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
     }
     
     THEME_DARK = {
+        "algorithm": "dark",
         "token": THEME_DARK_TOKENS
     }
     
