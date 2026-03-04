@@ -159,7 +159,7 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
     _text_dark = _SUPERSET_COLORS_DARK.get("text", "#E4E1E6")
     _text_secondary_dark = _SUPERSET_COLORS_DARK.get("textSecondary", "#A0A0A8")
     _text_muted_dark = _SUPERSET_COLORS_DARK.get("textMuted", "#808088")
-    _link_dark = _SUPERSET_COLORS_DARK.get("link", "#FFF9F0")
+    _link_dark = _SUPERSET_COLORS_DARK.get("link", "#FF8A5C")
     _link_hover_dark = _SUPERSET_COLORS_DARK.get("linkHover", "#FF6B35")
     _bg_dark = _SUPERSET_COLORS_DARK.get("background", "#1A1A1E")
     _surface_dark = _SUPERSET_COLORS_DARK.get("surface", "#242428")
