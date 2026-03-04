@@ -390,17 +390,35 @@ a:hover, .link:hover, .ant-table-cell a:hover,
         border-color: #FF8A5C !important;
         color: #0A0A0A !important; /* Force dark text for contrast */
     }
+    .ant-btn-primary span,
+    .ant-btn-primary .anticon,
+    .ant-btn-primary:not(.ant-btn-dangerous) span,
+    .ant-btn-primary:not(.ant-btn-dangerous) .anticon {
+        color: #0A0A0A !important; /* Ensure all child elements have dark text */
+    }
     .ant-btn-primary:hover,
     .ant-btn-primary:not(.ant-btn-dangerous):hover {
         background-color: #FF6B35 !important;
         border-color: #FF6B35 !important;
         color: #0A0A0A !important; /* Keep dark text on hover */
     }
+    .ant-btn-primary:hover span,
+    .ant-btn-primary:hover .anticon,
+    .ant-btn-primary:not(.ant-btn-dangerous):hover span,
+    .ant-btn-primary:not(.ant-btn-dangerous):hover .anticon {
+        color: #0A0A0A !important; /* Keep child elements dark on hover */
+    }
     .ant-btn-primary:active,
     .ant-btn-primary:not(.ant-btn-dangerous):active {
         background-color: #E85A2D !important;
         border-color: #E85A2D !important;
         color: #0A0A0A !important; /* Keep dark text when active */
+    }
+    .ant-btn-primary:active span,
+    .ant-btn-primary:active .anticon,
+    .ant-btn-primary:not(.ant-btn-dangerous):active span,
+    .ant-btn-primary:not(.ant-btn-dangerous):active .anticon {
+        color: #0A0A0A !important; /* Keep child elements dark when active */
     }
     
     /* Primary color text and accents */
@@ -567,10 +585,18 @@ a:hover, .link:hover, .ant-table-cell a:hover,
         border-color: #FF8A5C !important;
         color: #0A0A0A !important;
     }
+    .ant-btn-primary:not(.ant-btn-dangerous) span,
+    .ant-btn-primary:not(.ant-btn-dangerous) .anticon {
+        color: #0A0A0A !important; /* Ensure all child elements have dark text */
+    }
     .ant-btn-primary:not(.ant-btn-dangerous):hover {
         background-color: #FF6B35 !important;
         border-color: #FF6B35 !important;
         color: #0A0A0A !important;
+    }
+    .ant-btn-primary:not(.ant-btn-dangerous):hover span,
+    .ant-btn-primary:not(.ant-btn-dangerous):hover .anticon {
+        color: #0A0A0A !important; /* Keep child elements dark on hover */
     }
     
     /* DataTables and grid */
@@ -586,10 +612,22 @@ a:hover, .link:hover, .ant-table-cell a:hover,
         border-color: #FF8A5C !important;
         color: #0A0A0A !important;
     }
+    .header-actions .btn span,
+    .header-actions .btn .anticon,
+    .header-actions button span,
+    .header-actions button .anticon {
+        color: #0A0A0A !important;
+    }
     .header-actions .btn:hover,
     .header-actions button:hover {
         background-color: #FF6B35 !important;
         border-color: #FF6B35 !important;
+        color: #0A0A0A !important;
+    }
+    .header-actions .btn:hover span,
+    .header-actions .btn:hover .anticon,
+    .header-actions button:hover span,
+    .header-actions button:hover .anticon {
         color: #0A0A0A !important;
     }
     
@@ -612,6 +650,12 @@ a:hover, .link:hover, .ant-table-cell a:hover,
     .ant-btn-primary[disabled]:hover {
         background-color: rgba(255, 138, 92, 0.4) !important;
         border-color: rgba(255, 138, 92, 0.4) !important;
+        color: rgba(10, 10, 10, 0.5) !important;
+    }
+    .ant-btn-primary[disabled] span,
+    .ant-btn-primary[disabled] .anticon,
+    .ant-btn-primary[disabled]:hover span,
+    .ant-btn-primary[disabled]:hover .anticon {
         color: rgba(10, 10, 10, 0.5) !important;
     }
 }
@@ -802,10 +846,18 @@ DARK_MODE_CSS = """
         border-color: #FF8A5C !important;
         color: #0A0A0A !important; /* Dark text for contrast on orange */
     }
+    .ant-btn-primary span,
+    .ant-btn-primary .anticon {
+        color: #0A0A0A !important; /* Ensure all child elements have dark text */
+    }
     .ant-btn-primary:hover {
         background-color: #FF6B35 !important;
         border-color: #FF6B35 !important;
         color: #0A0A0A !important;
+    }
+    .ant-btn-primary:hover span,
+    .ant-btn-primary:hover .anticon {
+        color: #0A0A0A !important; /* Keep child elements dark on hover */
     }
     
     /* Other primary-colored elements (not buttons) - split by element type */
@@ -874,6 +926,12 @@ DARK_MODE_CSS = """
     .ant-btn-primary[disabled]:hover {
         background-color: rgba(255, 138, 92, 0.4) !important;
         border-color: rgba(255, 138, 92, 0.4) !important;
+        color: rgba(10, 10, 10, 0.5) !important;
+    }
+    .ant-btn-primary[disabled] span,
+    .ant-btn-primary[disabled] .anticon,
+    .ant-btn-primary[disabled]:hover span,
+    .ant-btn-primary[disabled]:hover .anticon {
         color: rgba(10, 10, 10, 0.5) !important;
     }
     
