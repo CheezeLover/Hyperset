@@ -19,6 +19,21 @@
       "error": "#F56565",
       "info": "#4299E1"
     },
+    "colorsDark": {
+      "primary": "#FF8A5C",
+      "primaryDark": "#FF6B35",
+      "primaryLight": "#FFB088",
+      "secondary": "#4A5568",
+      "background": "#1A1A1E",
+      "surface": "#242428",
+      "text": "#E4E1E6",
+      "textMuted": "#808088",
+      "border": "#49474E",
+      "success": "#48BB78",
+      "warning": "#ED8936",
+      "error": "#F56565",
+      "info": "#4299E1"
+    },
     "typography": {
       "fontFamily": "Inter, system-ui, sans-serif",
       "headingFont": "Inter, system-ui, sans-serif"
