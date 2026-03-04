@@ -155,6 +155,7 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
     
     _primary_dark_mode = _SUPERSET_COLORS_DARK.get("primary", "#FF8A5C")
     _primary_dark_dark = _SUPERSET_COLORS_DARK.get("primaryDark", "#FF6B35")
+    _primary_text_dark = _SUPERSET_COLORS_DARK.get("primaryText", "#0A0A0A")
     _text_dark = _SUPERSET_COLORS_DARK.get("text", "#E4E1E6")
     _text_secondary_dark = _SUPERSET_COLORS_DARK.get("textSecondary", "#A0A0A8")
     _text_muted_dark = _SUPERSET_COLORS_DARK.get("textMuted", "#808088")
@@ -174,9 +175,9 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
         "colorPrimaryHover": _link_dark,
         "colorPrimaryActive": _primary_dark_dark,
         
-        # Primary text
-        "colorPrimaryText": _text_dark,
-        "colorPrimaryTextHover": _primary_dark_mode,
+        # Primary text - dark text on orange buttons for contrast
+        "colorPrimaryText": _primary_text_dark,
+        "colorPrimaryTextHover": _primary_text_dark,
         
         # Link colors
         "colorLink": _link_dark,

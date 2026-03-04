@@ -6,6 +6,7 @@ interface ThemeColors {
   primary: string;
   primaryDark: string;
   primaryLight: string;
+  primaryText?: string;
   secondary: string;
   background: string;
   surface: string;
@@ -39,6 +40,7 @@ function applyColors(colors: ThemeColors, isDark: boolean) {
   root.style.setProperty('--theme-primary', colors.primary);
   root.style.setProperty('--theme-primary-dark', colors.primaryDark);
   root.style.setProperty('--theme-primary-light', colors.primaryLight);
+  root.style.setProperty('--theme-primary-text', colors.primaryText || (isDark ? '#0A0A0A' : '#FFFFFF'));
   root.style.setProperty('--theme-secondary', colors.secondary);
   root.style.setProperty('--theme-secondary-light', colors.secondary);
   root.style.setProperty('--theme-background', colors.background);
@@ -55,6 +57,7 @@ function applyColors(colors: ThemeColors, isDark: boolean) {
     root.style.setProperty('--theme-dark-primary', colors.primary);
     root.style.setProperty('--theme-dark-primary-dark', colors.primaryDark);
     root.style.setProperty('--theme-dark-primary-light', colors.primaryLight);
+    root.style.setProperty('--theme-dark-primary-text', colors.primaryText || '#0A0A0A');
     root.style.setProperty('--theme-dark-secondary', colors.secondary);
     root.style.setProperty('--theme-dark-background', colors.background);
     root.style.setProperty('--theme-dark-surface', colors.surface);

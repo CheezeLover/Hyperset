@@ -34,6 +34,7 @@ function getThemeScript() {
               root.style.setProperty('--theme-primary', '${colors.primary}');
               root.style.setProperty('--theme-primary-dark', '${colors.primaryDark}');
               root.style.setProperty('--theme-primary-light', '${colors.primaryLight}');
+              root.style.setProperty('--theme-primary-text', '${colors.primaryText || '#FFFFFF'}');
               root.style.setProperty('--theme-secondary', '${colors.secondary}');
               root.style.setProperty('--theme-secondary-light', '${colors.secondary}');
               root.style.setProperty('--theme-background', '${colors.background}');

@@ -32,7 +32,8 @@
       "info": "#D35400",
       "infoLight": "#E67E22",
       "infoBackground": "#FFEDD5",
-      "accent": "#FB923C"
+      "accent": "#FB923C",
+      "primaryText": "#FFFFFF"
     },
     "colorsDark": {
       "primary": "#FF8A5C",
@@ -63,7 +64,8 @@
       "info": "#FF8A5C",
       "infoLight": "#FFB088",
       "infoBackground": "#7C2D12",
-      "accent": "#FF6B35"
+      "accent": "#FF6B35",
+      "primaryText": "#0A0A0A"
     },
     "typography": {
       "fontFamily": "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
@@ -124,6 +126,7 @@
       "info": "#D35400",
       "infoLight": "#E67E22",
       "infoBackground": "#FFEDD5",
+      "primaryText": "#FFFFFF",
       "grayscale": {
         "base": "#FFFFFF",
         "light1": "#F5F5F5",
@@ -168,6 +171,7 @@
       "info": "#FB923C",
       "infoLight": "#FDBA74",
       "infoBackground": "#7C2D12",
+      "primaryText": "#0A0A0A",
       "grayscale": {
         "base": "#0A0A0A",
         "light1": "#141414",
