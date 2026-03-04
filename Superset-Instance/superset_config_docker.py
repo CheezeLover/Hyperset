@@ -136,6 +136,8 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
     _border_dark = _SUPERSET_COLORS_DARK.get("border", "#49474E")
     _border_secondary_dark = _SUPERSET_COLORS_DARK.get("borderSecondary", "#3A383F")
     
+    logging.info(f"[Theme] Dark mode variables - primary: {_primary_dark_mode}, bg: {_bg_dark}, text: {_text_dark}")
+    
     THEME_NIGHT = {
         "algorithm": "dark",
         "token": {
@@ -185,6 +187,12 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
             "fontFamilyCode": "'Fira Code', Monaco, Consolas, monospace",
         }
     }
+    
+    # Debug logging
+    logging.info(f"[Theme] THEME_NIGHT keys: {list(THEME_NIGHT.keys())}")
+    logging.info(f"[Theme] THEME_NIGHT token count: {len(THEME_NIGHT.get('token', {}))}")
+    if THEME_NIGHT.get('token'):
+        logging.info(f"[Theme] THEME_NIGHT token sample: colorPrimary={THEME_NIGHT['token'].get('colorPrimary')}, colorBgBase={THEME_NIGHT['token'].get('colorBgBase')}")
     
     logging.info(f"[Theme] THEME_DEFAULT configured with {len(THEME_DEFAULT['token'])} tokens")
     logging.info(f"[Theme] THEME_NIGHT configured with {len(THEME_NIGHT['token'])} tokens")
