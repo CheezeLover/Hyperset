@@ -47,6 +47,7 @@ except Exception as e:
 _SUPERSET_THEME = _THEME_CONFIG.get("superset", {})
 _SUPERSET_COLORS = _SUPERSET_THEME.get("colors", {})
 _SUPERSET_COLORS_DARK = _SUPERSET_THEME.get("colorsDark", {})
+logging.info(f"[Theme] Loaded colorsDark: {_SUPERSET_COLORS_DARK}")
 
 # Build THEME_DEFAULT with Ant Design v5 tokens
 if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
@@ -650,6 +651,11 @@ if _SUPERSET_THEME.get("enabled", False) and _SUPERSET_COLORS:
     logger.info(f"[Theme] Superset theming enabled with primary color: {_SUPERSET_COLORS.get('primary', 'N/A')}")
     if 'THEME_DEFAULT' in globals() and THEME_DEFAULT:
         logger.info(f"[Theme] THEME_DEFAULT configured with {len(THEME_DEFAULT.get('token', {}))} tokens")
+    if 'THEME_DARK' in globals() and THEME_DARK:
+        logger.info(f"[Theme] THEME_DARK configured with {len(THEME_DARK.get('token', {}))} tokens")
+        logger.info(f"[Theme] THEME_DARK algorithm: {THEME_DARK.get('algorithm', 'none')}")
+    else:
+        logger.warning("[Theme] THEME_DARK not configured!")
 else:
     logger.info("[Theme] Using default Superset theme")
 
