@@ -140,7 +140,7 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
     sys.stdout.flush()
     
     # Enable theme administration in UI
-    ENABLE_UI_THEME_ADMINISTRATION = True
+    ENABLE_UI_THEME_ADMINISTRATION = False
     
     # Force theme registration on startup
     PRELOAD_PERMSSIONS = True
@@ -253,7 +253,7 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
 else:
     logging.info("[Theme] Using default Superset theme (no custom colors found)")
     THEME_DEFAULT = {}
-    ENABLE_UI_THEME_ADMINISTRATION = True
+    ENABLE_UI_THEME_ADMINISTRATION = False
 
 # ---------------------------------------------------------------------------
 # Authentication — trust the X-Webauth-User header set by Caddy/Hyperset
