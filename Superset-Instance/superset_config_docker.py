@@ -804,24 +804,14 @@ DARK_MODE_CSS = """
 def FLASK_APP_MUTATOR(app):
     logger.info("[FLASK_APP_MUTATOR] Installing before_request hook")
     
-    # Debug: Check what Superset sees in the config module
-    import superset.config as superset_config
-    logger.info(f"[FLASK_APP_MUTATOR] Checking superset.config module...")
-    logger.info(f"[FLASK_APP_MUTATOR] superset.config.THEME_DEFAULT present: {hasattr(superset_config, 'THEME_DEFAULT')}")
-    logger.info(f"[FLASK_APP_MUTATOR] superset.config.THEME_DARK present: {hasattr(superset_config, 'THEME_DARK')}")
-    
-    if hasattr(superset_config, 'THEME_DARK'):
-        logger.info(f"[FLASK_APP_MUTATOR] superset.config.THEME_DARK value: {superset_config.THEME_DARK}")
-        logger.info(f"[FLASK_APP_MUTATOR] superset.config.THEME_DARK keys: {list(superset_config.THEME_DARK.keys()) if isinstance(superset_config.THEME_DARK, dict) else 'NOT A DICT'}")
-    
-    # Also check current module
-    logger.info(f"[FLASK_APP_MUTATOR] Current module THEME_DEFAULT present: {'THEME_DEFAULT' in globals()}")
-    logger.info(f"[FLASK_APP_MUTATOR] Current module THEME_DARK present: {'THEME_DARK' in globals()}")
+    # Debug: Log theme configuration from current module
+    logger.info(f"[FLASK_APP_MUTATOR] THEME_DEFAULT present: {'THEME_DEFAULT' in globals()}")
+    logger.info(f"[FLASK_APP_MUTATOR] THEME_DARK present: {'THEME_DARK' in globals()}")
     if 'THEME_DARK' in globals():
-        logger.info(f"[FLASK_APP_MUTATOR] Current module THEME_DARK value: {THEME_DARK}")
-        logger.info(f"[FLASK_APP_MUTATOR] Current module THEME_DARK keys: {list(THEME_DARK.keys())}")
+        logger.info(f"[FLASK_APP_MUTATOR] THEME_DARK content: {THEME_DARK}")
+        logger.info(f"[FLASK_APP_MUTATOR] THEME_DARK keys: {list(THEME_DARK.keys())}")
     if 'THEME_OVERRIDES' in globals():
-        logger.info(f"[FLASK_APP_MUTATOR] Current module THEME_OVERRIDES keys: {list(THEME_OVERRIDES.keys())}")
+        logger.info(f"[FLASK_APP_MUTATOR] THEME_OVERRIDES keys: {list(THEME_OVERRIDES.keys())}")
     
     # Add a debug endpoint to check theme config
     @app.route('/debug/theme')
