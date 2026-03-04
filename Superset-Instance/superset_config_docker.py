@@ -20,15 +20,16 @@
 import os
 import json
 import logging
+import sys
+
+# Confirm this config file is being loaded
+print("[Config] superset_config_docker.py is being loaded", flush=True)
+logging.info("[Config] superset_config_docker.py is being loaded")
 
 from flask import redirect, request, g, session
 from flask_appbuilder.security.manager import AUTH_REMOTE_USER
 from flask_login import login_user, current_user
 from superset.security import SupersetSecurityManager
-
-# Confirm this config file is being loaded
-print("[Config] superset_config_docker.py is being loaded")
-logging.info("[Config] superset_config_docker.py is being loaded")
 
 # ---------------------------------------------------------------------------
 # Theme Configuration (Ant Design v5 Token-based Theming)
@@ -52,12 +53,13 @@ _SUPERSET_THEME = _THEME_CONFIG.get("superset", {})
 _SUPERSET_COLORS = _SUPERSET_THEME.get("colors", {})
 _SUPERSET_COLORS_DARK = _SUPERSET_THEME.get("colorsDark", {})
 
-print(f"[Theme] ===== THEME CONFIG LOADING =====")
-print(f"[Theme] Loaded theme.json: {_THEME_CONFIG.get('name', 'Unknown')}")
-print(f"[Theme] Superset enabled: {_SUPERSET_THEME.get('enabled', False)}")
-print(f"[Theme] Colors loaded: {bool(_SUPERSET_COLORS)}")
-print(f"[Theme] ColorsDark loaded: {bool(_SUPERSET_COLORS_DARK)}")
-print(f"[Theme] colorsDark content: {_SUPERSET_COLORS_DARK}")
+print(f"[Theme] ===== THEME CONFIG LOADING =====", flush=True)
+print(f"[Theme] Loaded theme.json: {_THEME_CONFIG.get('name', 'Unknown')}", flush=True)
+print(f"[Theme] Superset enabled: {_SUPERSET_THEME.get('enabled', False)}", flush=True)
+print(f"[Theme] Colors loaded: {bool(_SUPERSET_COLORS)}", flush=True)
+print(f"[Theme] ColorsDark loaded: {bool(_SUPERSET_COLORS_DARK)}", flush=True)
+print(f"[Theme] colorsDark content: {_SUPERSET_COLORS_DARK}", flush=True)
+sys.stdout.flush()
 
 logging.info(f"[Theme] Loaded colorsDark: {_SUPERSET_COLORS_DARK}")
 
@@ -130,6 +132,9 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
     # Enable theme administration in UI
     ENABLE_UI_THEME_ADMINISTRATION = True
     
+    # Force theme registration on startup
+    PRELOAD_PERMSSIONS = True
+    
     # Dark theme configuration - read from theme.json
     logging.info(f"[Theme] Loading dark theme from colorsDark: {_SUPERSET_COLORS_DARK}")
     
@@ -200,17 +205,25 @@ if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
         "token": THEME_NIGHT_TOKENS
     }
     
-    print(f"[Theme] ===== THEME_NIGHT CREATED =====")
-    print(f"[Theme] THEME_NIGHT keys: {list(THEME_NIGHT.keys())}")
-    print(f"[Theme] THEME_NIGHT['algorithm']: {THEME_NIGHT.get('algorithm')}")
-    print(f"[Theme] THEME_NIGHT['token'] count: {len(THEME_NIGHT.get('token', {}))}")
-    print(f"[Theme] THEME_NIGHT['token'] sample: colorPrimary={THEME_NIGHT['token'].get('colorPrimary')}, colorBgBase={THEME_NIGHT['token'].get('colorBgBase')}")
+    print(f"[Theme] ===== THEME_NIGHT CREATED =====", flush=True)
+    print(f"[Theme] THEME_NIGHT keys: {list(THEME_NIGHT.keys())}", flush=True)
+    print(f"[Theme] THEME_NIGHT['algorithm']: {THEME_NIGHT.get('algorithm')}", flush=True)
+    print(f"[Theme] THEME_NIGHT['token'] count: {len(THEME_NIGHT.get('token', {}))}", flush=True)
+    print(f"[Theme] THEME_NIGHT['token'] sample: colorPrimary={THEME_NIGHT['token'].get('colorPrimary')}, colorBgBase={THEME_NIGHT['token'].get('colorBgBase')}", flush=True)
+    sys.stdout.flush()
     
     logging.info(f"[Theme] THEME_NIGHT created with keys: {list(THEME_NIGHT.keys())}")
     logging.info(f"[Theme] THEME_NIGHT['token'] count: {len(THEME_NIGHT.get('token', {}))}")
     logging.info(f"[Theme] THEME_NIGHT['token'] sample: colorPrimary={THEME_NIGHT['token'].get('colorPrimary')}, colorBgBase={THEME_NIGHT['token'].get('colorBgBase')}")
     logging.info(f"[Theme] THEME_DEFAULT configured with {len(THEME_DEFAULT['token'])} tokens")
     logging.info(f"[Theme] THEME_NIGHT configured with {len(THEME_NIGHT['token'])} tokens")
+    
+    # Also set THEME_OVERRIDES to ensure both themes are available
+    THEME_OVERRIDES = {
+        "default": THEME_DEFAULT,
+        "dark": THEME_NIGHT
+    }
+    print(f"[Theme] THEME_OVERRIDES configured with themes: {list(THEME_OVERRIDES.keys())}", flush=True)
 else:
     logging.info("[Theme] Using default Superset theme (no custom colors found)")
     THEME_DEFAULT = {}
@@ -745,6 +758,30 @@ DARK_MODE_CSS = """
 # ---------------------------------------------------------------------------
 def FLASK_APP_MUTATOR(app):
     logger.info("[FLASK_APP_MUTATOR] Installing before_request hook")
+    
+    # Debug: Log theme configuration
+    logger.info(f"[FLASK_APP_MUTATOR] THEME_DEFAULT present: {'THEME_DEFAULT' in globals()}")
+    logger.info(f"[FLASK_APP_MUTATOR] THEME_NIGHT present: {'THEME_NIGHT' in globals()}")
+    if 'THEME_NIGHT' in globals():
+        logger.info(f"[FLASK_APP_MUTATOR] THEME_NIGHT content: {THEME_NIGHT}")
+    if 'THEME_OVERRIDES' in globals():
+        logger.info(f"[FLASK_APP_MUTATOR] THEME_OVERRIDES keys: {list(THEME_OVERRIDES.keys())}")
+    
+    # Add a debug endpoint to check theme config
+    @app.route('/debug/theme')
+    def debug_theme():
+        from flask import Response
+        import json
+        theme_info = {
+            'THEME_DEFAULT_present': 'THEME_DEFAULT' in globals(),
+            'THEME_NIGHT_present': 'THEME_NIGHT' in globals(),
+            'THEME_OVERRIDES_present': 'THEME_OVERRIDES' in globals(),
+        }
+        if 'THEME_NIGHT' in globals():
+            theme_info['THEME_NIGHT'] = THEME_NIGHT
+        if 'THEME_DEFAULT' in globals():
+            theme_info['THEME_DEFAULT_keys'] = list(THEME_DEFAULT.keys()) if THEME_DEFAULT else []
+        return Response(json.dumps(theme_info, indent=2), mimetype='application/json')
 
     @app.after_request
     def inject_dark_mode_css(response):
