@@ -468,12 +468,17 @@ a:hover, .link:hover, .ant-table-cell a:hover,
         border-color: #FF8A5C !important;
     }
     
-    /* Selected items, tags */
+    /* Selected items, tags - ensure text contrast on light orange background */
     .ant-select-item-option-selected,
-    .ant-tag,
     .ant-picker-cell-selected .ant-picker-cell-inner {
         background-color: rgba(255, 138, 92, 0.2) !important;
         color: #FF8A5C !important;
+    }
+    /* Tags - light orange bg with dark text for better readability */
+    .ant-tag {
+        background-color: rgba(255, 138, 92, 0.15) !important;
+        color: #FFB088 !important;
+        border-color: rgba(255, 138, 92, 0.3) !important;
     }
     
     /* Charts and visualizations - comprehensive override */
@@ -525,13 +530,24 @@ a:hover, .link:hover, .ant-table-cell a:hover,
         color: #FF8A5C !important;
     }
     
-    /* Force all blue colors to orange */
-    *[style*="#1E90FF"],
-    *[style*="#1890ff"],
-    *[style*="#20a7c9"],
-    *[style*="#40a9ff"] {
+    /* Force all blue colors to orange - but NOT for buttons */
+    *[style*="#1E90FF"]:not(.ant-btn):not(.btn):not(button),
+    *[style*="#1890ff"]:not(.ant-btn):not(.btn):not(button),
+    *[style*="#20a7c9"]:not(.ant-btn):not(.btn):not(button),
+    *[style*="#40a9ff"]:not(.ant-btn):not(.btn):not(button) {
         color: #FF8A5C !important;
+    }
+    /* Only apply orange background to non-button elements */
+    *[style*="background-color: #1E90FF"]:not(.ant-btn):not(.btn):not(button),
+    *[style*="background-color: #1890ff"]:not(.ant-btn):not(.btn):not(button),
+    *[style*="background-color: #20a7c9"]:not(.ant-btn):not(.btn):not(button),
+    *[style*="background-color: #40a9ff"]:not(.ant-btn):not(.btn):not(button) {
         background-color: #FF8A5C !important;
+    }
+    *[style*="border-color: #1E90FF"]:not(.ant-btn):not(.btn):not(button),
+    *[style*="border-color: #1890ff"]:not(.ant-btn):not(.btn):not(button),
+    *[style*="border-color: #20a7c9"]:not(.ant-btn):not(.btn):not(button),
+    *[style*="border-color: #40a9ff"]:not(.ant-btn):not(.btn):not(button) {
         border-color: #FF8A5C !important;
     }
 }
@@ -545,10 +561,16 @@ a:hover, .link:hover, .ant-table-cell a:hover,
         color: #FF8A5C !important;
     }
     
-    /* Ant Design primary colors */
+    /* Ant Design primary colors - ensure dark text on orange */
     .ant-btn-primary:not(.ant-btn-dangerous) {
         background-color: #FF8A5C !important;
         border-color: #FF8A5C !important;
+        color: #0A0A0A !important;
+    }
+    .ant-btn-primary:not(.ant-btn-dangerous):hover {
+        background-color: #FF6B35 !important;
+        border-color: #FF6B35 !important;
+        color: #0A0A0A !important;
     }
     
     /* DataTables and grid */
@@ -786,22 +808,43 @@ DARK_MODE_CSS = """
         color: #0A0A0A !important;
     }
     
-    /* Other primary-colored elements (not buttons) */
+    /* Other primary-colored elements (not buttons) - split by element type */
     .ant-radio-checked .ant-radio-inner,
     .ant-checkbox-checked .ant-checkbox-inner,
     .ant-switch-checked,
-    .ant-tabs-tab-active,
-    .ant-menu-item-selected,
-    .ant-pagination-item-active,
-    .ant-select-item-option-selected,
-    .ant-tag,
     .ant-progress-bg,
     .ant-slider-track,
     .ant-slider-handle,
     .ant-spin-dot-item {
         background-color: #FF8A5C !important;
         border-color: #FF8A5C !important;
+    }
+    
+    /* Text-only elements - orange color */
+    .ant-tabs-tab-active,
+    .ant-menu-item-selected {
         color: #FF8A5C !important;
+    }
+    
+    /* Pagination active - orange border with orange text */
+    .ant-pagination-item-active {
+        border-color: #FF8A5C !important;
+    }
+    .ant-pagination-item-active a {
+        color: #FF8A5C !important;
+    }
+    
+    /* Selected items - light orange bg with dark text */
+    .ant-select-item-option-selected {
+        background-color: rgba(255, 138, 92, 0.2) !important;
+        color: #E4E1E6 !important;
+    }
+    
+    /* Tags - light orange bg with lighter text */
+    .ant-tag {
+        background-color: rgba(255, 138, 92, 0.15) !important;
+        border-color: rgba(255, 138, 92, 0.3) !important;
+        color: #FFB088 !important;
     }
     
     /* Button links - keep orange text on transparent background */
@@ -812,6 +855,26 @@ DARK_MODE_CSS = """
     }
     .ant-btn-link:hover {
         color: #FF6B35 !important;
+    }
+    
+    /* Secondary/Default buttons */
+    .ant-btn-default {
+        background-color: transparent !important;
+        border-color: #FF8A5C !important;
+        color: #FF8A5C !important;
+    }
+    .ant-btn-default:hover {
+        background-color: rgba(255, 138, 92, 0.1) !important;
+        border-color: #FF6B35 !important;
+        color: #FF6B35 !important;
+    }
+    
+    /* Disabled primary buttons */
+    .ant-btn-primary[disabled],
+    .ant-btn-primary[disabled]:hover {
+        background-color: rgba(255, 138, 92, 0.4) !important;
+        border-color: rgba(255, 138, 92, 0.4) !important;
+        color: rgba(10, 10, 10, 0.5) !important;
     }
     
     /* Links */
