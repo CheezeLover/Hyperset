@@ -10,8 +10,8 @@
       "light": "#E67E22",
       "lighter": "#F39C12",
       "muted": "#FF8A5C",
-      "textLight": "#FFFFFF",
-      "textDark": "#0A0A0A"
+      "textLight": "#0A0A0A",
+      "textDark": "#FFFFFF"
     },
     "secondary": {
       "base": "#57606F",
@@ -43,8 +43,8 @@
         "dark": "#A3A3A3"
       },
       "inverse": {
-        "light": "#0A0A0A",
-        "dark": "#FFFFFF"
+        "light": "#FFFFFF",
+        "dark": "#0A0A0A"
       },
       "placeholder": {
         "light": "#9CA3AF",
