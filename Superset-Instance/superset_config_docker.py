@@ -332,6 +332,7 @@ FEATURE_FLAGS = {
 # Force all links to use orange color (overrides any custom CSS)
 # ---------------------------------------------------------------------------
 EXTRA_CSS = """
+/* Hyperset Theme CSS v2.1 - Cache bust: 20250305 */
 /* Minimal CSS - theme tokens handle most styling */
 
 /* Modern floating pill scrollbar - AGGRESSIVE OVERRIDE */
