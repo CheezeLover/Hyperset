@@ -640,6 +640,68 @@ a:hover, .link:hover, .ant-table-cell a:hover,
         border-color: rgba(255, 138, 92, 0.3) !important;
     }
     
+    /* Select/Dropdown fields - ensure selected values are visible */
+    .ant-select-selector,
+    .ant-select-selection-item,
+    .ant-select-selection-placeholder,
+    .ant-select-arrow {
+        color: #FAFAFA !important;
+    }
+    
+    .ant-select-selection-item {
+        background-color: transparent !important;
+    }
+    
+    /* Select dropdown values in the input field */
+    .ant-select-multiple .ant-select-selection-item,
+    .ant-select-single .ant-select-selector .ant-select-selection-item {
+        color: #FAFAFA !important;
+    }
+    
+    /* Ensure select dropdown shows values properly */
+    .ant-select-dropdown {
+        background-color: #1C1C1C !important;
+    }
+    
+    .ant-select-item {
+        color: #E4E1E6 !important;
+    }
+    
+    .ant-select-item-option-selected {
+        background-color: rgba(255, 138, 92, 0.2) !important;
+        color: #FF8A5C !important;
+    }
+    
+    /* Fix white/light buttons text color */
+    button[class*="ant-btn-default"],
+    .ant-btn-default {
+        background-color: #FFFFFF !important;
+        border-color: #FFFFFF !important;
+        color: #1A1A1A !important;
+    }
+    
+    button[class*="ant-btn-default"] span,
+    .ant-btn-default span,
+    button[class*="ant-btn-default"] > span,
+    .ant-btn-default > span {
+        color: #1A1A1A !important;
+    }
+    
+    /* Fix button text being cut off - ensure proper sizing */
+    button,
+    .ant-btn {
+        overflow: visible !important;
+        text-overflow: clip !important;
+        white-space: nowrap !important;
+    }
+    
+    button span,
+    .ant-btn span {
+        overflow: visible !important;
+        text-overflow: clip !important;
+        white-space: nowrap !important;
+    }
+    
     /* Charts and visualizations - comprehensive override */
     .superset-legacy-chart-nvd3 .nv-point-paths path,
     .superset-legacy-chart-nvd3 .nv-groups path.nv-line,
@@ -1203,6 +1265,33 @@ DARK_MODE_CSS = """
         color: #FFB088 !important;
     }
     
+    /* Select/Dropdown fields - ensure selected values are visible */
+    .ant-select-selector,
+    .ant-select-selection-item,
+    .ant-select-selection-placeholder,
+    .ant-select-arrow {
+        color: #FAFAFA !important;
+    }
+    
+    .ant-select-selection-item {
+        background-color: transparent !important;
+    }
+    
+    /* Select dropdown values in the input field */
+    .ant-select-multiple .ant-select-selection-item,
+    .ant-select-single .ant-select-selector .ant-select-selection-item {
+        color: #FAFAFA !important;
+    }
+    
+    /* Ensure select dropdown shows values properly */
+    .ant-select-dropdown {
+        background-color: #1C1C1C !important;
+    }
+    
+    .ant-select-item {
+        color: #E4E1E6 !important;
+    }
+    
     /* Button links - keep orange text on transparent background */
     .ant-btn-link {
         color: #FF8A5C !important;
@@ -1213,16 +1302,21 @@ DARK_MODE_CSS = """
         color: #FF6B35 !important;
     }
     
-    /* Secondary/Default buttons */
+    /* Secondary/Default buttons - white bg with dark text */
     .ant-btn-default {
-        background-color: transparent !important;
-        border-color: #FF8A5C !important;
-        color: #FF8A5C !important;
+        background-color: #FFFFFF !important;
+        border-color: #FFFFFF !important;
+        color: #1A1A1A !important;
     }
+    
+    .ant-btn-default span {
+        color: #1A1A1A !important;
+    }
+    
     .ant-btn-default:hover {
-        background-color: rgba(255, 138, 92, 0.1) !important;
-        border-color: #FF6B35 !important;
-        color: #FF6B35 !important;
+        background-color: #F0F0F0 !important;
+        border-color: #F0F0F0 !important;
+        color: #1A1A1A !important;
     }
     
     /* Disabled primary buttons - ensure text stays dark */
@@ -1307,6 +1401,21 @@ DARK_MODE_CSS = """
     [style*="background-color: #FF8A5C"] [style*="color: #FF8A5C"],
     [style*="background-color: #FF8A5C"] [style*="color: rgb(255"] {
         color: #0A0A0A !important;
+    }
+    
+    /* Fix button text being cut off - ensure proper sizing */
+    button,
+    .ant-btn {
+        overflow: visible !important;
+        text-overflow: clip !important;
+        white-space: nowrap !important;
+    }
+    
+    button span,
+    .ant-btn span {
+        overflow: visible !important;
+        text-overflow: clip !important;
+        white-space: nowrap !important;
     }
 }
 </style>
