@@ -61,9 +61,13 @@ function ServiceBtn({
       ? "var(--md-primary-cont)"
       : "var(--md-secondary-cont)"
     : "transparent";
-  const iconColor = isPrimary
-    ? "var(--md-icon-primary)"
-    : "var(--md-on-sec-cont)";
+  const iconColor = active || hovered
+    ? isPrimary
+      ? "var(--md-on-primary-cont)"  // Dark text on orange background when selected
+      : "var(--md-on-sec-cont)"
+    : isPrimary
+      ? "var(--md-icon-primary)"  // Orange icon on transparent background
+      : "var(--md-on-sec-cont)";
   const indicatorColor = isPrimary
     ? "var(--md-primary)"
     : "var(--md-secondary)";
