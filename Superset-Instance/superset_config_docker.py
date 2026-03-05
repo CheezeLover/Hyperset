@@ -332,57 +332,15 @@ FEATURE_FLAGS = {
 # Force all links to use orange color (overrides any custom CSS)
 # ---------------------------------------------------------------------------
 EXTRA_CSS = """
-/* v2.2 - Simplified scrollbar styling */
-
-/* Light mode scrollbar */
-::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+/* Chart colors - blue to orange */
+.superset-chart svg path[fill="#1E90FF"],
+.superset-chart svg path[fill="#1890ff"] {
+    fill: #FF8A5C;
 }
 
-::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-    background: rgba(128, 128, 128, 0.4);
-    border-radius: 99px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-    background: rgba(128, 128, 128, 0.6);
-}
-
-/* Firefox */
-* {
-    scrollbar-width: thin;
-    scrollbar-color: rgba(128, 128, 128, 0.4) transparent;
-}
-
-/* Dark mode overrides */
-@media (prefers-color-scheme: dark) {
-    ::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.25);
-    }
-    
-    ::-webkit-scrollbar-thumb:hover {
-        background: rgba(255, 255, 255, 0.4);
-    }
-    
-    * {
-        scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
-    }
-    
-    /* Chart colors */
-    .superset-chart svg path[fill="#1E90FF"],
-    .superset-chart svg path[fill="#1890ff"] {
-        fill: #FF8A5C;
-    }
-    
-    /* Link buttons */
-    [class*="ant-btn-color-primary"][class*="ant-btn-variant-link"] {
-        color: #FF8A5C;
-    }
+/* Link buttons */
+[class*="ant-btn-color-primary"][class*="ant-btn-variant-link"] {
+    color: #FF8A5C;
 }
 """
 
@@ -557,22 +515,52 @@ CUSTOM_SECURITY_MANAGER = HypersetSecurityManager
 # Dark mode CSS to inject into HTML responses
 DARK_MODE_CSS = """
 <style id="hyperset-dark-mode-fix">
-/* Minimal dark mode CSS - theme tokens handle most styling */
+/* Base scrollbar - light mode default */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: rgba(128, 128, 128, 0.4);
+    border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(128, 128, 128, 0.6);
+}
+* {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(128, 128, 128, 0.4) transparent;
+}
+
+/* Dark mode overrides */
 @media (prefers-color-scheme: dark) {
+    ::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.3);
+    }
+    ::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.5);
+    }
+    * {
+        scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+    }
+    
     /* Chart colors - blue to orange */
     .superset-chart svg *[fill="#1E90FF"],
     .superset-chart svg *[fill="#1890ff"] {
-        fill: #FF8A5C !important;
+        fill: #FF8A5C;
     }
     
     /* Fix: Link variant buttons should show primary color, not primaryText color */
     .ant-btn-color-primary.ant-btn-variant-link,
     [class*="ant-btn-color-primary"][class*="ant-btn-variant-link"] {
-        color: #FF8A5C !important;
+        color: #FF8A5C;
     }
     .ant-btn-color-primary.ant-btn-variant-link:hover,
     [class*="ant-btn-color-primary"][class*="ant-btn-variant-link"]:hover {
-        color: #FFB088 !important;
+        color: #FFB088;
     }
 }
 </style>
