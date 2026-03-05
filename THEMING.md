@@ -4,40 +4,70 @@ Hyperset supports comprehensive theming through a single `theme.json` file that 
 
 ## Quick Start
 
-1. **Edit `theme.json`** - Configure your colors and branding
+1. **Edit `theme.json`** - Configure your colors and branding in the `palette` section
 2. **Add logos to `logos/`** - Place your custom SVG/PNG files
 3. **Restart** - Run `./setup_podman.sh` to apply
 
 ## Configuration
 
-### `theme.json` Structure
+### `theme.json` Structure (Simplified v2)
+
+The theme uses a unified palette structure where colors are defined once with light/dark variants:
 
 ```json
 {
   "name": "Your Theme Name",
-  "hyperset": {
-    "colors": {
-      "primary": "#FF6B35",
-      "secondary": "#2D3748",
-      "background": "#F7FAFC",
-      "surface": "#FFFFFF",
-      "text": "#1A202C"
+  "palette": {
+    "primary": {
+      "base": "#D35400",
+      "dark": "#A04000",
+      "light": "#E67E22",
+      "muted": "#FF8A5C"
+    },
+    "secondary": {
+      "base": "#57606F",
+      "light": "#747D8C",
+      "muted": "#9CA3AF"
+    },
+    "background": {
+      "light": "#F8F9FA",
+      "dark": "#0A0A0A"
+    },
+    "surface": {
+      "light": "#FFFFFF",
+      "dark": "#141414",
+      "higher": "#1C1C1C"
+    },
+    "text": {
+      "primary": {
+        "light": "#1F2937",
+        "dark": "#FAFAFA"
+      },
+      "secondary": {
+        "light": "#4B5563",
+        "dark": "#E5E5E5"
+      },
+      "muted": {
+        "light": "#6B7280",
+        "dark": "#A3A3A3"
+      },
+      "inverse": {
+        "light": "#FFFFFF",
+        "dark": "#0A0A0A"
+      }
+    },
+    "border": {
+      "light": "#DEE2E6",
+      "dark": "#404040"
     }
   },
   "superset": {
-    "enabled": true,
-    "colors": {
-      "primary": "#FF6B35",
-      "secondary": "#2D3748"
-    }
+    "enabled": true
   },
   "logos": {
     "hyperset": {
       "main": "/logos/hyperset-logo.svg",
       "favicon": "/logos/favicon.ico"
-    },
-    "superset": {
-      "logo": "/logos/superset-logo.svg"
     }
   }
 }
@@ -45,33 +75,40 @@ Hyperset supports comprehensive theming through a single `theme.json` file that 
 
 ### Color Properties
 
-#### Hyperset Portal Colors
+The simplified palette structure reduces duplication by defining light and dark colors centrally:
 
-| Property | Description | Default |
-|----------|-------------|---------|
-| `primary` | Main brand color | `#FF6B35` |
-| `primaryDark` | Darker variant | `#E85A2D` |
-| `primaryLight` | Lighter variant | `#FF8A5C` |
-| `secondary` | Secondary/accent | `#2D3748` |
-| `background` | Page background | `#F7FAFC` |
-| `surface` | Card/surface background | `#FFFFFF` |
-| `text` | Primary text | `#1A202C` |
-| `textMuted` | Secondary text | `#718096` |
-| `border` | Borders and dividers | `#E2E8F0` |
-| `success` | Success states | `#48BB78` |
-| `warning` | Warning states | `#ED8936` |
-| `error` | Error states | `#F56565` |
-| `info` | Info states | `#4299E1` |
+#### Primary Colors
 
-#### Superset Colors
+| Property | Light Mode | Dark Mode | Usage |
+|----------|------------|-----------|-------|
+| `base` | `#D35400` | - | Main brand color (light mode) |
+| `dark` | `#A04000` | `#FF6B35` | Hover states, dark mode primary |
+| `light` | `#E67E22` | - | Lighter variant |
+| `muted` | - | `#FF8A5C` | Softer orange for dark backgrounds |
 
-When `DEPLOY_WITH_SUPERSET=true`, these control the Superset UI:
+#### Background & Surface
 
-| Property | Description |
-|----------|-------------|
-| `superset.colors.primary` | Primary buttons, links |
-| `superset.colors.secondary` | Secondary elements |
-| `superset.colors.grayscale` | Gray palette for UI |
+| Property | Light | Dark | Usage |
+|----------|-------|------|-------|
+| `background.light` | `#F8F9FA` | - | Page background |
+| `background.dark` | - | `#0A0A0A` | Dark mode page background |
+| `surface.light` | `#FFFFFF` | - | Cards, panels |
+| `surface.dark` | - | `#141414` | Dark mode cards |
+| `surface.higher` | - | `#1C1C1C` | Elevated surfaces (dark) |
+
+#### Text Colors
+
+| Property | Light Mode | Dark Mode | Usage |
+|----------|------------|-----------|-------|
+| `text.primary.light` | `#1F2937` | - | Main text |
+| `text.primary.dark` | - | `#FAFAFA` | Dark mode main text |
+| `text.secondary.light` | `#4B5563` | - | Secondary text |
+| `text.secondary.dark` | - | `#E5E5E5` | Dark mode secondary |
+| `text.muted.light` | `#6B7280` | - | Disabled, hints |
+| `text.muted.dark` | - | `#A3A3A3` | Dark mode muted |
+| `text.inverse.dark` | - | `#0A0A0A` | **Button text on orange** |
+
+**Note:** `text.inverse.dark` is crucial for button contrast in dark mode. It ensures dark text (#0A0A0A) on orange buttons for readability.
 
 ## Logo Customization
 
@@ -85,9 +122,7 @@ logos/
 ├── hyperset-logo-dark.svg     # Dark variant
 ├── hyperset-icon.svg          # Icon only
 ├── favicon.ico                # Browser favicon
-├── apple-touch-icon.png       # iOS icon (180x180)
-├── superset-logo.svg          # Superset replacement
-└── superset-icon.svg          # Superset icon
+└── apple-touch-icon.png       # iOS icon (180x180)
 ```
 
 ### SVG Logo Template
@@ -97,7 +132,7 @@ Create your logo in any vector editor (Figma, Illustrator, Inkscape):
 ```svg
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 50">
   <!-- Your logo design here -->
-  <text x="50" y="30" font-family="Inter" fill="#FF6B35">
+  <text x="50" y="30" font-family="Inter" fill="#D35400">
     Your Brand
   </text>
 </svg>
@@ -119,32 +154,59 @@ Only Portal theming is applied. Superset sections in `theme.json` are ignored:
 
 ### When `DEPLOY_WITH_SUPERSET=true`
 
-Both Portal and Superset theming are applied automatically.
+Both Portal and Superset theming are applied automatically using the unified palette.
 
 ## Example: Orange Theme
 
 ```json
 {
-  "name": "Orange Corporate",
-  "hyperset": {
-    "colors": {
-      "primary": "#FF6B35",
-      "primaryDark": "#E85A2D",
-      "primaryLight": "#FF8A5C",
-      "secondary": "#2D3748",
-      "background": "#FFF8F5",
-      "surface": "#FFFFFF",
-      "text": "#1A202C",
-      "textMuted": "#718096",
-      "border": "#F0E0D8"
+  "name": "Hyperset Orange Theme",
+  "palette": {
+    "primary": {
+      "base": "#D35400",
+      "dark": "#A04000",
+      "light": "#E67E22",
+      "muted": "#FF8A5C"
+    },
+    "secondary": {
+      "base": "#57606F",
+      "light": "#747D8C",
+      "muted": "#9CA3AF"
+    },
+    "background": {
+      "light": "#F8F9FA",
+      "dark": "#0A0A0A"
+    },
+    "surface": {
+      "light": "#FFFFFF",
+      "dark": "#141414",
+      "higher": "#1C1C1C"
+    },
+    "text": {
+      "primary": {
+        "light": "#1F2937",
+        "dark": "#FAFAFA"
+      },
+      "secondary": {
+        "light": "#4B5563",
+        "dark": "#E5E5E5"
+      },
+      "muted": {
+        "light": "#6B7280",
+        "dark": "#A3A3A3"
+      },
+      "inverse": {
+        "light": "#FFFFFF",
+        "dark": "#0A0A0A"
+      }
+    },
+    "border": {
+      "light": "#DEE2E6",
+      "dark": "#404040"
     }
   },
   "superset": {
-    "enabled": true,
-    "colors": {
-      "primary": "#FF6B35",
-      "secondary": "#2D3748"
-    }
+    "enabled": true
   }
 }
 ```
@@ -171,6 +233,24 @@ EXTRA_CSS = "/static/assets/custom.css"
 2. Clear browser cache
 3. Check logs: `podman logs hyperset-portal`
 
+### Dark Mode Buttons Have Low Contrast
+
+This is usually caused by button text being the same color as the button background. Ensure `text.inverse.dark` is set to a dark color:
+
+```json
+{
+  "palette": {
+    "text": {
+      "inverse": {
+        "dark": "#0A0A0A"
+      }
+    }
+  }
+}
+```
+
+The system automatically uses `text.inverse.dark` for button text in dark mode, ensuring high contrast (dark text on orange buttons).
+
 ### Superset Logo Not Changing
 
 Verify:
@@ -183,13 +263,27 @@ Verify:
 - Check color format: Use hex codes (#RRGGBB)
 - Verify JSON syntax (no trailing commas)
 - Ensure theme.json is valid JSON: `cat theme.json | python -m json.tool`
+- Check browser console for theme loading errors
+
+### Migrating from Old Theme Format
+
+If you have an older `theme.json` with separate `hyperset.colors` and `superset.colors` sections:
+
+1. Move all colors to the new unified `palette` section
+2. Define light and dark variants for each color
+3. Remove duplicate `colors` and `colorsDark` objects
+4. Remove per-component overrides (buttons, cards, inputs, etc.)
+
+The new structure automatically generates both light and dark themes from the central palette.
 
 ## Branding Checklist
 
-- [ ] Edit `theme.json` with your colors
+- [ ] Edit `theme.json` with your colors in the `palette` section
+- [ ] Set `text.inverse.dark` to ensure button contrast in dark mode
 - [ ] Create logo SVG files
 - [ ] Update logo paths in `theme.json`
 - [ ] Place logos in `logos/` folder
 - [ ] Test on both light and dark backgrounds
+- [ ] Verify button text is readable in dark mode
 - [ ] Verify favicon displays correctly
 - [ ] Check mobile responsiveness

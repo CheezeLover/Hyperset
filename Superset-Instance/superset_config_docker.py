@@ -48,212 +48,160 @@ try:
 except Exception as e:
     logging.error(f"[Theme] Error loading theme: {e}")
 
-# Extract Superset theme configuration
-_SUPERSET_THEME = _THEME_CONFIG.get("superset", {})
-_SUPERSET_COLORS = _SUPERSET_THEME.get("colors", {})
-_SUPERSET_COLORS_DARK = _SUPERSET_THEME.get("colorsDark", {})
+# Extract theme configuration from simplified palette structure
+_PALETTE = _THEME_CONFIG.get("palette", {})
+
+# Helper function to safely get color from palette with fallback
+def _get_color(path, default="", palette=None):
+    """Get a color value from the palette using dot notation (e.g., 'primary.base', 'text.primary.light')"""
+    if palette is None:
+        palette = _PALETTE
+    keys = path.split(".")
+    value = palette
+    for key in keys:
+        if isinstance(value, dict) and key in value:
+            value = value[key]
+        else:
+            return default
+    return value if isinstance(value, str) else default
 
 print(f"[Theme] ===== THEME CONFIG LOADING =====", flush=True)
 print(f"[Theme] Loaded theme.json: {_THEME_CONFIG.get('name', 'Unknown')}", flush=True)
-print(f"[Theme] Superset enabled: {_SUPERSET_THEME.get('enabled', False)}", flush=True)
-print(f"[Theme] Colors loaded: {bool(_SUPERSET_COLORS)}", flush=True)
-print(f"[Theme] ColorsDark loaded: {bool(_SUPERSET_COLORS_DARK)}", flush=True)
-print(f"[Theme] colorsDark content: {_SUPERSET_COLORS_DARK}", flush=True)
+print(f"[Theme] Palette loaded: {bool(_PALETTE)}", flush=True)
 sys.stdout.flush()
 
-logging.info(f"[Theme] Loaded colorsDark: {_SUPERSET_COLORS_DARK}")
-
-# Build THEME_DEFAULT with Ant Design v5 tokens
-if _SUPERSET_THEME.get("enabled", True) and _SUPERSET_COLORS:
-    _primary = _SUPERSET_COLORS.get("primary", "#FF6B35")
-    _primary_dark = _SUPERSET_COLORS.get("primaryDark", "#E85A2D")
-    _secondary = _SUPERSET_COLORS.get("secondary", "#2D3748")
+# Build THEME_DEFAULT with Ant Design v5 tokens using simplified palette
+if _PALETTE:
+    logging.info("[Theme] Building themes from simplified palette structure")
     
-    # Text colors - controllable via theme.json (default to black/dark)
-    _text = _SUPERSET_COLORS.get("text", "#000000")  # Main text - black
-    _text_secondary = _SUPERSET_COLORS.get("textSecondary", "#4A5568")  # Secondary text
-    _text_muted = _SUPERSET_COLORS.get("textMuted", "#718096")  # Muted text
+    # Light mode colors from palette
+    _primary = _get_color("primary.base", "#D35400")
+    _primary_dark = _get_color("primary.dark", "#A04000")
+    _text = _get_color("text.primary.light", "#1F2937")
+    _text_secondary = _get_color("text.secondary.light", "#4B5563")
+    _text_muted = _get_color("text.muted.light", "#6B7280")
+    _bg_light = _get_color("background.light", "#F8F9FA")
+    _surface_light = _get_color("surface.light", "#FFFFFF")
+    _border_light = _get_color("border.light", "#DEE2E6")
+    _border_secondary_light = _get_color("border.secondaryLight", "#E5E7EB")
     
-    # Link colors - controllable via theme.json (default to dark orange/brown)
-    _link = _SUPERSET_COLORS.get("link", "#E85A2D")  # Clickable links - dark orange
-    _link_hover = _SUPERSET_COLORS.get("linkHover", "#FF6B35")  # Link hover - bright orange
+    # State colors (use light variants for light mode)
+    _success = _get_color("state.success.base", "#059669")
+    _warning = _get_color("state.warning.base", "#D97706")
+    _error = _get_color("state.error.base", "#DC2626")
+    _info = _get_color("state.info.base", "#D35400")
     
-    logging.info(f"[Theme] Applying Ant Design theme - primary: {_primary}, text: {_text}, link: {_link}")
+    logging.info(f"[Theme] Light mode - primary: {_primary}, text: {_text}")
     
     # Build light theme tokens
     THEME_DEFAULT_TOKENS = {
-        # Primary color (buttons, accents)
         "colorPrimary": _primary,
         "colorPrimaryHover": _primary_dark,
         "colorPrimaryActive": _primary_dark,
-        
-        # Primary text - use dark text instead of orange for better readability
         "colorPrimaryText": _text,
-        "colorPrimaryTextHover": _link,
-        
-        # Link colors - for clickable text
-        "colorLink": _link,
-        "colorLinkHover": _link_hover,
+        "colorPrimaryTextHover": _primary,
+        "colorLink": _primary_dark,
+        "colorLinkHover": _primary,
         "colorLinkActive": _primary_dark,
-        
-        # Success, warning, error colors
-        "colorSuccess": "#48BB78",
-        "colorWarning": "#ED8936",
-        "colorError": "#F56565",
-        "colorInfo": _link,  # Use link color instead of blue
-        
-        # Background colors - subtle variation for visual separation
-        "colorBgBase": "#FFFFFF",
-        "colorBgContainer": "#FFFFFF",
-        "colorBgElevated": "#FAFAFA",  # Slightly off-white for elevated elements
-        "colorBgLayout": "#F5F5F5",  # Light gray for main layout background
-        "colorBgSpotlight": "#F0F0F0",  # Subtle gray for highlighted areas
-        
-        # Text colors - now controllable via theme.json
+        "colorSuccess": _success,
+        "colorWarning": _warning,
+        "colorError": _error,
+        "colorInfo": _info,
+        "colorBgBase": _surface_light,
+        "colorBgContainer": _surface_light,
+        "colorBgElevated": _bg_light,
+        "colorBgLayout": _bg_light,
+        "colorBgSpotlight": _bg_light,
         "colorText": _text,
         "colorTextSecondary": _text_secondary,
         "colorTextTertiary": _text_muted,
-        
-        # Border colors
-        "colorBorder": "#E5E5E5",
-        "colorBorderSecondary": "#F5F5F5",
-        
-        # Border radius
+        "colorBorder": _border_light,
+        "colorBorderSecondary": _border_secondary_light,
         "borderRadius": 8,
         "borderRadiusLG": 12,
         "borderRadiusSM": 4,
-        
-        # Typography
         "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
         "fontFamilyCode": "'Fira Code', Monaco, Consolas, monospace",
     }
     
-    # Create THEME_DEFAULT with same structure as THEME_DARK
-    THEME_DEFAULT = {
-        "token": THEME_DEFAULT_TOKENS
-    }
+    THEME_DEFAULT = {"token": THEME_DEFAULT_TOKENS}
     
-    print(f"[Theme] ===== THEME_DEFAULT CREATED =====", flush=True)
-    print(f"[Theme] THEME_DEFAULT keys: {list(THEME_DEFAULT.keys())}", flush=True)
-    print(f"[Theme] THEME_DEFAULT['token'] count: {len(THEME_DEFAULT.get('token', {}))}", flush=True)
-    print(f"[Theme] THEME_DEFAULT['token'] sample: colorPrimary={THEME_DEFAULT['token'].get('colorPrimary')}, colorBgBase={THEME_DEFAULT['token'].get('colorBgBase')}", flush=True)
-    sys.stdout.flush()
+    # Dark mode colors from palette
+    _primary_dark_mode = _get_color("primary.muted", "#FF8A5C")
+    _primary_darker = _get_color("primary.dark", "#FF6B35")
+    _text_dark = _get_color("text.primary.dark", "#FAFAFA")
+    _text_secondary_dark = _get_color("text.secondary.dark", "#E5E5E5")
+    _text_muted_dark = _get_color("text.muted.dark", "#A3A3A3")
+    _text_inverse_dark = _get_color("text.inverse.dark", "#0A0A0A")
+    _bg_dark = _get_color("background.dark", "#0A0A0A")
+    _surface_dark = _get_color("surface.dark", "#141414")
+    _surface_higher_dark = _get_color("surface.higher", "#1C1C1C")
+    _border_dark = _get_color("border.dark", "#404040")
+    _border_secondary_dark = _get_color("border.secondaryDark", "#525252")
     
-    # Enable theme administration in UI
-    ENABLE_UI_THEME_ADMINISTRATION = False
+    # State colors for dark mode
+    _success_dark = _get_color("state.success.light", "#34D399")
+    _warning_dark = _get_color("state.warning.light", "#FBBF24")
+    _error_dark = _get_color("state.error.light", "#F87171")
+    _info_dark = _get_color("primary.muted", "#FF8A5C")
     
-    # Force theme registration on startup
-    PRELOAD_PERMSSIONS = True
-    
-    # Set default theme names for Superset to recognize
-    # This tells Superset which themes to use by default
-    THEME_MODEL_DEFAULT = "default"
-    THEME_MODEL_DARK = "dark"
-    
-    # Dark theme configuration - read from theme.json
-    logging.info(f"[Theme] Loading dark theme from colorsDark: {_SUPERSET_COLORS_DARK}")
-    
-    _primary_dark_mode = _SUPERSET_COLORS_DARK.get("primary", "#FF8A5C")
-    _primary_dark_dark = _SUPERSET_COLORS_DARK.get("primaryDark", "#FF6B35")
-    _primary_text_dark = _SUPERSET_COLORS_DARK.get("primaryText", "#0A0A0A")
-    _text_dark = _SUPERSET_COLORS_DARK.get("text", "#FFF6F0")
-    _text_secondary_dark = _SUPERSET_COLORS_DARK.get("textSecondary", "#A0A0A8")
-    _text_muted_dark = _SUPERSET_COLORS_DARK.get("textMuted", "#808088")
-    _link_dark = _SUPERSET_COLORS_DARK.get("link", "#FF8A5C")
-    _link_hover_dark = _SUPERSET_COLORS_DARK.get("linkHover", "#FF6B35")
-    _bg_dark = _SUPERSET_COLORS_DARK.get("background", "#1A1A1E")
-    _surface_dark = _SUPERSET_COLORS_DARK.get("surface", "#242428")
-    _surface_high_dark = _SUPERSET_COLORS_DARK.get("surfaceHigh", "#2E2E33")
-    _border_dark = _SUPERSET_COLORS_DARK.get("border", "#49474E")
-    _border_secondary_dark = _SUPERSET_COLORS_DARK.get("borderSecondary", "#3A383F")
-    
-    logging.info(f"[Theme] Dark mode variables - primary: {_primary_dark_mode}, bg: {_bg_dark}, text: {_text_dark}")
+    logging.info(f"[Theme] Dark mode - primary: {_primary_dark_mode}, bg: {_bg_dark}, text: {_text_dark}")
     
     THEME_DARK_TOKENS = {
-        # Primary color (buttons, accents) - lighter orange for dark mode
         "colorPrimary": _primary_dark_mode,
-        "colorPrimaryHover": _link_dark,
-        "colorPrimaryActive": _primary_dark_dark,
-        
-        # Primary text - dark text on orange buttons for contrast
-        "colorPrimaryText": _primary_text_dark,
-        "colorPrimaryTextHover": _primary_text_dark,
-        
-        # Link colors
-        "colorLink": _link_dark,
-        "colorLinkHover": _link_hover_dark,
-        "colorLinkActive": _primary_dark_dark,
-        
-        # Success, warning, error colors
-        "colorSuccess": "#48BB78",
-        "colorWarning": "#ED8936",
-        "colorError": "#F56565",
-        "colorInfo": _link_dark,
-        
-        # Background colors - dark mode
+        "colorPrimaryHover": _primary_darker,
+        "colorPrimaryActive": _primary_darker,
+        "colorPrimaryText": _text_inverse_dark,  # Dark text on orange buttons
+        "colorPrimaryTextHover": _text_inverse_dark,
+        "colorLink": _primary_dark_mode,
+        "colorLinkHover": _primary_darker,
+        "colorLinkActive": _primary_darker,
+        "colorSuccess": _success_dark,
+        "colorWarning": _warning_dark,
+        "colorError": _error_dark,
+        "colorInfo": _info_dark,
         "colorBgBase": _bg_dark,
         "colorBgContainer": _surface_dark,
-        "colorBgElevated": _surface_high_dark,
+        "colorBgElevated": _surface_higher_dark,
         "colorBgLayout": _bg_dark,
-        "colorBgSpotlight": _surface_high_dark,
-        
-        # Text colors - dark mode
+        "colorBgSpotlight": _surface_higher_dark,
         "colorText": _text_dark,
         "colorTextSecondary": _text_secondary_dark,
         "colorTextTertiary": _text_muted_dark,
-        
-        # Border colors - dark mode
         "colorBorder": _border_dark,
         "colorBorderSecondary": _border_secondary_dark,
-        
-        # Border radius
         "borderRadius": 8,
         "borderRadiusLG": 12,
         "borderRadiusSM": 4,
-        
-        # Typography
         "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
         "fontFamilyCode": "'Fira Code', Monaco, Consolas, monospace",
     }
     
-    THEME_DARK = {
-        "token": THEME_DARK_TOKENS
-    }
+    THEME_DARK = {"token": THEME_DARK_TOKENS}
     
-    print(f"[Theme] ===== THEME_DARK CREATED =====", flush=True)
-    print(f"[Theme] THEME_DARK keys: {list(THEME_DARK.keys())}", flush=True)
-    print(f"[Theme] THEME_DARK full content: {THEME_DARK}", flush=True)
-    print(f"[Theme] THEME_DARK['token'] count: {len(THEME_DARK.get('token', {}))}", flush=True)
-    print(f"[Theme] THEME_DARK['token'] sample: colorPrimary={THEME_DARK['token'].get('colorPrimary')}, colorBgBase={THEME_DARK['token'].get('colorBgBase')}", flush=True)
-    sys.stdout.flush()
+    # Theme configuration
+    ENABLE_UI_THEME_ADMINISTRATION = False
+    PRELOAD_PERMSSIONS = True
+    THEME_MODEL_DEFAULT = "default"
+    THEME_MODEL_DARK = "dark"
     
-    logging.info(f"[Theme] ===== FINAL THEME CONFIGURATION =====")
-    logging.info(f"[Theme] THEME_DEFAULT keys: {list(THEME_DEFAULT.keys())}, token count: {len(THEME_DEFAULT.get('token', {}))}")
-    logging.info(f"[Theme] THEME_DARK keys: {list(THEME_DARK.keys())}, token count: {len(THEME_DARK.get('token', {}))}")
-    
-    # Also set THEME_OVERRIDES to ensure both themes are available
     THEME_OVERRIDES = {
         "default": THEME_DEFAULT,
         "dark": THEME_DARK
     }
-    print(f"[Theme] THEME_OVERRIDES configured with themes: {list(THEME_OVERRIDES.keys())}", flush=True)
-    logging.info(f"[Theme] THEME_OVERRIDES configured with {len(THEME_OVERRIDES)} themes: {list(THEME_OVERRIDES.keys())}")
     
-    # Explicitly set both theme variables at module level for Superset to find
-    # This ensures they're available when Superset's theme manager looks for them
-    print(f"[Theme] Final check - THEME_DEFAULT: {len(THEME_DEFAULT.get('token', {}))} tokens", flush=True)
-    print(f"[Theme] Final check - THEME_DARK: {len(THEME_DARK.get('token', {}))} tokens", flush=True)
-    
-    # Make absolutely sure these are set as global variables
-    # Superset will look for these in the module's global namespace
+    # Ensure themes are available globally
     globals()['THEME_DEFAULT'] = THEME_DEFAULT
     globals()['THEME_DARK'] = THEME_DARK
     globals()['THEME_OVERRIDES'] = THEME_OVERRIDES
     
-    print(f"[Theme] Themes exported to globals - THEME_DEFAULT id: {id(THEME_DEFAULT)}, THEME_DARK id: {id(THEME_DARK)}", flush=True)
+    print(f"[Theme] Themes created - Default: {len(THEME_DEFAULT_TOKENS)} tokens, Dark: {len(THEME_DARK_TOKENS)} tokens", flush=True)
+    logging.info(f"[Theme] Themes configured successfully")
 else:
-    logging.info("[Theme] Using default Superset theme (no custom colors found)")
+    logging.info("[Theme] Using default Superset theme (no palette found)")
     THEME_DEFAULT = {}
+    THEME_DARK = {}
+    THEME_OVERRIDES = {}
     ENABLE_UI_THEME_ADMINISTRATION = False
 
 # ---------------------------------------------------------------------------
@@ -1688,8 +1636,8 @@ logger.info(f"ENABLE_CORS: {ENABLE_CORS}")
 logger.info(f"CORS origins: {_portal_origin}")
 
 # Theme logging
-if _SUPERSET_THEME.get("enabled", False) and _SUPERSET_COLORS:
-    logger.info(f"[Theme] Superset theming enabled with primary color: {_SUPERSET_COLORS.get('primary', 'N/A')}")
+if _PALETTE:
+    logger.info(f"[Theme] Custom theming enabled with primary color: {_get_color('primary.base', 'N/A')}")
     if 'THEME_DEFAULT' in globals() and THEME_DEFAULT:
         logger.info(f"[Theme] THEME_DEFAULT configured with {len(THEME_DEFAULT.get('token', {}))} tokens")
     if 'THEME_DARK' in globals() and THEME_DARK:
