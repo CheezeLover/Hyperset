@@ -341,13 +341,13 @@ EXTRA_CSS = """
         stroke: #FF8A5C !important;
     }
     
-    /* Fix: Link variant buttons - higher specificity with html body prefix */
-    html body .ant-btn-color-primary.ant-btn-variant-link,
-    html body [class*="ant-btn-color-primary"][class*="ant-btn-variant-link"] {
+    /* Fix: Link variant buttons - target by partial class match */
+    [class*="ant-btn-color-primary"][class*="ant-btn-variant-link"],
+    [class*="color-primary"][class*="variant-link"] {
         color: #FF8A5C !important;
     }
-    html body .ant-btn-color-primary.ant-btn-variant-link:hover,
-    html body [class*="ant-btn-color-primary"][class*="ant-btn-variant-link"]:hover {
+    [class*="ant-btn-color-primary"][class*="ant-btn-variant-link"]:hover,
+    [class*="color-primary"][class*="variant-link"]:hover {
         color: #FFB088 !important;
     }
 }
@@ -530,6 +530,16 @@ DARK_MODE_CSS = """
     .superset-chart svg *[fill="#1E90FF"],
     .superset-chart svg *[fill="#1890ff"] {
         fill: #FF8A5C !important;
+    }
+    
+    /* Fix: Link variant buttons should show primary color, not primaryText color */
+    .ant-btn-color-primary.ant-btn-variant-link,
+    [class*="ant-btn-color-primary"][class*="ant-btn-variant-link"] {
+        color: #FF8A5C !important;
+    }
+    .ant-btn-color-primary.ant-btn-variant-link:hover,
+    [class*="ant-btn-color-primary"][class*="ant-btn-variant-link"]:hover {
+        color: #FFB088 !important;
     }
 }
 </style>
