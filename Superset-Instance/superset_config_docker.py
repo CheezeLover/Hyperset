@@ -515,49 +515,56 @@ CUSTOM_SECURITY_MANAGER = HypersetSecurityManager
 # Dark mode CSS to inject into HTML responses
 DARK_MODE_CSS = """
 <style id="hyperset-dark-mode-fix">
-/* Base scrollbar - light mode default */
+/* Modern thin scrollbar - matches chat panel style */
 ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
 }
+
 ::-webkit-scrollbar-track {
     background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
-    background: rgba(128, 128, 128, 0.4);
-    border-radius: 99px;
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 10px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
-    background: rgba(128, 128, 128, 0.6);
+    background: rgba(0, 0, 0, 0.4);
 }
+
 * {
     scrollbar-width: thin;
-    scrollbar-color: rgba(128, 128, 128, 0.4) transparent;
+    scrollbar-color: rgba(0, 0, 0, 0.25) transparent;
 }
 
 /* Dark mode overrides */
 @media (prefers-color-scheme: dark) {
     ::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.3);
+        background: rgba(255, 255, 255, 0.25);
     }
+
     ::-webkit-scrollbar-thumb:hover {
-        background: rgba(255, 255, 255, 0.5);
+        background: rgba(255, 255, 255, 0.4);
     }
+
     * {
-        scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+        scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
     }
-    
+
     /* Chart colors - blue to orange */
     .superset-chart svg *[fill="#1E90FF"],
     .superset-chart svg *[fill="#1890ff"] {
         fill: #FF8A5C;
     }
-    
+
     /* Fix: Link variant buttons should show primary color, not primaryText color */
     .ant-btn-color-primary.ant-btn-variant-link,
     [class*="ant-btn-color-primary"][class*="ant-btn-variant-link"] {
         color: #FF8A5C;
     }
+
     .ant-btn-color-primary.ant-btn-variant-link:hover,
     [class*="ant-btn-color-primary"][class*="ant-btn-variant-link"]:hover {
         color: #FFB088;
