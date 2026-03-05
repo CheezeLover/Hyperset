@@ -523,6 +523,52 @@ a:hover, .link:hover, .ant-table-cell a:hover,
         background-color: #FF8A5C !important;
     }
     
+    /* Input fields - ensure text is visible on dark background */
+    input,
+    textarea,
+    .ant-input,
+    .ant-input-affix-wrapper,
+    .ant-select-selector,
+    .ant-picker,
+    .ant-picker-input > input,
+    [class*="input"],
+    [class*="Input"] {
+        background-color: #1C1C1C !important;
+        color: #FAFAFA !important;
+        border-color: #404040 !important;
+    }
+    
+    input::placeholder,
+    textarea::placeholder,
+    .ant-input::placeholder,
+    .ant-input-affix-wrapper::placeholder,
+    .ant-select-selector .ant-select-selection-placeholder,
+    .ant-picker-input > input::placeholder {
+        color: #737373 !important;
+    }
+    
+    /* White/Light buttons (like Favorite) - ensure dark text */
+    button[style*="background-color: rgb(255, 255"],
+    button[style*="background-color: #fff"],
+    button[style*="background-color: #FFF"],
+    button[style*="background: rgb(255, 255"],
+    button[style*="background: #fff"],
+    button[style*="background: #FFF"],
+    .ant-btn-default,
+    button[class*="ant-btn-default"] {
+        background-color: #FFFFFF !important;
+        border-color: #FFFFFF !important;
+        color: #1A1A1A !important;
+    }
+    
+    button[style*="background-color: rgb(255, 255"] span,
+    button[style*="background-color: #fff"] span,
+    button[style*="background: #fff"] span,
+    .ant-btn-default span,
+    button[class*="ant-btn-default"] span {
+        color: #1A1A1A !important;
+    }
+    
     /* Menu items - ensure contrast on selected/active items */
     .ant-menu-item,
     .ant-menu-submenu {
@@ -1055,6 +1101,42 @@ DARK_MODE_CSS = """
     span[class*="status"],
     td span {
         color: inherit !important;
+    }
+    
+    /* Input fields - ensure text is visible on dark background */
+    input,
+    textarea,
+    .ant-input,
+    .ant-input-affix-wrapper,
+    .ant-select-selector,
+    .ant-picker,
+    .ant-picker-input > input {
+        background-color: #1C1C1C !important;
+        color: #FAFAFA !important;
+        border-color: #404040 !important;
+    }
+    
+    input::placeholder,
+    textarea::placeholder,
+    .ant-input::placeholder,
+    .ant-picker-input > input::placeholder {
+        color: #737373 !important;
+    }
+    
+    /* White/Light buttons (like Favorite) - ensure dark text */
+    button[style*="background-color: rgb(255, 255"],
+    button[style*="background-color: #fff"],
+    button[style*="background-color: #FFF"],
+    .ant-btn-default {
+        background-color: #FFFFFF !important;
+        border-color: #FFFFFF !important;
+        color: #1A1A1A !important;
+    }
+    
+    button[style*="background-color: rgb(255, 255"] span,
+    button[style*="background-color: #fff"] span,
+    .ant-btn-default span {
+        color: #1A1A1A !important;
     }
     
     /* Other primary-colored elements (not buttons) - split by element type */
