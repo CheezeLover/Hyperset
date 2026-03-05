@@ -13,6 +13,7 @@
   --md-primary-muted:   var(--theme-primary-light, #E67E22);
   --md-primary-cont:    var(--theme-primary, #D35400);
   --md-on-primary-cont: var(--theme-primary-text, #FFFFFF);
+  --md-icon-primary:    var(--theme-icon-primary, #D35400);
 
   /* Secondary colors */
   --md-secondary:       var(--theme-secondary, #c75b39);
@@ -41,6 +42,7 @@
     --md-primary-muted:   var(--theme-dark-primary-dark, #FF6B35);
     --md-primary-cont:    var(--theme-dark-primary, #FF8A5C);
     --md-on-primary-cont: var(--theme-dark-primary-text, #0A0A0A);
+    --md-icon-primary:    var(--theme-dark-icon-primary, #FF8A5C);
 
     --md-secondary:       var(--theme-dark-secondary, #e8845f);
     --md-secondary-muted: var(--theme-dark-secondary, #c75b39);

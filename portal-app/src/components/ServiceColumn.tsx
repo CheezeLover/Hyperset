@@ -62,7 +62,7 @@ function ServiceBtn({
       : "var(--md-secondary-cont)"
     : "transparent";
   const iconColor = isPrimary
-    ? "var(--md-on-primary-cont)"
+    ? "var(--md-icon-primary)"
     : "var(--md-on-sec-cont)";
   const indicatorColor = isPrimary
     ? "var(--md-primary)"

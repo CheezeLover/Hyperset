@@ -35,6 +35,7 @@ function getThemeScript() {
           const primaryLight = palette.primary?.light || '#E67E22';
           const textPrimary = palette.text?.primary?.light || '#1F2937';
           const textMuted = palette.text?.muted?.light || '#6B7280';
+          const iconPrimaryLight = palette.icon?.primary?.light || '#D35400';
           const background = palette.background?.light || '#F8F9FA';
           const surface = palette.surface?.light || '#FFFFFF';
           const border = palette.border?.light || '#DEE2E6';
@@ -46,6 +47,7 @@ function getThemeScript() {
           const textDarkMode = palette.text?.primary?.dark || '#FAFAFA';
           const textMutedDark = palette.text?.muted?.dark || '#A3A3A3';
           const textInverseDark = palette.text?.inverse?.dark || '#0A0A0A';
+          const iconPrimaryDark = palette.icon?.primary?.dark || '#FF8A5C';
           const backgroundDark = palette.background?.dark || '#0A0A0A';
           const surfaceDark = palette.surface?.dark || '#141414';
           const borderDark = palette.border?.dark || '#404040';
@@ -62,6 +64,7 @@ function getThemeScript() {
                 root.style.setProperty('--theme-primary-dark', '${primaryDarkDark}');
                 root.style.setProperty('--theme-primary-light', '${primaryDarkMode}');
                 root.style.setProperty('--theme-primary-text', '${textInverseDark}');
+                root.style.setProperty('--theme-icon-primary', '${iconPrimaryDark}');
                 root.style.setProperty('--theme-secondary', '${secondaryDark}');
                 root.style.setProperty('--theme-secondary-light', '${secondaryDark}');
                 root.style.setProperty('--theme-background', '${backgroundDark}');
@@ -78,6 +81,7 @@ function getThemeScript() {
                 root.style.setProperty('--theme-primary-dark', '${primaryDark}');
                 root.style.setProperty('--theme-primary-light', '${primaryLight}');
                 root.style.setProperty('--theme-primary-text', '#FFFFFF');
+                root.style.setProperty('--theme-icon-primary', '${iconPrimaryLight}');
                 root.style.setProperty('--theme-secondary', '${secondary}');
                 root.style.setProperty('--theme-secondary-light', '${secondary}');
                 root.style.setProperty('--theme-background', '${background}');

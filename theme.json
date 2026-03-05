@@ -51,6 +51,16 @@
         "dark": "#737373"
       }
     },
+    "icon": {
+      "primary": {
+        "light": "#D35400",
+        "dark": "#FF8A5C"
+      },
+      "secondary": {
+        "light": "#57606F",
+        "dark": "#E5E5E5"
+      }
+    },
     "border": {
       "light": "#DEE2E6",
       "dark": "#404040",

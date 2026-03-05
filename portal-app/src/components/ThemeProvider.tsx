@@ -30,6 +30,10 @@ interface Palette {
     muted: { light: string; dark: string };
     inverse: { light: string; dark: string };
   };
+  icon: {
+    primary: { light: string; dark: string };
+    secondary: { light: string; dark: string };
+  };
   border: {
     light: string;
     dark: string;
@@ -59,6 +63,7 @@ function applyThemeColors(palette: Palette, isDark: boolean) {
     root.style.setProperty('--theme-primary-dark', palette.primary.dark);
     root.style.setProperty('--theme-primary-light', palette.primary.muted);
     root.style.setProperty('--theme-primary-text', palette.text.inverse.dark); // Dark text on orange
+    root.style.setProperty('--theme-icon-primary', palette.icon?.primary?.dark || palette.primary.muted);
     root.style.setProperty('--theme-secondary', palette.secondary.muted);
     root.style.setProperty('--theme-secondary-light', palette.secondary.muted);
     root.style.setProperty('--theme-background', palette.background.dark);
@@ -74,6 +79,7 @@ function applyThemeColors(palette: Palette, isDark: boolean) {
     root.style.setProperty('--theme-primary-dark', palette.primary.dark);
     root.style.setProperty('--theme-primary-light', palette.primary.light);
     root.style.setProperty('--theme-primary-text', '#FFFFFF');
+    root.style.setProperty('--theme-icon-primary', palette.icon?.primary?.light || palette.primary.base);
     root.style.setProperty('--theme-secondary', palette.secondary.base);
     root.style.setProperty('--theme-secondary-light', palette.secondary.light);
     root.style.setProperty('--theme-background', palette.background.light);
