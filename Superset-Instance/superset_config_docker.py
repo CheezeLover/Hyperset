@@ -972,6 +972,43 @@ a:hover, .link:hover, .ant-table-cell a:hover,
     [style*="background-color: #FF8A5C"] [style*="color: #FF8A5C"] {
         color: #0A0A0A !important;
     }
+    
+    /* Fix buttons with light orange/off-white background (#FFF6F0) - used in "Favorite" buttons */
+    button[style*="background-color: #FFF6F0"],
+    button[style*="background: #FFF6F0"],
+    button[style*="background-color: rgb(255, 246, 240)"],
+    button[style*="background: rgb(255, 246, 240)"] {
+        background-color: #FFF6F0 !important;
+        border-color: #FFF6F0 !important;
+        color: #1A1A1A !important;
+    }
+    
+    button[style*="background-color: #FFF6F0"] *,
+    button[style*="background: #FFF6F0"] *,
+    button[style*="background-color: rgb(255, 246, 240)"] *,
+    button[style*="background: rgb(255, 246, 240)"] * {
+        color: #1A1A1A !important;
+    }
+    
+    button[style*="background-color: #FFF6F0"]:hover,
+    button[style*="background: #FFF6F0"]:hover {
+        background-color: #FFE8D6 !important;
+        border-color: #FFE8D6 !important;
+        color: #1A1A1A !important;
+    }
+    
+    /* AGGRESSIVE: Fix any button with very light background (FFF6F0, FFF0F0, etc) */
+    button[style*="#FFF6"],
+    button[style*="#FFF0"],
+    button[style*="#FFFA"] {
+        color: #1A1A1A !important;
+    }
+    
+    button[style*="#FFF6"] span,
+    button[style*="#FFF0"] span,
+    button[style*="#FFFA"] span {
+        color: #1A1A1A !important;
+    }
 }
 """
 
@@ -1503,6 +1540,43 @@ DARK_MODE_CSS = """
     }
     
     button[class][style*="255"] span {
+        color: #1A1A1A !important;
+    }
+    
+    /* Fix buttons with light orange/off-white background (#FFF6F0) - used in "Favorite" buttons */
+    button[style*="background-color: #FFF6F0"],
+    button[style*="background: #FFF6F0"],
+    button[style*="background-color: rgb(255, 246, 240)"],
+    button[style*="background: rgb(255, 246, 240)"] {
+        background-color: #FFF6F0 !important;
+        border-color: #FFF6F0 !important;
+        color: #1A1A1A !important;
+    }
+    
+    button[style*="background-color: #FFF6F0"] *,
+    button[style*="background: #FFF6F0"] *,
+    button[style*="background-color: rgb(255, 246, 240)"] *,
+    button[style*="background: rgb(255, 246, 240)"] * {
+        color: #1A1A1A !important;
+    }
+    
+    button[style*="background-color: #FFF6F0"]:hover,
+    button[style*="background: #FFF6F0"]:hover {
+        background-color: #FFE8D6 !important;
+        border-color: #FFE8D6 !important;
+        color: #1A1A1A !important;
+    }
+    
+    /* AGGRESSIVE: Fix any button with very light background (FFF6F0, FFF0F0, etc) */
+    button[style*="#FFF6"],
+    button[style*="#FFF0"],
+    button[style*="#FFFA"] {
+        color: #1A1A1A !important;
+    }
+    
+    button[style*="#FFF6"] span,
+    button[style*="#FFF0"] span,
+    button[style*="#FFFA"] span {
         color: #1A1A1A !important;
     }
 }
