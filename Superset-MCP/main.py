@@ -50,13 +50,19 @@ enabling AI assistants to interact with and control a Superset instance programm
 load_dotenv()
 
 # ===== Security: SQL Validation =====
+# Block ALL write operations (INSERT, UPDATE, DELETE) and DDL (DROP, ALTER, etc.)
+# Allow ONLY read operations (SELECT, WITH, EXPLAIN, SHOW, DESCRIBE, etc.)
 FORBIDDEN_SQL_PATTERNS = [
-    r'\b(DROP|TRUNCATE)\s+(TABLE|DATABASE|SCHEMA|INDEX)\b',
-    r'\b(ALTER)\s+(TABLE|DATABASE|SCHEMA|USER|ROLE)\b',
+    r'\bINSERT\b',
+    r'\bUPDATE\b',
+    r'\bDELETE\b',
+    r'\bMERGE\b',
+    r'\bUPSERT\b',
+    r'\b(DROP|TRUNCATE)\s+(TABLE|DATABASE|SCHEMA|INDEX|VIEW)\b',
+    r'\bALTER\s+(TABLE|DATABASE|SCHEMA|USER|ROLE|INDEX|VIEW|COLUMN)\b',
+    r'\bCREATE\s+(TABLE|DATABASE|SCHEMA|INDEX|VIEW|USER|ROLE|FUNCTION|PROCEDURE|TRIGGER)\b',
     r'\b(GRANT|REVOKE)\b',
-    r';.*;',  # Multiple statements
-    r'--',    # SQL comments
-    r'/\*.*\*/',
+    r';.*;',  # Multiple statements (prevents chained attacks)
 ]
 
 def validate_sql(sql: str) -> None:

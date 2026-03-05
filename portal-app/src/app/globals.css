@@ -9,10 +9,15 @@
   --md-outline-var:     var(--theme-border-light, #f5f5f5);
 
   /* Primary colors */
-  --md-primary:         var(--theme-primary, #20a7c9);
-  --md-primary-muted:   var(--theme-primary-light, #4dbdd6);
-  --md-primary-cont:    var(--theme-border, #e0f4f8);
-  --md-on-primary-cont: var(--theme-primary-dark, #0c6a82);
+  --md-primary:         var(--theme-primary, #D35400);
+  --md-primary-muted:   var(--theme-primary-light, #E67E22);
+  --md-primary-cont:    var(--theme-primary, #D35400);
+  --md-on-primary-cont: var(--theme-primary-text, #FFFFFF);
+  --md-icon-primary:    var(--theme-icon-primary, #D35400);
+
+  /* Scrollbar colors - modern floating pill */
+  --md-scrollbar-thumb: rgba(0, 0, 0, 0.25);
+  --md-scrollbar-track: transparent;
 
   /* Secondary colors */
   --md-secondary:       var(--theme-secondary, #c75b39);
@@ -27,24 +32,30 @@
 }
 
 /* ── Dark theme (automatic) ─────────────────────────────── */
+/* Dark mode colors are set by ThemeProvider from theme.json colorsDark */
 @media (prefers-color-scheme: dark) {
   :root {
-    --md-surface:         #1a1a1e;
-    --md-surface-cont:    #242428;
-    --md-surface-cont-hi: #2e2e33;
-    --md-on-surface:      #e4e1e6;
-    --md-outline:         #49474e;
-    --md-outline-var:     #3a383f;
+    --md-surface:         var(--theme-dark-background, #1a1a1e);
+    --md-surface-cont:    var(--theme-dark-surface, #242428);
+    --md-surface-cont-hi: var(--theme-dark-border, #2e2e33);
+    --md-on-surface:      var(--theme-dark-text, #e4e1e6);
+    --md-outline:         var(--theme-dark-border, #49474e);
+    --md-outline-var:     var(--theme-dark-border, #3a383f);
 
-    --md-primary:         #5cc8e4;
-    --md-primary-muted:   #3aafcc;
-    --md-primary-cont:    #0c3d4a;
-    --md-on-primary-cont: #a0e4f4;
+    --md-primary:         var(--theme-dark-primary, #FF8A5C);
+    --md-primary-muted:   var(--theme-dark-primary-dark, #FF6B35);
+    --md-primary-cont:    var(--theme-dark-primary, #FF8A5C);
+    --md-on-primary-cont: var(--theme-dark-primary-text, #0A0A0A);
+    --md-icon-primary:    var(--theme-dark-icon-primary, #FF8A5C);
 
-    --md-secondary:       #e8845f;
-    --md-secondary-muted: #c75b39;
-    --md-secondary-cont:  #4a2010;
-    --md-on-sec-cont:     #f4b8a0;
+    /* Scrollbar colors for dark mode */
+    --md-scrollbar-thumb: var(--theme-dark-border, #404040);
+    --md-scrollbar-track: transparent;
+
+    --md-secondary:       var(--theme-dark-secondary, #e8845f);
+    --md-secondary-muted: var(--theme-dark-secondary, #c75b39);
+    --md-secondary-cont:  var(--theme-dark-primary, rgba(255, 138, 92, 0.2));
+    --md-on-sec-cont:     var(--theme-dark-primary-light, #f4b8a0);
   }
   html { color-scheme: dark; }
 }
@@ -71,18 +82,20 @@ a { color: inherit; text-decoration: none; }
 
 /* ── Material Design 3 — thin scrollbars ─────────────────── */
 /* Webkit (Chrome, Edge, Safari) */
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--md-scrollbar-track); }
 ::-webkit-scrollbar-thumb {
-  background: var(--md-outline);
+  background: var(--md-scrollbar-thumb);
   border-radius: 99px;
-  opacity: 0.5;
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--md-primary-muted); }
-::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-corner { background: var(--md-scrollbar-track); }
 
 /* Firefox */
-* { scrollbar-width: thin; scrollbar-color: var(--md-outline) transparent; }
+* { scrollbar-width: thin; scrollbar-color: var(--md-scrollbar-thumb) var(--md-scrollbar-track); }
+
+/* Note: iframe scrollbars are controlled by the content inside (Superset), not the parent page.
+   The scrollbar styling for Superset is in superset_config_docker.py EXTRA_CSS */
 
 /* Hide resize handle on textareas globally */
 textarea { resize: none; }

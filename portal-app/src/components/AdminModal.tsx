@@ -791,7 +791,7 @@ const inputStyle: React.CSSProperties = {
 };
 
 const primaryBtnStyle: React.CSSProperties = {
-  background: "var(--md-primary)", color: "#fff", border: "none", borderRadius: 8,
+  background: "var(--md-primary)", color: "var(--md-on-primary-cont)", border: "none", borderRadius: 8,
   padding: "8px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "background 0.2s",
 };
 
@@ -802,7 +802,7 @@ const dangerBtnStyle: React.CSSProperties = {
 
 const testBtnStyle: React.CSSProperties = {
   background: "var(--md-surface)", color: "var(--md-on-surface)",
-  border: "1px solid var(--md-outline-var)", borderRadius: 8,
+  border: "1px solid var(--md-outline)", borderRadius: 8,
   padding: "5px 12px", fontSize: 12, cursor: "pointer", opacity: 1,
 };
 

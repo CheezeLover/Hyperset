@@ -50,7 +50,15 @@ fi
 
 echo "==> Building images and starting all services..."
 cd "$(dirname "$0")"
-podman-compose $COMPOSE_FILES up --build -d
+
+# Check if containers already exist (e.g., after git pull with config changes)
+if podman-compose $COMPOSE_FILES ps -q 2>/dev/null | grep -q .; then
+  echo "   Existing containers found. Performing clean restart to reload config files..."
+  podman-compose $COMPOSE_FILES down
+fi
+
+# Build and start with no-cache to ensure fresh images and config mounts
+podman-compose $COMPOSE_FILES up --build --force-recreate -d
 
 echo ""
 echo "✓ Hyperset is starting up!"
