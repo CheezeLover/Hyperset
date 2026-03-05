@@ -333,6 +333,37 @@ FEATURE_FLAGS = {
 # ---------------------------------------------------------------------------
 EXTRA_CSS = """
 /* Minimal CSS - theme tokens handle most styling */
+
+/* Modern floating pill scrollbar - Webkit (Chrome, Edge, Safari) */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 99px;
+    min-height: 40px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.4);
+}
+
+::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
+/* Firefox */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.25) transparent;
+}
+
 @media (prefers-color-scheme: dark) {
     /* Fix chart colors - blue to orange */
     .superset-chart svg path[fill="#1E90FF"],
@@ -353,6 +384,20 @@ EXTRA_CSS = """
     [class*="ant-btn-color-primary"][class*="ant-btn-variant-link"]:hover,
     [class*="color-primary"][class*="variant-link"]:hover {
         color: #FFB088 !important;
+    }
+    
+    /* Dark mode scrollbar - lighter thumb for dark backgrounds */
+    ::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.25);
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.4);
+    }
+    
+    /* Firefox dark mode */
+    * {
+        scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
     }
 }
 """
