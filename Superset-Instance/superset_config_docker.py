@@ -190,6 +190,12 @@ if _PALETTE:
             "defaultHoverBg": "#3E3E43",
             "defaultHoverColor": _text_dark,
             "defaultHoverBorderColor": "#505050",
+            "ghostColor": _text_dark,
+            "ghostHoverColor": _primary_dark_mode,
+            "ghostBg": "transparent",
+            "ghostHoverBg": "rgba(255, 138, 92, 0.1)",
+            "ghostBorderColor": _border_dark,
+            "ghostHoverBorderColor": _primary_dark_mode,
         }
     }
     
@@ -333,6 +339,24 @@ EXTRA_CSS = """
     .superset-chart svg path[stroke="#1E90FF"],
     .superset-chart svg path[stroke="#20a7c9"] {
         stroke: #FF8A5C !important;
+    }
+    
+    /* Fix ghost/text buttons - ensure orange text on transparent bg */
+    .ant-btn-text, .ant-btn-link,
+    .ant-btn-background-ghost,
+    button[class*="text"], button[class*="ghost"] {
+        color: #FF8A5C !important;
+    }
+    .ant-btn-text:hover, .ant-btn-link:hover,
+    .ant-btn-background-ghost:hover,
+    button[class*="text"]:hover, button[class*="ghost"]:hover {
+        color: #FFB088 !important;
+    }
+    
+    /* Ensure primary buttons keep dark text */
+    .ant-btn-primary, .ant-btn-primary span,
+    button[class*="primary"] span {
+        color: #0A0A0A !important;
     }
 }
 """
