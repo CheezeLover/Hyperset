@@ -332,88 +332,56 @@ FEATURE_FLAGS = {
 # Force all links to use orange color (overrides any custom CSS)
 # ---------------------------------------------------------------------------
 EXTRA_CSS = """
-/* Hyperset Theme CSS v2.1 - Cache bust: 20250305 */
-/* Minimal CSS - theme tokens handle most styling */
+/* v2.2 - Simplified scrollbar styling */
 
-/* Modern floating pill scrollbar - AGGRESSIVE OVERRIDE */
-html ::-webkit-scrollbar,
-body ::-webkit-scrollbar,
-* ::-webkit-scrollbar {
-    width: 6px !important;
-    height: 6px !important;
+/* Light mode scrollbar */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
 }
 
-html ::-webkit-scrollbar-track,
-body ::-webkit-scrollbar-track,
-* ::-webkit-scrollbar-track {
-    background: transparent !important;
+::-webkit-scrollbar-track {
+    background: transparent;
 }
 
-html ::-webkit-scrollbar-thumb,
-body ::-webkit-scrollbar-thumb,
-* ::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, 0.25) !important;
-    border-radius: 99px !important;
-    min-height: 40px !important;
-    border: none !important;
+::-webkit-scrollbar-thumb {
+    background: rgba(128, 128, 128, 0.4);
+    border-radius: 99px;
 }
 
-html ::-webkit-scrollbar-thumb:hover,
-body ::-webkit-scrollbar-thumb:hover,
-* ::-webkit-scrollbar-thumb:hover {
-    background: rgba(0, 0, 0, 0.4) !important;
-}
-
-html ::-webkit-scrollbar-corner,
-body ::-webkit-scrollbar-corner,
-* ::-webkit-scrollbar-corner {
-    background: transparent !important;
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(128, 128, 128, 0.6);
 }
 
 /* Firefox */
-html, body, * {
-    scrollbar-width: thin !important;
-    scrollbar-color: rgba(0, 0, 0, 0.25) transparent !important;
+* {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(128, 128, 128, 0.4) transparent;
 }
 
+/* Dark mode overrides */
 @media (prefers-color-scheme: dark) {
-    /* Fix chart colors - blue to orange */
+    ::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.25);
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.4);
+    }
+    
+    * {
+        scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+    }
+    
+    /* Chart colors */
     .superset-chart svg path[fill="#1E90FF"],
-    .superset-chart svg path[fill="#20a7c9"],
     .superset-chart svg path[fill="#1890ff"] {
-        fill: #FF8A5C !important;
-    }
-    .superset-chart svg path[stroke="#1E90FF"],
-    .superset-chart svg path[stroke="#20a7c9"] {
-        stroke: #FF8A5C !important;
+        fill: #FF8A5C;
     }
     
-    /* Fix: Link variant buttons - target by partial class match */
-    [class*="ant-btn-color-primary"][class*="ant-btn-variant-link"],
-    [class*="color-primary"][class*="variant-link"] {
-        color: #FF8A5C !important;
-    }
-    [class*="ant-btn-color-primary"][class*="ant-btn-variant-link"]:hover,
-    [class*="color-primary"][class*="variant-link"]:hover {
-        color: #FFB088 !important;
-    }
-    
-    /* Dark mode scrollbar - AGGRESSIVE OVERRIDE */
-    html ::-webkit-scrollbar-thumb,
-    body ::-webkit-scrollbar-thumb,
-    * ::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.25) !important;
-    }
-    
-    html ::-webkit-scrollbar-thumb:hover,
-    body ::-webkit-scrollbar-thumb:hover,
-    * ::-webkit-scrollbar-thumb:hover {
-        background: rgba(255, 255, 255, 0.4) !important;
-    }
-    
-    /* Firefox dark mode - AGGRESSIVE */
-    html, body, * {
-        scrollbar-color: rgba(255, 255, 255, 0.25) transparent !important;
+    /* Link buttons */
+    [class*="ant-btn-color-primary"][class*="ant-btn-variant-link"] {
+        color: #FF8A5C;
     }
 }
 """
