@@ -1009,37 +1009,6 @@ a:hover, .link:hover, .ant-table-cell a:hover,
     button[style*="#FFFA"] span {
         color: #1A1A1A !important;
     }
-    
-    /* ULTRA AGGRESSIVE: Target ALL buttons with light backgrounds by class patterns */
-    /* Home page filter buttons and similar */
-    button[class*="ant-btn"],
-    [class*="button"] {
-        color: inherit;
-    }
-    
-    /* Force dark text on buttons with very light backgrounds (computed style detection) */
-    button:not([class*="primary"]):not([class*="danger"]):not([style*="background-color: rgb(255, 138, 92)"]):not([style*="background-color: #FF8A5C"]) {
-        color: #1A1A1A !important;
-    }
-    
-    button:not([class*="primary"]):not([class*="danger"]):not([style*="background-color: rgb(255, 138, 92)"]):not([style*="background-color: #FF8A5C"]) span {
-        color: #1A1A1A !important;
-    }
-    
-    /* SPECIFIC: Home page filter button group */
-    [class*="filter"] button,
-    [class*="Filter"] button,
-    [class*="tab"] button,
-    [class*="Tab"] button {
-        color: #1A1A1A !important;
-    }
-    
-    [class*="filter"] button span,
-    [class*="Filter"] button span,
-    [class*="tab"] button span,
-    [class*="Tab"] button span {
-        color: #1A1A1A !important;
-    }
 }
 """
 
