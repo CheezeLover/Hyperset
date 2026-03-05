@@ -43,8 +43,8 @@
         "dark": "#A3A3A3"
       },
       "inverse": {
-        "light": "#FFFFFF",
-        "dark": "#0A0A0A"
+        "light": "#0A0A0A",
+        "dark": "#FFFFFF"
       },
       "placeholder": {
         "light": "#9CA3AF",
