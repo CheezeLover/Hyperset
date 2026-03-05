@@ -1913,7 +1913,7 @@ export function ChatPanel({
                 }}
                 onMouseOver={e => { if (input.trim()) { e.currentTarget.style.filter = "brightness(1.1)"; e.currentTarget.style.transform = "scale(1.1)"; } }}
                 onMouseOut={e => { e.currentTarget.style.filter = "none"; e.currentTarget.style.transform = "none"; }}>
-                <svg viewBox="0 0 24 24" width={22} height={22} fill={input.trim() ? "var(--md-on-primary)" : "var(--md-outline)"} style={{ transition: "fill 0.2s ease" }}>
+                <svg viewBox="0 0 24 24" width={22} height={22} fill={input.trim() ? "var(--md-on-primary-cont)" : "var(--md-outline)"} style={{ transition: "fill 0.2s ease" }}>
                   <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" transform="rotate(-45 12 12)" />
                 </svg>
               </button>
