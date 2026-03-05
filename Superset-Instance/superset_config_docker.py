@@ -864,12 +864,33 @@ a:hover, .link:hover, .ant-table-cell a:hover,
         color: #0A0A0A !important;
     }
     
+    /* White/Light buttons - ensure dark text */
+    button[style*="background-color: rgb(255, 255"],
+    button[style*="background-color: #FFF"],
+    button[style*="background-color: #fff"],
+    button[style*="background: rgb(255, 255"],
+    button[style*="background: #FFF"],
+    button[style*="background: #fff"] {
+        background-color: #FFFFFF !important;
+        border-color: #FFFFFF !important;
+        color: #1A1A1A !important;
+    }
+    
+    button[style*="background-color: rgb(255, 255"] span,
+    button[style*="background-color: #FFF"] span,
+    button[style*="background-color: #fff"] span,
+    button[style*="background: rgb(255, 255"] span,
+    button[style*="background: #FFF"] span,
+    button[style*="background: #fff"] span {
+        color: #1A1A1A !important;
+    }
+    
     /* Secondary buttons (ghost/outline style) - ensure contrast on dark background */
     .ant-btn-default,
     .ant-btn-secondary {
-        background-color: transparent !important;
-        border-color: #FF8A5C !important;
-        color: #FF8A5C !important;
+        background-color: #FFFFFF !important;
+        border-color: #FFFFFF !important;
+        color: #1A1A1A !important;
     }
     .ant-btn-default:hover,
     .ant-btn-secondary:hover {
@@ -890,6 +911,31 @@ a:hover, .link:hover, .ant-table-cell a:hover,
     .ant-btn-primary[disabled]:hover span,
     .ant-btn-primary[disabled]:hover .anticon {
         color: rgba(10, 10, 10, 0.5) !important;
+    }
+    
+    /* ULTRA AGGRESSIVE: White/Light buttons in EXTRA_CSS */
+    button[style*="background-color: rgb(255, 255, 255)"],
+    button[style*="background-color: rgba(255, 255, 255"],
+    button[style*="background: rgb(255, 255, 255)"],
+    button[style*="background: rgba(255, 255, 255"],
+    button[style*="background-color: #FFF"],
+    button[style*="background-color: #fff"],
+    button[style*="background: #FFF"],
+    button[style*="background: #fff"] {
+        background-color: #FFFFFF !important;
+        border-color: #FFFFFF !important;
+        color: #1A1A1A !important;
+    }
+    
+    button[style*="background-color: rgb(255, 255, 255)"] *,
+    button[style*="background-color: rgba(255, 255, 255"] *,
+    button[style*="background: rgb(255, 255, 255)"] *,
+    button[style*="background: rgba(255, 255, 255"] *,
+    button[style*="background-color: #FFF"] *,
+    button[style*="background-color: #fff"] *,
+    button[style*="background: #FFF"] *,
+    button[style*="background: #fff"] * {
+        color: #1A1A1A !important;
     }
     
     /* FINAL NUCLEAR OVERRIDE: Ensure button text is NEVER orange on orange bg */
@@ -1416,6 +1462,48 @@ DARK_MODE_CSS = """
         overflow: visible !important;
         text-overflow: clip !important;
         white-space: nowrap !important;
+    }
+    
+    /* ULTRA AGGRESSIVE: White buttons with dark text - target by computed styles */
+    button[style*="background-color: rgb(255, 255, 255)"],
+    button[style*="background-color: rgba(255, 255, 255"],
+    button[style*="background: rgb(255, 255, 255)"],
+    button[style*="background: rgba(255, 255, 255"],
+    button[style*="background-color: #FFF"],
+    button[style*="background-color: #fff"],
+    button[style*="background: #FFF"],
+    button[style*="background: #fff"] {
+        background-color: #FFFFFF !important;
+        border-color: #FFFFFF !important;
+        color: #1A1A1A !important;
+    }
+    
+    button[style*="background-color: rgb(255, 255, 255)"] *,
+    button[style*="background-color: rgba(255, 255, 255"] *,
+    button[style*="background: rgb(255, 255, 255)"] *,
+    button[style*="background: rgba(255, 255, 255"] *,
+    button[style*="background-color: #FFF"] *,
+    button[style*="background-color: #fff"] *,
+    button[style*="background: #FFF"] *,
+    button[style*="background: #fff"] * {
+        color: #1A1A1A !important;
+    }
+    
+    button[style*="background-color: rgb(255, 255, 255)"]:hover,
+    button[style*="background-color: #FFF"]:hover,
+    button[style*="background-color: #fff"]:hover {
+        background-color: #F0F0F0 !important;
+        border-color: #F0F0F0 !important;
+        color: #1A1A1A !important;
+    }
+    
+    /* AGGRESSIVE: Any button with white/light background */
+    button[class][style*="255"] {
+        color: #1A1A1A !important;
+    }
+    
+    button[class][style*="255"] span {
+        color: #1A1A1A !important;
     }
 }
 </style>
