@@ -334,34 +334,45 @@ FEATURE_FLAGS = {
 EXTRA_CSS = """
 /* Minimal CSS - theme tokens handle most styling */
 
-/* Modern floating pill scrollbar - Webkit (Chrome, Edge, Safari) */
-::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+/* Modern floating pill scrollbar - AGGRESSIVE OVERRIDE */
+html ::-webkit-scrollbar,
+body ::-webkit-scrollbar,
+* ::-webkit-scrollbar {
+    width: 6px !important;
+    height: 6px !important;
 }
 
-::-webkit-scrollbar-track {
-    background: transparent;
+html ::-webkit-scrollbar-track,
+body ::-webkit-scrollbar-track,
+* ::-webkit-scrollbar-track {
+    background: transparent !important;
 }
 
-::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, 0.25);
-    border-radius: 99px;
-    min-height: 40px;
+html ::-webkit-scrollbar-thumb,
+body ::-webkit-scrollbar-thumb,
+* ::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.25) !important;
+    border-radius: 99px !important;
+    min-height: 40px !important;
+    border: none !important;
 }
 
-::-webkit-scrollbar-thumb:hover {
-    background: rgba(0, 0, 0, 0.4);
+html ::-webkit-scrollbar-thumb:hover,
+body ::-webkit-scrollbar-thumb:hover,
+* ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.4) !important;
 }
 
-::-webkit-scrollbar-corner {
-    background: transparent;
+html ::-webkit-scrollbar-corner,
+body ::-webkit-scrollbar-corner,
+* ::-webkit-scrollbar-corner {
+    background: transparent !important;
 }
 
 /* Firefox */
-* {
-    scrollbar-width: thin;
-    scrollbar-color: rgba(0, 0, 0, 0.25) transparent;
+html, body, * {
+    scrollbar-width: thin !important;
+    scrollbar-color: rgba(0, 0, 0, 0.25) transparent !important;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -386,18 +397,22 @@ EXTRA_CSS = """
         color: #FFB088 !important;
     }
     
-    /* Dark mode scrollbar - lighter thumb for dark backgrounds */
-    ::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.25);
+    /* Dark mode scrollbar - AGGRESSIVE OVERRIDE */
+    html ::-webkit-scrollbar-thumb,
+    body ::-webkit-scrollbar-thumb,
+    * ::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.25) !important;
     }
     
-    ::-webkit-scrollbar-thumb:hover {
-        background: rgba(255, 255, 255, 0.4);
+    html ::-webkit-scrollbar-thumb:hover,
+    body ::-webkit-scrollbar-thumb:hover,
+    * ::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.4) !important;
     }
     
-    /* Firefox dark mode */
-    * {
-        scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+    /* Firefox dark mode - AGGRESSIVE */
+    html, body, * {
+        scrollbar-color: rgba(255, 255, 255, 0.25) transparent !important;
     }
 }
 """
