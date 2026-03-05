@@ -341,22 +341,14 @@ EXTRA_CSS = """
         stroke: #FF8A5C !important;
     }
     
-    /* Fix ghost/text buttons - ensure orange text on transparent bg */
-    .ant-btn-text, .ant-btn-link,
-    .ant-btn-background-ghost,
-    button[class*="text"], button[class*="ghost"] {
+    /* Fix: Link variant buttons should show primary color text, not primaryText color */
+    .ant-btn-color-primary.ant-btn-variant-link,
+    [class*="ant-btn-color-primary"][class*="ant-btn-variant-link"] {
         color: #FF8A5C !important;
     }
-    .ant-btn-text:hover, .ant-btn-link:hover,
-    .ant-btn-background-ghost:hover,
-    button[class*="text"]:hover, button[class*="ghost"]:hover {
+    .ant-btn-color-primary.ant-btn-variant-link:hover,
+    [class*="ant-btn-color-primary"][class*="ant-btn-variant-link"]:hover {
         color: #FFB088 !important;
-    }
-    
-    /* Ensure primary buttons keep dark text */
-    .ant-btn-primary, .ant-btn-primary span,
-    button[class*="primary"] span {
-        color: #0A0A0A !important;
     }
 }
 """
