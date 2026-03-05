@@ -80,6 +80,7 @@ if _PALETTE:
     _text = _get_color("text.primary.light", "#1F2937")
     _text_secondary = _get_color("text.secondary.light", "#4B5563")
     _text_muted = _get_color("text.muted.light", "#6B7280")
+    _text_placeholder = _get_color("text.placeholder.light", "#9CA3AF")
     _bg_light = _get_color("background.light", "#F8F9FA")
     _surface_light = _get_color("surface.light", "#FFFFFF")
     _border_light = _get_color("border.light", "#DEE2E6")
@@ -115,6 +116,7 @@ if _PALETTE:
         "colorText": _text,
         "colorTextSecondary": _text_secondary,
         "colorTextTertiary": _text_muted,
+        "colorTextPlaceholder": _text_placeholder,
         "colorBorder": _border_light,
         "colorBorderSecondary": _border_secondary_light,
         "borderRadius": 8,
@@ -132,6 +134,7 @@ if _PALETTE:
     _text_dark = _get_color("text.primary.dark", "#FAFAFA")
     _text_secondary_dark = _get_color("text.secondary.dark", "#E5E5E5")
     _text_muted_dark = _get_color("text.muted.dark", "#A3A3A3")
+    _text_placeholder_dark = _get_color("text.placeholder.dark", "#737373")
     _text_inverse_dark = _get_color("text.inverse.dark", "#0A0A0A")
     _bg_dark = _get_color("background.dark", "#0A0A0A")
     _surface_dark = _get_color("surface.dark", "#141414")
@@ -168,6 +171,7 @@ if _PALETTE:
         "colorText": _text_dark,
         "colorTextSecondary": _text_secondary_dark,
         "colorTextTertiary": _text_muted_dark,
+        "colorTextPlaceholder": _text_placeholder_dark,
         "colorBorder": _border_dark,
         "colorBorderSecondary": _border_secondary_dark,
         "borderRadius": 8,

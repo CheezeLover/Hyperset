@@ -45,6 +45,10 @@
       "inverse": {
         "light": "#FFFFFF",
         "dark": "#0A0A0A"
+      },
+      "placeholder": {
+        "light": "#9CA3AF",
+        "dark": "#737373"
       }
     },
     "border": {
