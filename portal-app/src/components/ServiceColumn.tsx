@@ -68,9 +68,6 @@ function ServiceBtn({
     : isPrimary
       ? "var(--md-icon-primary)"  // Orange icon on transparent background
       : "var(--md-on-sec-cont)";
-  const indicatorColor = isPrimary
-    ? "var(--md-primary)"
-    : "var(--md-secondary)";
 
   return (
     <div style={{ position: "relative" }}>
@@ -97,20 +94,6 @@ function ServiceBtn({
           boxShadow: "none",
         }}
       >
-        {/* Active indicator bar */}
-        {active && (
-          <span
-            style={{
-              position: "absolute",
-              left: 0,
-              top: 8,
-              bottom: 8,
-              width: 3,
-              borderRadius: "0 2px 2px 0",
-              background: indicatorColor,
-            }}
-          />
-        )}
         {children}
       </button>
       {/* Tooltip */}

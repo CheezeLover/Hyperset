@@ -1788,7 +1788,7 @@ export function ChatPanel({
               justifyContent: "center",
               boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
             }}>
-              <svg viewBox="0 0 24 24" width={32} height={32} fill="var(--md-primary)">
+              <svg viewBox="0 0 24 24" width={32} height={32} fill="var(--md-on-primary-cont)">
                 <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z" />
               </svg>
             </div>
