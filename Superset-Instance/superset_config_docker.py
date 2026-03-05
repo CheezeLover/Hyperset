@@ -341,13 +341,13 @@ EXTRA_CSS = """
         stroke: #FF8A5C !important;
     }
     
-    /* Fix: Link variant buttons - higher specificity with html body prefix */
-    html body .ant-btn-color-primary.ant-btn-variant-link,
-    html body [class*="ant-btn-color-primary"][class*="ant-btn-variant-link"] {
+    /* Fix: Link variant buttons should show primary color text, not primaryText color */
+    .ant-btn-color-primary.ant-btn-variant-link,
+    [class*="ant-btn-color-primary"][class*="ant-btn-variant-link"] {
         color: #FF8A5C !important;
     }
-    html body .ant-btn-color-primary.ant-btn-variant-link:hover,
-    html body [class*="ant-btn-color-primary"][class*="ant-btn-variant-link"]:hover {
+    .ant-btn-color-primary.ant-btn-variant-link:hover,
+    [class*="ant-btn-color-primary"][class*="ant-btn-variant-link"]:hover {
         color: #FFB088 !important;
     }
 }
