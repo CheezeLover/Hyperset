@@ -1040,36 +1040,6 @@ a:hover, .link:hover, .ant-table-cell a:hover,
     [class*="Tab"] button span {
         color: #1A1A1A !important;
     }
-    
-    /* Target buttons with light peach/orange background (#FFD4A3) - used in filter buttons */
-    button[style*="background-color: #FFD4A3"],
-    button[style*="background: #FFD4A3"],
-    button[style*="background-color: rgb(255, 212, 163)"],
-    button[style*="background: rgb(255, 212, 163)"] {
-        background-color: #FFD4A3 !important;
-        border-color: #FFD4A3 !important;
-        color: #1A1A1A !important;
-    }
-    
-    button[style*="background-color: #FFD4A3"] *,
-    button[style*="background: #FFD4A3"] *,
-    button[style*="background-color: rgb(255, 212, 163)"] *,
-    button[style*="background: rgb(255, 212, 163)"] * {
-        color: #1A1A1A !important;
-    }
-    
-    /* AGGRESSIVE: Any button with light peachy background colors */
-    button[style*="#FFD4"],
-    button[style*="#FFDC"],
-    button[style*="#FFE4"] {
-        color: #1A1A1A !important;
-    }
-    
-    button[style*="#FFD4"] span,
-    button[style*="#FFDC"] span,
-    button[style*="#FFE4"] span {
-        color: #1A1A1A !important;
-    }
 }
 """
 
@@ -1638,36 +1608,6 @@ DARK_MODE_CSS = """
     button[style*="#FFF6"] span,
     button[style*="#FFF0"] span,
     button[style*="#FFFA"] span {
-        color: #1A1A1A !important;
-    }
-    
-    /* Target buttons with light peach/orange background (#FFD4A3) - used in filter buttons */
-    button[style*="background-color: #FFD4A3"],
-    button[style*="background: #FFD4A3"],
-    button[style*="background-color: rgb(255, 212, 163)"],
-    button[style*="background: rgb(255, 212, 163)"] {
-        background-color: #FFD4A3 !important;
-        border-color: #FFD4A3 !important;
-        color: #1A1A1A !important;
-    }
-    
-    button[style*="background-color: #FFD4A3"] *,
-    button[style*="background: #FFD4A3"] *,
-    button[style*="background-color: rgb(255, 212, 163)"] *,
-    button[style*="background: rgb(255, 212, 163)"] * {
-        color: #1A1A1A !important;
-    }
-    
-    /* AGGRESSIVE: Any button with light peachy background colors */
-    button[style*="#FFD4"],
-    button[style*="#FFDC"],
-    button[style*="#FFE4"] {
-        color: #1A1A1A !important;
-    }
-    
-    button[style*="#FFD4"] span,
-    button[style*="#FFDC"] span,
-    button[style*="#FFE4"] span {
         color: #1A1A1A !important;
     }
 }
