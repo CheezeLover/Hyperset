@@ -10,8 +10,8 @@
       "light": "#E67E22",
       "lighter": "#F39C12",
       "muted": "#FF8A5C",
-      "textLight": "#0A0A0A",
-      "textDark": "#FFFFFF"
+      "textLight": "#FFFFFF",
+      "textDark": "#0A0A0A"
     },
     "secondary": {
       "base": "#57606F",
