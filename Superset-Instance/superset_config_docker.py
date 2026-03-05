@@ -497,24 +497,35 @@ a:hover, .link:hover, .ant-table-cell a:hover,
     
     /* White/Light buttons (like Favorite) - ensure dark text */
     button[style*="background-color: rgb(255, 255"],
+    /* Secondary/Default buttons - use dark gray background with light text in dark mode */
+    .ant-btn-default,
+    button[class*="ant-btn-default"] {
+        background-color: #2E2E33 !important;
+        border-color: #404040 !important;
+        color: #FAFAFA !important;
+    }
+    
+    .ant-btn-default span,
+    button[class*="ant-btn-default"] span {
+        color: #FAFAFA !important;
+    }
+    
+    /* Handle inline white backgrounds by converting to dark */
+    button[style*="background-color: rgb(255, 255"],
     button[style*="background-color: #fff"],
     button[style*="background-color: #FFF"],
     button[style*="background: rgb(255, 255"],
     button[style*="background: #fff"],
-    button[style*="background: #FFF"],
-    .ant-btn-default,
-    button[class*="ant-btn-default"] {
-        background-color: #FFFFFF !important;
-        border-color: #FFFFFF !important;
-        color: #1A1A1A !important;
+    button[style*="background: #FFF"] {
+        background-color: #2E2E33 !important;
+        border-color: #404040 !important;
+        color: #FAFAFA !important;
     }
     
     button[style*="background-color: rgb(255, 255"] span,
     button[style*="background-color: #fff"] span,
-    button[style*="background: #fff"] span,
-    .ant-btn-default span,
-    button[class*="ant-btn-default"] span {
-        color: #1A1A1A !important;
+    button[style*="background: #fff"] span {
+        color: #FAFAFA !important;
     }
     
     /* Menu items - ensure contrast on selected/active items */
@@ -620,19 +631,19 @@ a:hover, .link:hover, .ant-table-cell a:hover,
         color: #FF8A5C !important;
     }
     
-    /* Fix white/light buttons text color */
+    /* Fix secondary buttons - use dark background with light text in dark mode */
     button[class*="ant-btn-default"],
     .ant-btn-default {
-        background-color: #FFFFFF !important;
-        border-color: #FFFFFF !important;
-        color: #1A1A1A !important;
+        background-color: #2E2E33 !important;
+        border-color: #404040 !important;
+        color: #FAFAFA !important;
     }
     
     button[class*="ant-btn-default"] span,
     .ant-btn-default span,
     button[class*="ant-btn-default"] > span,
     .ant-btn-default > span {
-        color: #1A1A1A !important;
+        color: #FAFAFA !important;
     }
     
     /* Fix button text being cut off - ensure proper sizing */
@@ -812,16 +823,16 @@ a:hover, .link:hover, .ant-table-cell a:hover,
         color: #0A0A0A !important;
     }
     
-    /* White/Light buttons - ensure dark text */
+    /* Light/white buttons - convert to dark mode style */
     button[style*="background-color: rgb(255, 255"],
     button[style*="background-color: #FFF"],
     button[style*="background-color: #fff"],
     button[style*="background: rgb(255, 255"],
     button[style*="background: #FFF"],
     button[style*="background: #fff"] {
-        background-color: #FFFFFF !important;
-        border-color: #FFFFFF !important;
-        color: #1A1A1A !important;
+        background-color: #2E2E33 !important;
+        border-color: #404040 !important;
+        color: #FAFAFA !important;
     }
     
     button[style*="background-color: rgb(255, 255"] span,
@@ -830,15 +841,15 @@ a:hover, .link:hover, .ant-table-cell a:hover,
     button[style*="background: rgb(255, 255"] span,
     button[style*="background: #FFF"] span,
     button[style*="background: #fff"] span {
-        color: #1A1A1A !important;
+        color: #FAFAFA !important;
     }
     
-    /* Secondary buttons (ghost/outline style) - ensure contrast on dark background */
+    /* Secondary buttons - dark background with light text */
     .ant-btn-default,
     .ant-btn-secondary {
-        background-color: #FFFFFF !important;
-        border-color: #FFFFFF !important;
-        color: #1A1A1A !important;
+        background-color: #2E2E33 !important;
+        border-color: #404040 !important;
+        color: #FAFAFA !important;
     }
     .ant-btn-default:hover,
     .ant-btn-secondary:hover {
@@ -861,7 +872,7 @@ a:hover, .link:hover, .ant-table-cell a:hover,
         color: rgba(10, 10, 10, 0.5) !important;
     }
     
-    /* ULTRA AGGRESSIVE: White/Light buttons in EXTRA_CSS */
+    /* Light/white buttons - convert to dark theme */
     button[style*="background-color: rgb(255, 255, 255)"],
     button[style*="background-color: rgba(255, 255, 255"],
     button[style*="background: rgb(255, 255, 255)"],
@@ -870,9 +881,9 @@ a:hover, .link:hover, .ant-table-cell a:hover,
     button[style*="background-color: #fff"],
     button[style*="background: #FFF"],
     button[style*="background: #fff"] {
-        background-color: #FFFFFF !important;
-        border-color: #FFFFFF !important;
-        color: #1A1A1A !important;
+        background-color: #2E2E33 !important;
+        border-color: #404040 !important;
+        color: #FAFAFA !important;
     }
     
     button[style*="background-color: rgb(255, 255, 255)"] *,
@@ -883,36 +894,40 @@ a:hover, .link:hover, .ant-table-cell a:hover,
     button[style*="background-color: #fff"] *,
     button[style*="background: #FFF"] *,
     button[style*="background: #fff"] * {
-        color: #1A1A1A !important;
+        color: #FAFAFA !important;
     }
     
     /* FINAL NUCLEAR OVERRIDE: Ensure button text is NEVER orange on orange bg */
-    button,
-    button[class] {
-        color: inherit;
-    }
-    
-    button span,
-    button [class*="icon"] + span,
-    button > span:first-child,
-    button > span:last-child,
-    button > span:only-child {
-        color: inherit !important;
-    }
-    
-    /* Force computed color for buttons with orange backgrounds */
-    button[style*="background"],
+    /* Only apply to primary/orange buttons, not white/default buttons */
     button[class*="primary"],
     .ant-btn-primary,
-    [class*="button-primary"] {
+    [class*="button-primary"],
+    button[style*="background-color: rgb(255, 138"],
+    button[style*="background-color: #FF8A5C"],
+    button[style*="background: #FF8A5C"] {
         color: #0A0A0A !important;
     }
     
-    button[style*="background"] span,
     button[class*="primary"] span,
     .ant-btn-primary span,
-    [class*="button-primary"] span {
+    [class*="button-primary"] span,
+    button[style*="background-color: rgb(255, 138"] span,
+    button[style*="background-color: #FF8A5C"] span,
+    button[style*="background: #FF8A5C"] span {
         color: #0A0A0A !important;
+    }
+    
+    /* White/secondary buttons must have dark text */
+    .ant-btn-default,
+    button[class*="default"],
+    button[class*="secondary"] {
+        color: #1A1A1A !important;
+    }
+    
+    .ant-btn-default span,
+    button[class*="default"] span,
+    button[class*="secondary"] span {
+        color: #1A1A1A !important;
     }
     
     /* Override any orange text color on elements that have orange backgrounds */
@@ -921,41 +936,43 @@ a:hover, .link:hover, .ant-table-cell a:hover,
         color: #0A0A0A !important;
     }
     
-    /* Fix buttons with light orange/off-white background (#FFF6F0) - used in "Favorite" buttons */
+    /* Fix buttons with light orange/off-white background (#FFF6F0) - convert to dark theme */
     button[style*="background-color: #FFF6F0"],
     button[style*="background: #FFF6F0"],
     button[style*="background-color: rgb(255, 246, 240)"],
     button[style*="background: rgb(255, 246, 240)"] {
-        background-color: #FFF6F0 !important;
-        border-color: #FFF6F0 !important;
-        color: #1A1A1A !important;
+        background-color: #7C2D12 !important;
+        border-color: #9A3412 !important;
+        color: #FAFAFA !important;
     }
     
     button[style*="background-color: #FFF6F0"] *,
     button[style*="background: #FFF6F0"] *,
     button[style*="background-color: rgb(255, 246, 240)"] *,
     button[style*="background: rgb(255, 246, 240)"] * {
-        color: #1A1A1A !important;
+        color: #FAFAFA !important;
     }
     
     button[style*="background-color: #FFF6F0"]:hover,
     button[style*="background: #FFF6F0"]:hover {
-        background-color: #FFE8D6 !important;
-        border-color: #FFE8D6 !important;
-        color: #1A1A1A !important;
+        background-color: #9A3412 !important;
+        border-color: #C2410C !important;
+        color: #FAFAFA !important;
     }
     
     /* AGGRESSIVE: Fix any button with very light background (FFF6F0, FFF0F0, etc) */
     button[style*="#FFF6"],
     button[style*="#FFF0"],
     button[style*="#FFFA"] {
-        color: #1A1A1A !important;
+        background-color: #7C2D12 !important;
+        border-color: #9A3412 !important;
+        color: #FAFAFA !important;
     }
     
     button[style*="#FFF6"] span,
     button[style*="#FFF0"] span,
     button[style*="#FFFA"] span {
-        color: #1A1A1A !important;
+        color: #FAFAFA !important;
     }
 }
 """
@@ -1175,16 +1192,17 @@ DARK_MODE_CSS = """
         color: #0A0A0A !important;
     }
     
-    /* AGGRESSIVE: Force all span elements inside any button to inherit color */
-    button span {
-        color: inherit !important;
-    }
-    
-    /* Target buttons by their position in header */
+    /* Target buttons by their position in header - primary buttons get dark text */
     header button[class*="primary"] span,
     nav button[class*="primary"] span,
     .ant-layout-header button[class*="primary"] span {
         color: #0A0A0A !important;
+    }
+    
+    /* White/default buttons must have dark text - not inherit */
+    .ant-btn-default span,
+    button[class*="default"] span {
+        color: #1A1A1A !important;
     }
     
     /* Target status badges/pills */
@@ -1216,20 +1234,20 @@ DARK_MODE_CSS = """
         color: #737373 !important;
     }
     
-    /* White/Light buttons (like Favorite) - ensure dark text */
+    /* Secondary/Default buttons - dark background with light text */
     button[style*="background-color: rgb(255, 255"],
     button[style*="background-color: #fff"],
     button[style*="background-color: #FFF"],
     .ant-btn-default {
-        background-color: #FFFFFF !important;
-        border-color: #FFFFFF !important;
-        color: #1A1A1A !important;
+        background-color: #2E2E33 !important;
+        border-color: #404040 !important;
+        color: #FAFAFA !important;
     }
     
     button[style*="background-color: rgb(255, 255"] span,
     button[style*="background-color: #fff"] span,
     .ant-btn-default span {
-        color: #1A1A1A !important;
+        color: #FAFAFA !important;
     }
     
     /* Other primary-colored elements (not buttons) - split by element type */
@@ -1333,21 +1351,21 @@ DARK_MODE_CSS = """
         color: #FF6B35 !important;
     }
     
-    /* Secondary/Default buttons - white bg with dark text */
+    /* Secondary/Default buttons - dark bg with light text */
     .ant-btn-default {
-        background-color: #FFFFFF !important;
-        border-color: #FFFFFF !important;
-        color: #1A1A1A !important;
+        background-color: #2E2E33 !important;
+        border-color: #404040 !important;
+        color: #FAFAFA !important;
     }
     
     .ant-btn-default span {
-        color: #1A1A1A !important;
+        color: #FAFAFA !important;
     }
     
     .ant-btn-default:hover {
-        background-color: #F0F0F0 !important;
-        border-color: #F0F0F0 !important;
-        color: #1A1A1A !important;
+        background-color: #3E3E43 !important;
+        border-color: #505050 !important;
+        color: #FAFAFA !important;
     }
     
     /* Disabled primary buttons - ensure text stays dark */
@@ -1449,7 +1467,7 @@ DARK_MODE_CSS = """
         white-space: nowrap !important;
     }
     
-    /* ULTRA AGGRESSIVE: White buttons with dark text - target by computed styles */
+    /* Light/white buttons - convert to dark theme style */
     button[style*="background-color: rgb(255, 255, 255)"],
     button[style*="background-color: rgba(255, 255, 255"],
     button[style*="background: rgb(255, 255, 255)"],
@@ -1458,9 +1476,9 @@ DARK_MODE_CSS = """
     button[style*="background-color: #fff"],
     button[style*="background: #FFF"],
     button[style*="background: #fff"] {
-        background-color: #FFFFFF !important;
-        border-color: #FFFFFF !important;
-        color: #1A1A1A !important;
+        background-color: #2E2E33 !important;
+        border-color: #404040 !important;
+        color: #FAFAFA !important;
     }
     
     button[style*="background-color: rgb(255, 255, 255)"] *,
@@ -1471,15 +1489,15 @@ DARK_MODE_CSS = """
     button[style*="background-color: #fff"] *,
     button[style*="background: #FFF"] *,
     button[style*="background: #fff"] * {
-        color: #1A1A1A !important;
+        color: #FAFAFA !important;
     }
     
     button[style*="background-color: rgb(255, 255, 255)"]:hover,
     button[style*="background-color: #FFF"]:hover,
     button[style*="background-color: #fff"]:hover {
-        background-color: #F0F0F0 !important;
-        border-color: #F0F0F0 !important;
-        color: #1A1A1A !important;
+        background-color: #3E3E43 !important;
+        border-color: #505050 !important;
+        color: #FAFAFA !important;
     }
     
     /* AGGRESSIVE: Any button with white/light background */
@@ -1488,44 +1506,46 @@ DARK_MODE_CSS = """
     }
     
     button[class][style*="255"] span {
-        color: #1A1A1A !important;
+        color: #FAFAFA !important;
     }
     
-    /* Fix buttons with light orange/off-white background (#FFF6F0) - used in "Favorite" buttons */
+    /* Fix buttons with light orange/off-white background (#FFF6F0) - convert to dark theme */
     button[style*="background-color: #FFF6F0"],
     button[style*="background: #FFF6F0"],
     button[style*="background-color: rgb(255, 246, 240)"],
     button[style*="background: rgb(255, 246, 240)"] {
-        background-color: #FFF6F0 !important;
-        border-color: #FFF6F0 !important;
-        color: #1A1A1A !important;
+        background-color: #7C2D12 !important;
+        border-color: #9A3412 !important;
+        color: #FAFAFA !important;
     }
     
     button[style*="background-color: #FFF6F0"] *,
     button[style*="background: #FFF6F0"] *,
     button[style*="background-color: rgb(255, 246, 240)"] *,
     button[style*="background: rgb(255, 246, 240)"] * {
-        color: #1A1A1A !important;
+        color: #FAFAFA !important;
     }
     
     button[style*="background-color: #FFF6F0"]:hover,
     button[style*="background: #FFF6F0"]:hover {
-        background-color: #FFE8D6 !important;
-        border-color: #FFE8D6 !important;
-        color: #1A1A1A !important;
+        background-color: #9A3412 !important;
+        border-color: #C2410C !important;
+        color: #FAFAFA !important;
     }
     
     /* AGGRESSIVE: Fix any button with very light background (FFF6F0, FFF0F0, etc) */
     button[style*="#FFF6"],
     button[style*="#FFF0"],
     button[style*="#FFFA"] {
-        color: #1A1A1A !important;
+        background-color: #7C2D12 !important;
+        border-color: #9A3412 !important;
+        color: #FAFAFA !important;
     }
     
     button[style*="#FFF6"] span,
     button[style*="#FFF0"] span,
     button[style*="#FFFA"] span {
-        color: #1A1A1A !important;
+        color: #FAFAFA !important;
     }
 }
 </style>

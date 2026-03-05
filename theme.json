@@ -9,12 +9,16 @@
       "dark": "#A04000",
       "light": "#E67E22",
       "lighter": "#F39C12",
-      "muted": "#FF8A5C"
+      "muted": "#FF8A5C",
+      "textLight": "#FFFFFF",
+      "textDark": "#0A0A0A"
     },
     "secondary": {
       "base": "#57606F",
       "light": "#747D8C",
-      "muted": "#9CA3AF"
+      "muted": "#9CA3AF",
+      "darkBg": "#2E2E33",
+      "darkText": "#FAFAFA"
     },
     "background": {
       "light": "#F8F9FA",
