@@ -15,8 +15,8 @@
   --md-on-primary-cont: var(--theme-primary-text, #FFFFFF);
   --md-icon-primary:    var(--theme-icon-primary, #D35400);
 
-  /* Scrollbar colors */
-  --md-scrollbar-thumb: var(--theme-border-muted, #e5e5e5);
+  /* Scrollbar colors - modern floating pill */
+  --md-scrollbar-thumb: rgba(0, 0, 0, 0.25);
   --md-scrollbar-track: transparent;
 
   /* Secondary colors */
