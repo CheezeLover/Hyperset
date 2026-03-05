@@ -1070,53 +1070,6 @@ a:hover, .link:hover, .ant-table-cell a:hover,
     button[style*="#FFE4"] span {
         color: #1A1A1A !important;
     }
-    
-    /* FORCE INITIAL STATE: Target buttons before any interaction */
-    /* Use :not(:hover):not(:active):not(:focus) to target only initial state */
-    button:not(:hover):not(:active):not(:focus) {
-        color: inherit;
-    }
-    
-    button:not(:hover):not(:active):not(:focus) span {
-        color: inherit !important;
-    }
-    
-    /* SPECIFIC: Button groups and filter buttons on initial load */
-    .ant-btn-group > button,
-    [class*="btn-group"] > button,
-    [class*="button-group"] > button {
-        color: #1A1A1A !important;
-    }
-    
-    .ant-btn-group > button span,
-    [class*="btn-group"] > button span,
-    [class*="button-group"] > button span {
-        color: #1A1A1A !important;
-    }
-    
-    /* Target by role for immediate visibility */
-    [role="button"]:not([class*="primary"]):not([class*="danger"]):not([style*="background-color: rgb(255, 138, 92)"]):not([style*="background-color: #FF8A5C"]) {
-        color: #1A1A1A !important;
-    }
-    
-    [role="button"]:not([class*="primary"]):not([class*="danger"]):not([style*="background-color: rgb(255, 138, 92)"]):not([style*="background-color: #FF8A5C"]) span {
-        color: #1A1A1A !important;
-    }
-    
-    /* ULTRA SPECIFIC: Home page content area buttons */
-    main button,
-    [class*="content"] button,
-    [class*="Content"] button,
-    .ant-layout-content button {
-        color: #1A1A1A !important;
-    }
-    
-    main button span,
-    [class*="content"] button span,
-    [class*="Content"] button span,
-    .ant-layout-content button span {
-        color: #1A1A1A !important;
-    }
 }
 """
 
@@ -1715,52 +1668,6 @@ DARK_MODE_CSS = """
     button[style*="#FFD4"] span,
     button[style*="#FFDC"] span,
     button[style*="#FFE4"] span {
-        color: #1A1A1A !important;
-    }
-    
-    /* FORCE INITIAL STATE: Target buttons before any interaction */
-    button:not(:hover):not(:active):not(:focus) {
-        color: inherit;
-    }
-    
-    button:not(:hover):not(:active):not(:focus) span {
-        color: inherit !important;
-    }
-    
-    /* SPECIFIC: Button groups and filter buttons on initial load */
-    .ant-btn-group > button,
-    [class*="btn-group"] > button,
-    [class*="button-group"] > button {
-        color: #1A1A1A !important;
-    }
-    
-    .ant-btn-group > button span,
-    [class*="btn-group"] > button span,
-    [class*="button-group"] > button span {
-        color: #1A1A1A !important;
-    }
-    
-    /* Target by role for immediate visibility */
-    [role="button"]:not([class*="primary"]):not([class*="danger"]):not([style*="background-color: rgb(255, 138, 92)"]):not([style*="background-color: #FF8A5C"]) {
-        color: #1A1A1A !important;
-    }
-    
-    [role="button"]:not([class*="primary"]):not([class*="danger"]):not([style*="background-color: rgb(255, 138, 92)"]):not([style*="background-color: #FF8A5C"]) span {
-        color: #1A1A1A !important;
-    }
-    
-    /* ULTRA SPECIFIC: Home page content area buttons */
-    main button,
-    [class*="content"] button,
-    [class*="Content"] button,
-    .ant-layout-content button {
-        color: #1A1A1A !important;
-    }
-    
-    main button span,
-    [class*="content"] button span,
-    [class*="Content"] button span,
-    .ant-layout-content button span {
         color: #1A1A1A !important;
     }
 }
