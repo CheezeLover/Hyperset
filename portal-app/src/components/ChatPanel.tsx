@@ -32,6 +32,11 @@ export interface ToolCall {
   name: string;
   args: Record<string, unknown>;
   result?: string;
+  metadata?: {
+    pageType?: string;
+    pageId?: string | null;
+    pageName?: string | null;
+  };
 }
 
 export interface Message {
@@ -914,7 +919,14 @@ function ToolStep({ tc }: { tc: ToolCall }) {
           fontFamily: "ui-monospace, SFMono-Regular, monospace",
         }}>
           {`args: ${JSON.stringify(tc.args, null, 2)}`}
-          {tc.result !== undefined ? `\n\nresult: ${tc.result}` : ""}
+          {tc.result !== undefined ? `
+
+result: ${tc.result}` : ""}
+          {tc.name === "get_superset_current_url" && tc.metadata ? `
+
+page type: ${tc.metadata.pageType || "unknown"}${tc.metadata.pageId ? `
+page ID: ${tc.metadata.pageId}` : ""}${tc.metadata.pageName ? `
+page name: ${tc.metadata.pageName}` : ""}` : ""}
         </pre>
       )}
     </div>
@@ -1272,7 +1284,7 @@ export function ChatPanel({
   // Track the current URL of the Superset iframe
   const currentSupersetUrlRef = useRef<string>(supersetUrl);
   // Track pending URL request callbacks - requestId -> callback
-  const pendingUrlRequestsRef = useRef<Map<string, (url: string) => void>>(new Map());
+  const pendingUrlRequestsRef = useRef<Map<string, (url: string, pageType?: string, pageId?: string | null, pageName?: string | null) => void>>(new Map());
 
   // Probe endpoint on mount
   useEffect(() => {
@@ -1303,10 +1315,10 @@ export function ChatPanel({
       }
       const msg = event.data as SupersetToPortal;
       if (msg?.type === "current_url" && msg.requestId) {
-        console.log('[Portal] Got current_url response for request:', msg.requestId, 'URL:', msg.url);
+        console.log('[Portal] Got current_url response for request:', msg.requestId, 'URL:', msg.url, 'type:', msg.pageType, 'id:', msg.pageId);
         const callback = pendingUrlRequestsRef.current.get(msg.requestId);
         if (callback) {
-          callback(msg.url);
+          callback(msg.url, msg.pageType, msg.pageId, msg.pageName);
           pendingUrlRequestsRef.current.delete(msg.requestId);
         } else {
           console.log('[Portal] No callback found for requestId:', msg.requestId);
@@ -1429,13 +1441,15 @@ export function ChatPanel({
               const requestId = `url_req_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
               // Create a promise that resolves when we get the response
-              const urlPromise = new Promise<string>((resolve) => {
-                pendingUrlRequestsRef.current.set(requestId, resolve);
+              const urlPromise = new Promise<{url: string; pageType?: string; pageId?: string | null; pageName?: string | null}>((resolve) => {
+                pendingUrlRequestsRef.current.set(requestId, (url, pageType, pageId, pageName) => {
+                  resolve({ url, pageType, pageId, pageName });
+                });
                 // Set a timeout in case we don't get a response
                 setTimeout(() => {
                   if (pendingUrlRequestsRef.current.has(requestId)) {
                     pendingUrlRequestsRef.current.delete(requestId);
-                    resolve(supersetIframeRef.current?.src || currentSupersetUrlRef.current || "Unknown");
+                    resolve({ url: supersetIframeRef.current?.src || currentSupersetUrlRef.current || "Unknown" });
                   }
                 }, 1000);
               });
@@ -1448,14 +1462,18 @@ export function ChatPanel({
               );
 
               // Wait for the response and update the tool call with the result
-              urlPromise.then((url) => {
+              urlPromise.then(({ url, pageType, pageId, pageName }) => {
                 setMessages((prev) => prev.map((m) => {
                   if (m.id !== assistantId) return m;
                   const calls = [...(m.toolCalls ?? [])];
                   // Find the last get_superset_current_url call without a result
                   for (let i = calls.length - 1; i >= 0; i--) {
                     if (calls[i].name === "get_superset_current_url" && calls[i].result === undefined) {
-                      calls[i] = { ...calls[i], result: `Current Superset URL: ${url}` };
+                      calls[i] = { 
+                        ...calls[i], 
+                        result: `Current Superset URL: ${url}`,
+                        metadata: { pageType, pageId, pageName }
+                      };
                       break;
                     }
                   }
@@ -1657,13 +1675,15 @@ export function ChatPanel({
               const requestId = `url_req_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
               // Create a promise that resolves when we get the response
-              const urlPromise = new Promise<string>((resolve) => {
-                pendingUrlRequestsRef.current.set(requestId, resolve);
+              const urlPromise = new Promise<{url: string; pageType?: string; pageId?: string | null; pageName?: string | null}>((resolve) => {
+                pendingUrlRequestsRef.current.set(requestId, (url, pageType, pageId, pageName) => {
+                  resolve({ url, pageType, pageId, pageName });
+                });
                 // Set a timeout in case we don't get a response
                 setTimeout(() => {
                   if (pendingUrlRequestsRef.current.has(requestId)) {
                     pendingUrlRequestsRef.current.delete(requestId);
-                    resolve(supersetIframeRef.current?.src || currentSupersetUrlRef.current || "Unknown");
+                    resolve({ url: supersetIframeRef.current?.src || currentSupersetUrlRef.current || "Unknown" });
                   }
                 }, 1000);
               });
@@ -1676,14 +1696,18 @@ export function ChatPanel({
               );
 
               // Wait for the response and update the tool call with the result
-              urlPromise.then((url) => {
+              urlPromise.then(({ url, pageType, pageId, pageName }) => {
                 setMessages((prev) => prev.map((m) => {
                   if (m.id !== assistantId) return m;
                   const calls = [...(m.toolCalls ?? [])];
                   // Find the last get_superset_current_url call without a result
                   for (let i = calls.length - 1; i >= 0; i--) {
                     if (calls[i].name === "get_superset_current_url" && calls[i].result === undefined) {
-                      calls[i] = { ...calls[i], result: `Current Superset URL: ${url}` };
+                      calls[i] = { 
+                        ...calls[i], 
+                        result: `Current Superset URL: ${url}`,
+                        metadata: { pageType, pageId, pageName }
+                      };
                       break;
                     }
                   }
