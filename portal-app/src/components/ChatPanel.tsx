@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { AdminModal } from "./AdminModal";
-import { sendToSuperset, type SupersetToPortal } from "@/lib/superset-bridge";
 
 interface ChatPanelProps {
   isAdmin: boolean;
@@ -892,8 +891,6 @@ function ToolStep({ tc }: { tc: ToolCall }) {
           </>
         ) : isNav ? (
           <span>↗ {tc.name === "navigate_superset_dashboard" ? `Dashboard ${tc.args.dashboardId ?? ""}` : `Chart ${tc.args.chartId ?? ""}`}</span>
-        ) : tc.name === "get_superset_current_url" ? (
-          <span>📍 Get current URL</span>
         ) : (
           <span>✓ {tc.name.replace(/_/g, " ")}</span>
         )}
@@ -1269,10 +1266,6 @@ export function ChatPanel({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const supersetOrigin = (() => { try { return new URL(supersetUrl).origin; } catch { return "*"; } })();
   const abortControllerRef = useRef<AbortController | null>(null);
-  // Track the current URL of the Superset iframe
-  const currentSupersetUrlRef = useRef<string>(supersetUrl);
-  // Track pending URL request callbacks - requestId -> callback
-  const pendingUrlRequestsRef = useRef<Map<string, (url: string) => void>>(new Map());
 
   // Probe endpoint on mount
   useEffect(() => {
@@ -1292,30 +1285,6 @@ export function ChatPanel({
     textareaRef.current?.focus();
     onInjectionConsumed();
   }, [injectedMessage, onInjectionConsumed]);
-
-  // Listen for current_url responses from Superset iframe
-  useEffect(() => {
-    const handler = (event: MessageEvent) => {
-      console.log('[Portal] Received message:', event.data, 'from origin:', event.origin, 'expected:', supersetOrigin);
-      if (event.origin !== supersetOrigin) {
-        console.log('[Portal] Origin mismatch, ignoring');
-        return;
-      }
-      const msg = event.data as SupersetToPortal;
-      if (msg?.type === "current_url" && msg.requestId) {
-        console.log('[Portal] Got current_url response for request:', msg.requestId, 'URL:', msg.url);
-        const callback = pendingUrlRequestsRef.current.get(msg.requestId);
-        if (callback) {
-          callback(msg.url);
-          pendingUrlRequestsRef.current.delete(msg.requestId);
-        } else {
-          console.log('[Portal] No callback found for requestId:', msg.requestId);
-        }
-      }
-    };
-    window.addEventListener("message", handler);
-    return () => window.removeEventListener("message", handler);
-  }, [supersetOrigin]);
 
   // Auto-scroll
   useEffect(() => {
@@ -1424,44 +1393,6 @@ export function ChatPanel({
                 { type: "navigate_chart", chartId: (event.args as Record<string, unknown>).chartId },
                 supersetOrigin
               );
-            } else if (event.name === "get_superset_current_url") {
-              // Send postMessage to Superset iframe to get current URL
-              const requestId = `url_req_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-
-              // Create a promise that resolves when we get the response
-              const urlPromise = new Promise<string>((resolve) => {
-                pendingUrlRequestsRef.current.set(requestId, resolve);
-                // Set a timeout in case we don't get a response
-                setTimeout(() => {
-                  if (pendingUrlRequestsRef.current.has(requestId)) {
-                    pendingUrlRequestsRef.current.delete(requestId);
-                    resolve(supersetIframeRef.current?.src || currentSupersetUrlRef.current || "Unknown");
-                  }
-                }, 1000);
-              });
-
-              // Send the request to the iframe
-              sendToSuperset(
-                supersetIframeRef.current,
-                { type: "get_current_url", requestId },
-                supersetOrigin
-              );
-
-              // Wait for the response and update the tool call with the result
-              urlPromise.then((url) => {
-                setMessages((prev) => prev.map((m) => {
-                  if (m.id !== assistantId) return m;
-                  const calls = [...(m.toolCalls ?? [])];
-                  // Find the last get_superset_current_url call without a result
-                  for (let i = calls.length - 1; i >= 0; i--) {
-                    if (calls[i].name === "get_superset_current_url" && calls[i].result === undefined) {
-                      calls[i] = { ...calls[i], result: `Current Superset URL: ${url}` };
-                      break;
-                    }
-                  }
-                  return { ...m, toolCalls: calls };
-                }));
-              });
             }
             setMessages((prev) => prev.map((m) => m.id === assistantId
               ? { ...m, toolCalls: [...(m.toolCalls ?? []), tc] }
@@ -1472,12 +1403,9 @@ export function ChatPanel({
               if (m.id !== assistantId) return m;
               const calls = [...(m.toolCalls ?? [])];
               // Update the last matching tool call with its result
-              // Skip get_superset_current_url - client handles it from iframe response
               for (let i = calls.length - 1; i >= 0; i--) {
                 if (calls[i].name === event.name && calls[i].result === undefined) {
-                  if (event.name !== "get_superset_current_url") {
-                    calls[i] = { ...calls[i], result: event.result as string };
-                  }
+                  calls[i] = { ...calls[i], result: event.result as string };
                   break;
                 }
               }
@@ -1544,12 +1472,9 @@ export function ChatPanel({
       const u = new URL(url);
       u.searchParams.delete("standalone");          // superset embedded mode
       u.searchParams.delete("native_filters_key");  // may carry stale filter state
-      const newUrl = u.toString();
-      supersetIframeRef.current.src = newUrl;
-      currentSupersetUrlRef.current = newUrl;
+      supersetIframeRef.current.src = u.toString();
     } catch {
       supersetIframeRef.current.src = url;
-      currentSupersetUrlRef.current = url;
     }
   }, [supersetIframeRef]);
   
@@ -1652,44 +1577,6 @@ export function ChatPanel({
                 { type: "navigate_chart", chartId: (event.args as Record<string, unknown>).chartId },
                 supersetOrigin
               );
-            } else if (event.name === "get_superset_current_url") {
-              // Send postMessage to Superset iframe to get current URL
-              const requestId = `url_req_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-
-              // Create a promise that resolves when we get the response
-              const urlPromise = new Promise<string>((resolve) => {
-                pendingUrlRequestsRef.current.set(requestId, resolve);
-                // Set a timeout in case we don't get a response
-                setTimeout(() => {
-                  if (pendingUrlRequestsRef.current.has(requestId)) {
-                    pendingUrlRequestsRef.current.delete(requestId);
-                    resolve(supersetIframeRef.current?.src || currentSupersetUrlRef.current || "Unknown");
-                  }
-                }, 1000);
-              });
-
-              // Send the request to the iframe
-              sendToSuperset(
-                supersetIframeRef.current,
-                { type: "get_current_url", requestId },
-                supersetOrigin
-              );
-
-              // Wait for the response and update the tool call with the result
-              urlPromise.then((url) => {
-                setMessages((prev) => prev.map((m) => {
-                  if (m.id !== assistantId) return m;
-                  const calls = [...(m.toolCalls ?? [])];
-                  // Find the last get_superset_current_url call without a result
-                  for (let i = calls.length - 1; i >= 0; i--) {
-                    if (calls[i].name === "get_superset_current_url" && calls[i].result === undefined) {
-                      calls[i] = { ...calls[i], result: `Current Superset URL: ${url}` };
-                      break;
-                    }
-                  }
-                  return { ...m, toolCalls: calls };
-                }));
-              });
             }
             setMessages((prev) => prev.map((m) => m.id === assistantId
               ? { ...m, toolCalls: [...(m.toolCalls ?? []), tc] }
@@ -1887,6 +1774,7 @@ export function ChatPanel({
             justifyContent: "center",
             height: "100%",
             gap: 16,
+            opacity: 0.55,
             userSelect: "none",
             animation: "fadeInUp 0.5s ease-out",
           }}>
