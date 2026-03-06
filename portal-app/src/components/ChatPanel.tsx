@@ -891,6 +891,8 @@ function ToolStep({ tc }: { tc: ToolCall }) {
           </>
         ) : isNav ? (
           <span>↗ {tc.name === "navigate_superset_dashboard" ? `Dashboard ${tc.args.dashboardId ?? ""}` : `Chart ${tc.args.chartId ?? ""}`}</span>
+        ) : tc.name === "get_superset_current_url" ? (
+          <span>📍 Get current URL</span>
         ) : (
           <span>✓ {tc.name.replace(/_/g, " ")}</span>
         )}
@@ -1266,6 +1268,8 @@ export function ChatPanel({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const supersetOrigin = (() => { try { return new URL(supersetUrl).origin; } catch { return "*"; } })();
   const abortControllerRef = useRef<AbortController | null>(null);
+  // Track the current URL of the Superset iframe
+  const currentSupersetUrlRef = useRef<string>(supersetUrl);
 
   // Probe endpoint on mount
   useEffect(() => {
@@ -1393,6 +1397,10 @@ export function ChatPanel({
                 { type: "navigate_chart", chartId: (event.args as Record<string, unknown>).chartId },
                 supersetOrigin
               );
+            } else if (event.name === "get_superset_current_url") {
+              // Get the current URL from the iframe
+              const currentUrl = supersetIframeRef.current?.src || currentSupersetUrlRef.current || "Unknown";
+              tc.result = `Current Superset URL: ${currentUrl}`;
             }
             setMessages((prev) => prev.map((m) => m.id === assistantId
               ? { ...m, toolCalls: [...(m.toolCalls ?? []), tc] }
@@ -1472,9 +1480,12 @@ export function ChatPanel({
       const u = new URL(url);
       u.searchParams.delete("standalone");          // superset embedded mode
       u.searchParams.delete("native_filters_key");  // may carry stale filter state
-      supersetIframeRef.current.src = u.toString();
+      const newUrl = u.toString();
+      supersetIframeRef.current.src = newUrl;
+      currentSupersetUrlRef.current = newUrl;
     } catch {
       supersetIframeRef.current.src = url;
+      currentSupersetUrlRef.current = url;
     }
   }, [supersetIframeRef]);
   
@@ -1577,6 +1588,10 @@ export function ChatPanel({
                 { type: "navigate_chart", chartId: (event.args as Record<string, unknown>).chartId },
                 supersetOrigin
               );
+            } else if (event.name === "get_superset_current_url") {
+              // Get the current URL from the iframe
+              const currentUrl = supersetIframeRef.current?.src || currentSupersetUrlRef.current || "Unknown";
+              tc.result = `Current Superset URL: ${currentUrl}`;
             }
             setMessages((prev) => prev.map((m) => m.id === assistantId
               ? { ...m, toolCalls: [...(m.toolCalls ?? []), tc] }
