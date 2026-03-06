@@ -1296,13 +1296,20 @@ export function ChatPanel({
   // Listen for current_url responses from Superset iframe
   useEffect(() => {
     const handler = (event: MessageEvent) => {
-      if (event.origin !== supersetOrigin) return;
+      console.log('[Portal] Received message:', event.data, 'from origin:', event.origin, 'expected:', supersetOrigin);
+      if (event.origin !== supersetOrigin) {
+        console.log('[Portal] Origin mismatch, ignoring');
+        return;
+      }
       const msg = event.data as SupersetToPortal;
       if (msg?.type === "current_url" && msg.requestId) {
+        console.log('[Portal] Got current_url response for request:', msg.requestId, 'URL:', msg.url);
         const callback = pendingUrlRequestsRef.current.get(msg.requestId);
         if (callback) {
           callback(msg.url);
           pendingUrlRequestsRef.current.delete(msg.requestId);
+        } else {
+          console.log('[Portal] No callback found for requestId:', msg.requestId);
         }
       }
     };
