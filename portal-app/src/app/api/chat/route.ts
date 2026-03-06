@@ -269,6 +269,17 @@ export const POST = async (req: NextRequest) => {
         },
       },
     },
+    {
+      type: "function",
+      function: {
+        name: "get_superset_url",
+        description: "Get the URL of the currently opened page in the embedded Superset iframe. Use this to check what dashboard or chart is currently being viewed.",
+        parameters: {
+          type: "object",
+          properties: {},
+        },
+      },
+    },
   ];
 
   // Knowledge base tools - allows LLM to explicitly query the knowledge base
@@ -322,6 +333,7 @@ export const POST = async (req: NextRequest) => {
     const include = new Set([
       "navigate_superset_dashboard",
       "navigate_superset_chart",
+      "get_superset_url",
       "knowledge_base_list",
       "knowledge_base_search",
       "superset_dashboard_list",
@@ -617,6 +629,9 @@ Administrators can upload documents through the Admin Settings > Knowledge Base 
             if (tc.name === "navigate_superset_dashboard" || tc.name === "navigate_superset_chart") {
               // Navigation is handled client-side; just confirm
               result = `Navigation to ${tc.name === "navigate_superset_dashboard" ? "dashboard" : "chart"} ${Object.values(args)[0]} requested.`;
+            } else if (tc.name === "get_superset_url") {
+              // Return a marker that the client will replace with the actual URL
+              result = "CLIENT_FETCH_URL:";
             } else if (tc.name === "knowledge_base_list") {
               // Knowledge base list tool - return the list of documents with stats
               try {
