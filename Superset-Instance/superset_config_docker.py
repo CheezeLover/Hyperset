@@ -523,6 +523,88 @@ class HypersetSecurityManager(SupersetSecurityManager):
 
 CUSTOM_SECURITY_MANAGER = HypersetSecurityManager
 
+# Hyperset Portal Bridge Script - handles postMessage communication with parent
+HYPERSET_BRIDGE_SCRIPT = """
+<script id="hyperset-portal-bridge">
+(function() {
+  'use strict';
+  
+  // Only run inside an iframe
+  if (window.self === window.top) return;
+  
+  // Get the portal origin from the parent
+  var portalOrigin = document.referrer ? new URL(document.referrer).origin : '*';
+  
+  // Listen for messages from parent portal
+  window.addEventListener('message', function(event) {
+    // Validate origin
+    if (portalOrigin !== '*' && event.origin !== portalOrigin) {
+      console.log('[HypersetBridge] Ignoring message from unknown origin:', event.origin);
+      return;
+    }
+    
+    var msg = event.data;
+    if (!msg || typeof msg !== 'object') return;
+    
+    // Handle get_current_url request
+    if (msg.type === 'get_current_url' && msg.requestId) {
+      console.log('[HypersetBridge] Received get_current_url request:', msg.requestId);
+      
+      try {
+        // Get the current URL from the iframe
+        var currentUrl = window.location.href;
+        
+        // Send response back to parent
+        event.source.postMessage({
+          type: 'current_url',
+          requestId: msg.requestId,
+          url: currentUrl
+        }, event.origin);
+        
+        console.log('[HypersetBridge] Sent current_url response:', currentUrl);
+      } catch (err) {
+        console.error('[HypersetBridge] Error getting current URL:', err);
+        
+        // Send error response
+        event.source.postMessage({
+          type: 'current_url',
+          requestId: msg.requestId,
+          url: window.location.href || 'Unknown',
+          error: err.message
+        }, event.origin);
+      }
+    }
+    
+    // Handle navigation requests
+    if (msg.type === 'navigate_dashboard' && msg.dashboardId) {
+      console.log('[HypersetBridge] Navigating to dashboard:', msg.dashboardId);
+      window.location.href = '/superset/dashboard/' + msg.dashboardId + '/';
+    }
+    
+    if (msg.type === 'navigate_chart' && msg.chartId) {
+      console.log('[HypersetBridge] Navigating to chart:', msg.chartId);
+      window.location.href = '/superset/explore/?form_data=%7B%22slice_id%22%3A' + msg.chartId + '%7D';
+    }
+    
+    if (msg.type === 'navigate_sql_lab') {
+      console.log('[HypersetBridge] Navigating to SQL Lab');
+      window.location.href = '/superset/sqllab/';
+    }
+    
+    if (msg.type === 'ping') {
+      event.source.postMessage({ type: 'pong' }, event.origin);
+    }
+  });
+  
+  // Notify parent that iframe is ready
+  if (window.parent !== window.self) {
+    window.parent.postMessage({ type: 'ready' }, '*');
+    console.log('[HypersetBridge] Bridge initialized and ready');
+  }
+})();
+</script>
+"""
+
 # Dark mode CSS to inject into HTML responses
 DARK_MODE_CSS = """
 <style id="hyperset-dark-mode-fix">
@@ -621,17 +703,32 @@ def FLASK_APP_MUTATOR(app):
         return Response(json.dumps(theme_info, indent=2), mimetype='application/json')
 
     @app.after_request
-    def inject_dark_mode_css(response):
-        """Inject dark mode CSS into HTML responses"""
+    def inject_hyperset_assets(response):
+        """Inject dark mode CSS and portal bridge script into HTML responses"""
         if response.content_type and 'text/html' in response.content_type:
             try:
                 html = response.get_data(as_text=True)
-                if '</head>' in html:
+                modified = False
+                
+                # Inject dark mode CSS before </head>
+                if '</head>' in html and 'hyperset-dark-mode-fix' not in html:
                     html = html.replace('</head>', DARK_MODE_CSS + '</head>')
-                    response.set_data(html)
+                    modified = True
                     logger.debug("[Theme] Injected dark mode CSS")
+                
+                # Inject portal bridge script before </body> or </head>
+                if 'hyperset-portal-bridge' not in html:
+                    if '</body>' in html:
+                        html = html.replace('</body>', HYPERSET_BRIDGE_SCRIPT + '</body>')
+                    elif '</head>' in html:
+                        html = html.replace('</head>', HYPERSET_BRIDGE_SCRIPT + '</head>')
+                    modified = True
+                    logger.debug("[Bridge] Injected portal bridge script")
+                
+                if modified:
+                    response.set_data(html)
             except Exception as e:
-                logger.error(f"[Theme] Error injecting CSS: {e}")
+                logger.error(f"[HypersetAssets] Error injecting assets: {e}")
         return response
 
     @app.before_request
