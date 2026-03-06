@@ -523,6 +523,43 @@ class HypersetSecurityManager(SupersetSecurityManager):
 
 CUSTOM_SECURITY_MANAGER = HypersetSecurityManager
 
+# Custom JavaScript to inject into HTML responses for Hyperset portal communication
+# This enables the get_superset_current_url MCP tool to retrieve the iframe's current URL
+# The portal origin will be automatically set based on CORS configuration
+def get_portal_origin():
+    import os
+    hyperset_domain = os.getenv("HYPERSET_DOMAIN", "")
+    portal_origin = os.getenv("HYPERSET_ORIGIN", "")
+    if not portal_origin and hyperset_domain:
+        portal_origin = f"https://{hyperset_domain}"
+    return portal_origin or "*"
+
+CUSTOM_JS = """
+<script>
+(function() {
+  // Hyperset portal origin - set by Superset config
+  window.HYPERSET_PORTAL_ORIGIN = '""" + get_portal_origin() + """';
+  
+  // Listen for messages from the Hyperset portal
+  window.addEventListener('message', function(event) {
+    // Validate origin - only respond to the portal
+    var portalOrigin = window.HYPERSET_PORTAL_ORIGIN || '*';
+    if (portalOrigin !== '*' && event.origin !== portalOrigin) return;
+    
+    var msg = event.data;
+    if (msg && msg.type === 'get_current_url' && msg.requestId) {
+      // Send the current URL back to the portal
+      event.source.postMessage({
+        type: 'current_url',
+        requestId: msg.requestId,
+        url: window.location.href
+      }, event.origin);
+    }
+  });
+})();
+</script>
+"""
+
 # Dark mode CSS to inject into HTML responses
 DARK_MODE_CSS = """
 <style id="hyperset-dark-mode-fix">
@@ -622,16 +659,18 @@ def FLASK_APP_MUTATOR(app):
 
     @app.after_request
     def inject_dark_mode_css(response):
-        """Inject dark mode CSS into HTML responses"""
+        """Inject dark mode CSS and custom JS into HTML responses"""
         if response.content_type and 'text/html' in response.content_type:
             try:
                 html = response.get_data(as_text=True)
                 if '</head>' in html:
+                    # Inject custom JS first (before CSS)
+                    html = html.replace('</head>', CUSTOM_JS + '</head>')
                     html = html.replace('</head>', DARK_MODE_CSS + '</head>')
                     response.set_data(html)
-                    logger.debug("[Theme] Injected dark mode CSS")
+                    logger.debug("[Theme] Injected dark mode CSS and custom JS")
             except Exception as e:
-                logger.error(f"[Theme] Error injecting CSS: {e}")
+                logger.error(f"[Theme] Error injecting CSS/JS: {e}")
         return response
 
     @app.before_request
