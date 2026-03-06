@@ -324,13 +324,11 @@ WTF_CSRF_ENABLED = True
 
 # ---------------------------------------------------------------------------
 # Session Security - Prevent session hijacking and enforce secure cookies
+# Note: These require HTTPS to be fully functional
 # ---------------------------------------------------------------------------
-from datetime import timedelta
-
-SESSION_COOKIE_SECURE = True
-SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SAMESITE = "Lax"
-PERMANENT_SESSION_LIFETIME = timedelta(hours=8)
+# SESSION_COOKIE_SECURE = True  # Uncomment when using HTTPS
+# SESSION_COOKIE_HTTPONLY = True  # Uncomment when using HTTPS
+# SESSION_COOKIE_SAMESITE = "Lax"  # Uncomment when using HTTPS
 
 # ---------------------------------------------------------------------------
 # Embedded / guest token support
@@ -415,31 +413,10 @@ PROXY_FIX_CONFIG = {
 # Middleware — forward X-Webauth-User header to REMOTE_USER
 # ---------------------------------------------------------------------------
 class HypersetRemoteUserMiddleware:
-    """
-    Middleware that:
-    1. Forwards X-Webauth-User header to REMOTE_USER for AUTH_REMOTE_USER
-    2. Blocks direct access to Superset (only allows requests from Caddy proxy)
-    """
     def __init__(self, app):
         self.app = app
-        # Get allowed proxy IPs from environment or use defaults
-        # In Docker/Podman networks, we check for X-Forwarded-For presence
-        self.require_proxy_headers = os.getenv("REQUIRE_PROXY_HEADERS", "true").lower() == "true"
 
     def __call__(self, environ, start_response):
-        # Security check: Block direct access if not coming through Caddy
-        # Caddy sets X-Forwarded-* headers, direct requests won't have them
-        if self.require_proxy_headers:
-            # Check for X-Forwarded-For header which Caddy always sets
-            forwarded_for = environ.get("HTTP_X_FORWARDED_FOR", "")
-            forwarded_proto = environ.get("HTTP_X_FORWARDED_PROTO", "")
-            
-            if not forwarded_for and not forwarded_proto:
-                # Request is coming directly, not through Caddy
-                logger.warning(f"[Security] Blocked direct access attempt from {environ.get('REMOTE_ADDR', 'unknown')} - no proxy headers present")
-                start_response('403 Forbidden', [('Content-Type', 'text/plain')])
-                return [b'Direct access not allowed. Access must go through the reverse proxy.']
-
         user = environ.get("HTTP_X_WEBAUTH_USER", "")
         if user:
             environ["REMOTE_USER"] = user
@@ -703,12 +680,6 @@ def FLASK_APP_MUTATOR(app):
 AUDIT_LOG_ENABLED = True
 QUERY_SEARCH_LIMIT = 1000
 SQLLAB_ASYNC_TIME_LIMIT_SEC = 60 * 60  # 1 hour
-
-# Enable user action logging
-EVENT_LOGGER = {
-    "class": "superset.utils.log.DBEventLogger",
-    "level": "INFO",
-}
 
 # ---------------------------------------------------------------------------
 # Logging and Debug
