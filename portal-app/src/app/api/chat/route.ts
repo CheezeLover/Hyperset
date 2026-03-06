@@ -630,9 +630,9 @@ Administrators can upload documents through the Admin Settings > Knowledge Base 
               // Navigation is handled client-side; just confirm
               result = `Navigation to ${tc.name === "navigate_superset_dashboard" ? "dashboard" : "chart"} ${Object.values(args)[0]} requested.`;
             } else if (tc.name === "get_superset_current_url") {
-              // URL retrieval is handled client-side; skip server-side result
-              // The client will update the tool call result when it receives the URL from the iframe
-              continue;
+              // URL retrieval is handled client-side; the iframe responds with the actual URL
+              // For the API conversation, we mark it as delegated to client
+              result = "[URL retrieved from Superset iframe - see UI for actual URL]";
             } else if (tc.name === "knowledge_base_list") {
               // Knowledge base list tool - return the list of documents with stats
               try {
