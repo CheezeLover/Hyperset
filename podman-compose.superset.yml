@@ -9,7 +9,7 @@ services:
     container_name: hyperset-superset-db
     environment:
       - POSTGRES_USER=superset
-      - POSTGRES_PASSWORD=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
+      - POSTGRES_PASSWORD=superset
       - POSTGRES_DB=superset
     volumes:
       - superset_db_data:/var/lib/postgresql/data
@@ -45,10 +45,10 @@ services:
     image: localhost/hyperset-superset:latest
     container_name: hyperset-superset
     environment:
-      # Database configuration
+      # Database configuration (these override config file settings)
       - DATABASE_DIALECT=postgresql
       - DATABASE_USER=superset
-      - DATABASE_PASSWORD=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
+      - DATABASE_PASSWORD=superset
       - DATABASE_HOST=hyperset-superset-db
       - DATABASE_PORT=5432
       - DATABASE_DB=superset
@@ -57,7 +57,7 @@ services:
       - DB_PORT=5432
       - DB_NAME=superset
       - DB_USER=superset
-      - DB_PASS=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
+      - DB_PASS=superset
       # Examples database (same as main for integrated deployment)
       - EXAMPLES_USER=superset
       - EXAMPLES_PASSWORD=superset
@@ -119,7 +119,7 @@ services:
       # Database configuration
       - DATABASE_DIALECT=postgresql
       - DATABASE_USER=superset
-      - DATABASE_PASSWORD=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
+      - DATABASE_PASSWORD=superset
       - DATABASE_HOST=hyperset-superset-db
       - DATABASE_PORT=5432
       - DATABASE_DB=superset
@@ -128,7 +128,7 @@ services:
       - DB_PORT=5432
       - DB_NAME=superset
       - DB_USER=superset
-      - DB_PASS=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
+      - DB_PASS=superset
       # Redis configuration
       - REDIS_HOST=hyperset-superset-redis
       - REDIS_PORT=6379
@@ -177,7 +177,7 @@ services:
       # Database configuration
       - DATABASE_DIALECT=postgresql
       - DATABASE_USER=superset
-      - DATABASE_PASSWORD=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
+      - DATABASE_PASSWORD=superset
       - DATABASE_HOST=hyperset-superset-db
       - DATABASE_PORT=5432
       - DATABASE_DB=superset
@@ -186,7 +186,7 @@ services:
       - DB_PORT=5432
       - DB_NAME=superset
       - DB_USER=superset
-      - DB_PASS=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
+      - DB_PASS=superset
       # Redis configuration
       - REDIS_HOST=hyperset-superset-redis
       - REDIS_PORT=6379
@@ -234,7 +234,7 @@ services:
           --firstname Admin \\
           --lastname User \\
           --email admin@hyperset.local \\
-          --password ${SUPERSET_ADMIN_PASSWORD:?SUPERSET_ADMIN_PASSWORD must be set in .env} || echo 'Admin user may already exist' &&
+          --password ${SUPERSET_ADMIN_PASSWORD:-admin} || echo 'Admin user may already exist' &&
         echo 'Initializing Superset...' &&
         superset init &&
         echo 'Loading examples (this may take 2-3 minutes)...' &&
@@ -245,7 +245,7 @@ services:
       # Database configuration
       - DATABASE_DIALECT=postgresql
       - DATABASE_USER=superset
-      - DATABASE_PASSWORD=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
+      - DATABASE_PASSWORD=superset
       - DATABASE_HOST=hyperset-superset-db
       - DATABASE_PORT=5432
       - DATABASE_DB=superset
@@ -254,7 +254,7 @@ services:
       - DB_PORT=5432
       - DB_NAME=superset
       - DB_USER=superset
-      - DB_PASS=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
+      - DB_PASS=superset
       # Redis configuration
       - REDIS_HOST=hyperset-superset-redis
       - REDIS_PORT=6379

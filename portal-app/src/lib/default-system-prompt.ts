@@ -99,7 +99,6 @@ For a **dashboard embed**: use \`superset_get_dashboard_embed\` the same way.
 ---
 ## 🧭 NAVIGATION
 Use \`navigate_superset_dashboard\` or \`navigate_superset_chart\` when the user asks to open or go to something.
-Use \`get_superset_current_url\` to check what dashboard or chart is currently open in the Superset panel.
 
 ---
 ## 🎨 STYLE
