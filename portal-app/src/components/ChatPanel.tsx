@@ -12,6 +12,9 @@ interface ChatPanelProps {
   /** Lifted state — persists across panel collapse/expand */
   messages: Message[];
   onMessagesChange: (updater: (prev: Message[]) => Message[]) => void;
+  /** Current Superset context (dashboard/chart ID and URL) */
+  supersetContext: { dashboardId?: string; chartId?: string; url: string };
+  onSupersetContextChange: (context: { dashboardId?: string; chartId?: string; url: string }) => void;
 }
 
 // ── Message types ────────────────────────────────────────────────
@@ -1254,6 +1257,8 @@ export function ChatPanel({
   onInjectionConsumed,
   messages,
   onMessagesChange,
+  supersetContext,
+  onSupersetContextChange,
 }: ChatPanelProps) {
   const setMessages = onMessagesChange;
   const [input, setInput] = useState("");
@@ -1277,6 +1282,22 @@ export function ChatPanel({
       } catch { if (!res.ok) setChatError({ error: `Chat API returned HTTP ${res.status}` }); }
     }).catch(() => {});
   }, []);
+
+  // Listen for navigation context from Superset iframe
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      const msg = event.data;
+      if (msg?.type === "navigated" || msg?.type === "current_url") {
+        onSupersetContextChange({
+          dashboardId: msg.dashboardId,
+          chartId: msg.chartId,
+          url: msg.url,
+        });
+      }
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [onSupersetContextChange]);
 
   // Inject message from Superset bridge
   useEffect(() => {
@@ -1334,7 +1355,7 @@ export function ChatPanel({
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: history }),
+        body: JSON.stringify({ messages: history, supersetContext }),
         signal: abortController.signal,
       });
 
@@ -1519,7 +1540,7 @@ export function ChatPanel({
     fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: history }),
+      body: JSON.stringify({ messages: history, supersetContext }),
       signal: abortController.signal,
     })
     .then(async (response) => {
