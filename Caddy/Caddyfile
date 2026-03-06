@@ -2,6 +2,7 @@
     order authenticate before respond
     order authorize before basicauth
     order replace after reverse_proxy
+    order sub_filter before reverse_proxy
 
     security {
         local identity store localdb {
@@ -208,10 +209,11 @@ superset.{$HYPERSET_DOMAIN} {
             header_down -Content-Security-Policy
         }
 
-        # Try to inject bridge.js before </body>, fallback to end of <body or end of <div id="app>
-        replace </body> "<script src=\"/bridge.js\"></script></body>"
-        replace "<body>" "<body><script src=\"/bridge.js\"></script>"
-        replace "<div id=\"app\">" "<div id=\"app\"><script src=\"/bridge.js\"></script>"
+        # Inject bridge.js using sub_filter for HTML content
+        sub_filter </head> "</head><script src='/bridge.js'></script>";
+        sub_filter </body> "</body><script src='/bridge.js'></script>";
+        sub_filter_once off;
+        sub_filter_types text/html;
     }
 
     header Content-Security-Policy "default-src 'self'; frame-ancestors 'self' https://{$HYPERSET_DOMAIN} https://chat.{$HYPERSET_DOMAIN}; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://{$HYPERSET_DOMAIN} https://chat.{$HYPERSET_DOMAIN}; media-src 'self'; object-src 'none'; frame-src 'self' https://{$HYPERSET_DOMAIN} https://chat.{$HYPERSET_DOMAIN}; base-uri 'self'; form-action 'self';"
