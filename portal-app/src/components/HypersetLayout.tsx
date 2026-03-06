@@ -45,8 +45,6 @@ export function HypersetLayout({
   const supersetIframeRef = useRef<HTMLIFrameElement>(null);
   // Chat message history — lifted here so it survives panel collapse/expand
   const [chatMessages, setChatMessages] = useState<Message[]>([]);
-  // Admin modal state — lifted here so ServiceColumn can trigger it
-  const [showAdminModal, setShowAdminModal] = useState(false);
 
   // Drag state
   const dragging = useRef<{
@@ -324,7 +322,7 @@ export function HypersetLayout({
                 flexDirection: "column",
               }}
             >
-        {panel.key === "chat" ? (
+              {panel.key === "chat" ? (
                 <ChatPanel
                   isAdmin={isAdmin}
                   supersetIframeRef={supersetIframeRef}
@@ -333,8 +331,6 @@ export function HypersetLayout({
                   onInjectionConsumed={() => setChatInjection(null)}
                   messages={chatMessages}
                   onMessagesChange={setChatMessages}
-                  showAdminModal={showAdminModal}
-                  onCloseAdminModal={() => setShowAdminModal(false)}
                 />
               ) : (
                 <iframe
@@ -357,7 +353,6 @@ export function HypersetLayout({
           openPanelKeys={openPanelKeys}
           pages={pages}
           pagesUrl={pagesUrl}
-          isAdmin={isAdmin}
           onToggleChat={() =>
             handleTogglePanel("chat", "", "Chat", "primary")
           }
@@ -369,7 +364,6 @@ export function HypersetLayout({
               "secondary"
             )
           }
-          onShowSettings={() => setShowAdminModal(true)}
           onDisconnect={() => {
             // Redirect to our logout API endpoint
             window.location.href = "/api/auth/logout";
