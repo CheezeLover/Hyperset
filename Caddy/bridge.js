@@ -37,6 +37,7 @@
 
   // ── Listen for commands from the portal ────────────────────────
   window.addEventListener("message", function (event) {
+    console.log("[Hyperset Bridge] Received message:", event.origin, event.data);
     if (!isPortalOrigin(event.origin)) return;
     const msg = event.data;
     if (!msg || !msg.type) return;
@@ -48,10 +49,13 @@
     } else if (msg.type === "navigate_sql_lab") {
       navigateToSqlLab();
     } else if (msg.type === "ping") {
+      console.log("[Hyperset Bridge] Received ping, sending pong");
       event.source?.postMessage({ type: "pong" }, event.origin);
     } else if (msg.type === "get_url") {
       // Return current URL context to portal
+      console.log("[Hyperset Bridge] Received get_url request");
       const context = parseSupersetUrl();
+      console.log("[Hyperset Bridge] Sending current_url:", context);
       event.source?.postMessage({ type: "current_url", ...context }, event.origin);
     }
   });
@@ -256,6 +260,7 @@
 
   function notifyPortalOfNavigation() {
     const context = parseSupersetUrl();
+    console.log("[Hyperset Bridge] Sending navigated:", context);
     if (window.parent && window.parent !== window) {
       window.parent.postMessage({ type: "navigated", ...context }, PORTAL_ORIGIN);
     }
