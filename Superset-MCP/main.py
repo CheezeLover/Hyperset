@@ -1221,39 +1221,6 @@ async def superset_config_get_base_url(ctx: Context) -> Dict[str, Any]:
         "message": f"Connected to Superset instance at: {superset_ctx.base_url}",
     }
 
-
-@mcp.tool()
-@handle_api_errors
-async def superset_get_current_url(ctx: Context) -> Dict[str, Any]:
-    """
-    Get the URL of the currently opened page in the embedded Superset iframe.
-    
-    This tool queries the portal to retrieve the current URL of the Superset
-    iframe that the user is viewing. Use this to check what dashboard or chart
-    is currently open in the embedded Superset panel.
-
-    Returns:
-        A dictionary with the current iframe URL
-    """
-    if not PORTAL_URL:
-        return {"error": "Portal URL not configured. Cannot retrieve iframe URL."}
-    
-    try:
-        mcp_secret = os.getenv("MCP_SERVICE_SECRET", "")
-        headers = {"Authorization": f"Bearer {mcp_secret}"} if mcp_secret else {}
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            response = await client.get(f"{PORTAL_URL}/api/superset-iframe-url", headers=headers)
-            if response.status_code == 200:
-                data = response.json()
-                return {
-                    "url": data.get("url", ""),
-                    "message": f"Current Superset iframe URL: {data.get('url', 'unknown')}"
-                }
-            else:
-                return {"error": f"Failed to get iframe URL: HTTP {response.status_code}"}
-    except Exception as e:
-        return {"error": f"Failed to connect to portal: {str(e)}"}
-
 # ===== Data Analysis Tools =====
 
 def _classify_column(col: Dict[str, Any]) -> str:

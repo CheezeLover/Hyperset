@@ -1399,13 +1399,18 @@ export function ChatPanel({
               : m
             ));
           } else if (event.type === "tool_result") {
+            let result = event.result as string;
+            // For get_superset_url tool, fetch the actual URL from the iframe
+            if (event.name === "get_superset_url" && result === "CLIENT_FETCH_URL:") {
+              result = supersetIframeRef.current?.src ?? "No Superset iframe is currently open.";
+            }
             setMessages((prev) => prev.map((m) => {
               if (m.id !== assistantId) return m;
               const calls = [...(m.toolCalls ?? [])];
               // Update the last matching tool call with its result
               for (let i = calls.length - 1; i >= 0; i--) {
                 if (calls[i].name === event.name && calls[i].result === undefined) {
-                  calls[i] = { ...calls[i], result: event.result as string };
+                  calls[i] = { ...calls[i], result };
                   break;
                 }
               }
@@ -1583,12 +1588,16 @@ export function ChatPanel({
               : m
             ));
           } else if (event.type === "tool_result") {
+            let result = event.result as string;
+            if (event.name === "get_superset_url" && result === "CLIENT_FETCH_URL:") {
+              result = supersetIframeRef.current?.src ?? "No Superset iframe is currently open.";
+            }
             setMessages((prev) => prev.map((m) => {
               if (m.id !== assistantId) return m;
               const calls = [...(m.toolCalls ?? [])];
               for (let i = calls.length - 1; i >= 0; i--) {
                 if (calls[i].name === event.name && calls[i].result === undefined) {
-                  calls[i] = { ...calls[i], result: event.result as string };
+                  calls[i] = { ...calls[i], result };
                   break;
                 }
               }
