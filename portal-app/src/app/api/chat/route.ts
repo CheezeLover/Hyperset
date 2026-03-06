@@ -183,10 +183,7 @@ export const POST = async (req: NextRequest) => {
   }
 
   // Parse incoming messages from the client
-  let body: { 
-    messages?: OpenAI.Chat.ChatCompletionMessageParam[];
-    supersetContext?: { dashboardId?: string; chartId?: string; url?: string };
-  };
+  let body: { messages?: OpenAI.Chat.ChatCompletionMessageParam[] };
   try {
     body = await req.json();
   } catch {
@@ -272,17 +269,6 @@ export const POST = async (req: NextRequest) => {
         },
       },
     },
-    {
-      type: "function",
-      function: {
-        name: "get_current_superset_context",
-        description: "Get the currently displayed dashboard or chart in the Superset panel. Returns dashboardId, chartId (if in Explore view), and the current URL.",
-        parameters: {
-          type: "object",
-          properties: {},
-        },
-      },
-    },
   ];
 
   // Knowledge base tools - allows LLM to explicitly query the knowledge base
@@ -336,7 +322,6 @@ export const POST = async (req: NextRequest) => {
     const include = new Set([
       "navigate_superset_dashboard",
       "navigate_superset_chart",
-      "get_current_superset_context",
       "knowledge_base_list",
       "knowledge_base_search",
       "superset_dashboard_list",
@@ -632,14 +617,6 @@ Administrators can upload documents through the Admin Settings > Knowledge Base 
             if (tc.name === "navigate_superset_dashboard" || tc.name === "navigate_superset_chart") {
               // Navigation is handled client-side; just confirm
               result = `Navigation to ${tc.name === "navigate_superset_dashboard" ? "dashboard" : "chart"} ${Object.values(args)[0]} requested.`;
-            } else if (tc.name === "get_current_superset_context") {
-              // Return current Superset context (dashboard/chart ID and URL)
-              const ctx = body.supersetContext || { dashboardId: undefined, chartId: undefined, url: "" };
-              result = JSON.stringify({
-                dashboardId: ctx.dashboardId || null,
-                chartId: ctx.chartId || null,
-                url: ctx.url || "",
-              });
             } else if (tc.name === "knowledge_base_list") {
               // Knowledge base list tool - return the list of documents with stats
               try {

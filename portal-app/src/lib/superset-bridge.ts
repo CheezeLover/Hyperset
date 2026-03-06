@@ -7,8 +7,6 @@ export type PortalToSuperset =
   | { type: "ping" };
 
 export type SupersetToPortal =
-  | { type: "navigated"; dashboardId?: string; chartId?: string; url: string }
-  | { type: "current_url"; dashboardId?: string; chartId?: string; url: string }
   | {
       type: "inspect_chart";
       chartId: number | string;

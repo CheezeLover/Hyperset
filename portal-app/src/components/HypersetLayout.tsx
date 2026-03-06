@@ -45,8 +45,6 @@ export function HypersetLayout({
   const supersetIframeRef = useRef<HTMLIFrameElement>(null);
   // Chat message history — lifted here so it survives panel collapse/expand
   const [chatMessages, setChatMessages] = useState<Message[]>([]);
-  // Current Superset context (dashboard/chart ID and URL) — tracked via postMessage
-  const [supersetContext, setSupersetContext] = useState<{ dashboardId?: string; chartId?: string; url: string }>({ url: "" });
 
   // Drag state
   const dragging = useRef<{
@@ -333,8 +331,6 @@ export function HypersetLayout({
                   onInjectionConsumed={() => setChatInjection(null)}
                   messages={chatMessages}
                   onMessagesChange={setChatMessages}
-                  supersetContext={supersetContext}
-                  onSupersetContextChange={setSupersetContext}
                 />
               ) : (
                 <iframe

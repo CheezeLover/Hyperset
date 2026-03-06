@@ -20,7 +20,6 @@ export function MobileChatPage({ supersetUrl, isAdmin }: MobileChatPageProps) {
   // Null ref — no Superset iframe present on this page.
   const nullIframeRef = useRef<HTMLIFrameElement | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [supersetContext, setSupersetContext] = useState<{ dashboardId?: string; chartId?: string; url: string }>({ url: "" });
 
   return (
     // 100dvh accounts for mobile browser chrome (dynamic viewport height).
@@ -33,8 +32,6 @@ export function MobileChatPage({ supersetUrl, isAdmin }: MobileChatPageProps) {
         onInjectionConsumed={() => {}}
         messages={messages}
         onMessagesChange={setMessages}
-        supersetContext={supersetContext}
-        onSupersetContextChange={setSupersetContext}
       />
     </div>
   );

@@ -49,10 +49,6 @@
       navigateToSqlLab();
     } else if (msg.type === "ping") {
       event.source?.postMessage({ type: "pong" }, event.origin);
-    } else if (msg.type === "get_url") {
-      // Return current URL context to portal
-      const context = parseSupersetUrl();
-      event.source?.postMessage({ type: "current_url", ...context }, event.origin);
     }
   });
 
@@ -232,47 +228,6 @@
   if (window.parent && window.parent !== window) {
     window.parent.postMessage({ type: "ready" }, PORTAL_ORIGIN);
   }
-
-  // ── URL change detection for real-time context tracking ────────
-  function parseSupersetUrl() {
-    const path = window.location.pathname;
-    const params = new URLSearchParams(window.location.search);
-    const url = window.location.href;
-    
-    // Dashboard: /superset/dashboard/{id}/
-    const dashMatch = path.match(/\/dashboard\/(\d+)/);
-    if (dashMatch) {
-      return { dashboardId: dashMatch[1], chartId: null, url };
-    }
-    
-    // Chart/Explore: /explore/?slice_id={id}
-    const chartId = params.get("slice_id");
-    if (chartId) {
-      return { dashboardId: null, chartId: chartId, url };
-    }
-    
-    return { dashboardId: null, chartId: null, url };
-  }
-
-  function notifyPortalOfNavigation() {
-    const context = parseSupersetUrl();
-    if (window.parent && window.parent !== window) {
-      window.parent.postMessage({ type: "navigated", ...context }, PORTAL_ORIGIN);
-    }
-  }
-
-  // Intercept history.pushState to catch SPA navigation
-  const originalPushState = window.history.pushState;
-  window.history.pushState = function(...args) {
-    originalPushState.apply(this, args);
-    notifyPortalOfNavigation();
-  };
-
-  // Listen for popstate (back/forward buttons)
-  window.addEventListener("popstate", notifyPortalOfNavigation);
-
-  // Initial notification
-  setTimeout(notifyPortalOfNavigation, 1000);
 
   console.log("[Hyperset Bridge] Loaded");
 })();
