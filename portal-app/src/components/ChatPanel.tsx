@@ -1286,17 +1286,13 @@ export function ChatPanel({
   // Listen for navigation context from Superset iframe
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      console.log("[ChatPanel] Received message from:", event.origin, "data:", event.data);
       const msg = event.data;
       if (msg?.type === "navigated" || msg?.type === "current_url") {
-        console.log("[ChatPanel] Updating context:", msg);
         onSupersetContextChange({
           dashboardId: msg.dashboardId,
           chartId: msg.chartId,
           url: msg.url,
         });
-      } else {
-        console.log("[ChatPanel] Ignoring message type:", msg?.type);
       }
     };
     window.addEventListener("message", handleMessage);
