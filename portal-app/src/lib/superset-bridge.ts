@@ -4,6 +4,7 @@ export type PortalToSuperset =
   | { type: "navigate_dashboard"; dashboardId: number | string }
   | { type: "navigate_chart"; chartId: number | string }
   | { type: "navigate_sql_lab" }
+  | { type: "get_current_url"; requestId: string }
   | { type: "ping" };
 
 export type SupersetToPortal =
@@ -15,6 +16,7 @@ export type SupersetToPortal =
       query?: string;
       filters?: Record<string, unknown>;
     }
+  | { type: "current_url"; requestId: string; url: string }
   | { type: "pong" }
   | { type: "ready" };
 
