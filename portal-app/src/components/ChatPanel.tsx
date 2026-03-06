@@ -1472,9 +1472,12 @@ export function ChatPanel({
               if (m.id !== assistantId) return m;
               const calls = [...(m.toolCalls ?? [])];
               // Update the last matching tool call with its result
+              // Skip get_superset_current_url - client handles it from iframe response
               for (let i = calls.length - 1; i >= 0; i--) {
                 if (calls[i].name === event.name && calls[i].result === undefined) {
-                  calls[i] = { ...calls[i], result: event.result as string };
+                  if (event.name !== "get_superset_current_url") {
+                    calls[i] = { ...calls[i], result: event.result as string };
+                  }
                   break;
                 }
               }
