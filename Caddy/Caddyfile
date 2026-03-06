@@ -170,13 +170,6 @@ superset.{$HYPERSET_DOMAIN} {
     tls internal {
         on_demand
     }
-
-    # Skip authorization for bridge.js
-    @skipAuth {
-        path /bridge.js
-    }
-    authorize @skipAuth
-
     authorize with mypolicy
 
     # Serve the bridge script directly from Caddy
