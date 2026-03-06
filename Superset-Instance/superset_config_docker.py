@@ -311,6 +311,9 @@ HTTP_HEADERS = {
         "frame-ancestors 'self' "
         + _portal_origin
     ),
+    "X-Content-Type-Options": "nosniff",
+    "X-XSS-Protection": "1; mode=block",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
 }
 
 # Fix 6: Re-enable CSRF protection.
@@ -318,6 +321,14 @@ HTTP_HEADERS = {
 # before every state-changing request and sends it in the X-CSRFToken header,
 # so API calls continue to work with CSRF enabled.
 WTF_CSRF_ENABLED = True
+
+# ---------------------------------------------------------------------------
+# Session Security - Prevent session hijacking and enforce secure cookies
+# Note: These require HTTPS to be fully functional
+# ---------------------------------------------------------------------------
+# SESSION_COOKIE_SECURE = True  # Uncomment when using HTTPS
+# SESSION_COOKIE_HTTPONLY = True  # Uncomment when using HTTPS
+# SESSION_COOKIE_SAMESITE = "Lax"  # Uncomment when using HTTPS
 
 # ---------------------------------------------------------------------------
 # Embedded / guest token support
@@ -662,6 +673,13 @@ def FLASK_APP_MUTATOR(app):
             logger.error(f"[AutoLogin] Failed to auth user {remote_user}")
 
         return None
+
+# ---------------------------------------------------------------------------
+# Audit Logging - Track user actions and queries for security compliance
+# ---------------------------------------------------------------------------
+AUDIT_LOG_ENABLED = True
+QUERY_SEARCH_LIMIT = 1000
+SQLLAB_ASYNC_TIME_LIMIT_SEC = 60 * 60  # 1 hour
 
 # ---------------------------------------------------------------------------
 # Logging and Debug

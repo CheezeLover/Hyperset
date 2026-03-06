@@ -1774,7 +1774,6 @@ export function ChatPanel({
             justifyContent: "center",
             height: "100%",
             gap: 16,
-            opacity: 0.55,
             userSelect: "none",
             animation: "fadeInUp 0.5s ease-out",
           }}>

@@ -8,6 +8,79 @@ if [ -f .env ]; then
   export $(grep -v '^#' .env | xargs)
 fi
 
+# ============================================================================
+# Generate secure random passwords on first run (idempotent)
+# ============================================================================
+generate_passwords() {
+  local env_file=".env"
+  local password_changed=false
+  
+  # Generate SuperSET_ADMIN_PASSWORD if not set or is placeholder
+  if [ -z "${SUPERSET_ADMIN_PASSWORD:-}" ] || [ "$SUPERSET_ADMIN_PASSWORD" = "CHANGE_ME_RUN_openssl_rand_base64_24" ]; then
+    local new_admin_pass
+    new_admin_pass=$(openssl rand -base64 24)
+    
+    if [ -f "$env_file" ]; then
+      # Check if already exists in file (not just environment)
+      if grep -q "^SUPERSET_ADMIN_PASSWORD=" "$env_file" && ! grep -q "^SUPERSET_ADMIN_PASSWORD=CHANGE_ME" "$env_file"; then
+        echo "==> Using existing SUPERSET_ADMIN_PASSWORD from $env_file"
+      else
+        # Update or add the password
+        if grep -q "^SUPERSET_ADMIN_PASSWORD=" "$env_file"; then
+          sed -i "s/^SUPERSET_ADMIN_PASSWORD=.*/SUPERSET_ADMIN_PASSWORD=$new_admin_pass/" "$env_file"
+        else
+          echo "" >> "$env_file"
+          echo "# Auto-generated on first run - do not change manually" >> "$env_file"
+          echo "SUPERSET_ADMIN_PASSWORD=$new_admin_pass" >> "$env_file"
+        fi
+        echo "==> Generated new SUPERSET_ADMIN_PASSWORD (saved to $env_file)"
+        password_changed=true
+      fi
+    else
+      echo "⚠️  Warning: .env file not found. Cannot save generated password."
+    fi
+  fi
+  
+  # Generate DATABASE_PASSWORD if not set or is weak default
+  if [ -z "${DATABASE_PASSWORD:-}" ] || [ "$DATABASE_PASSWORD" = "superset" ]; then
+    local new_db_pass
+    new_db_pass=$(openssl rand -base64 32)
+    
+    if [ -f "$env_file" ]; then
+      # Check if already exists in file with non-default value
+      if grep -q "^DATABASE_PASSWORD=" "$env_file" && ! grep -q "^DATABASE_PASSWORD=superset" "$env_file"; then
+        echo "==> Using existing DATABASE_PASSWORD from $env_file"
+      else
+        # Update or add the password
+        if grep -q "^DATABASE_PASSWORD=" "$env_file"; then
+          sed -i "s/^DATABASE_PASSWORD=.*/DATABASE_PASSWORD=$new_db_pass/" "$env_file"
+        else
+          echo "" >> "$env_file"
+          echo "# Auto-generated database password on first run - do not change manually" >> "$env_file"
+          echo "DATABASE_PASSWORD=$new_db_pass" >> "$env_file"
+        fi
+        echo "==> Generated new DATABASE_PASSWORD (saved to $env_file)"
+        password_changed=true
+      fi
+    else
+      echo "⚠️  Warning: .env file not found. Cannot save generated database password."
+    fi
+  fi
+  
+  # Reload environment if passwords were changed
+  if [ "$password_changed" = true ]; then
+    export $(grep -v '^#' "$env_file" | xargs)
+    echo "==> Passwords generated and saved. They will persist across restarts."
+    echo ""
+    echo "   IMPORTANT: Make a backup of your .env file!"
+    echo "   If you lose these passwords, you'll need to reset the admin user manually."
+    echo ""
+  fi
+}
+
+# Run password generation
+generate_passwords
+
 echo "==> Installing Podman and podman-compose..."
 sudo apt-get update -qq
 sudo apt-get install -y podman podman-compose
