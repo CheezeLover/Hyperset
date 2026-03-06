@@ -553,69 +553,15 @@ HYPERSET_BRIDGE_SCRIPT = """
       try {
         // Get the current URL from the iframe
         var currentUrl = window.location.href;
-        var urlObj = new URL(currentUrl);
-        var pathname = urlObj.pathname;
-        var searchParams = urlObj.searchParams;
-        
-        // Parse page type and ID from URL
-        var pageType = 'unknown';
-        var pageId = null;
-        var pageName = null;
-        
-        // Check pathname patterns
-        if (pathname.match(/\/superset\/dashboard\/(\d+)/)) {
-          pageType = 'dashboard';
-          var match = pathname.match(/\/superset\/dashboard\/(\d+)/);
-          pageId = match ? match[1] : null;
-        } else if (pathname.match(/\/superset\/explore\/|\/chart\/|\/explore\//)) {
-          pageType = 'chart';
-          // Try to get chart ID from form_data query param
-          var formData = searchParams.get('form_data');
-          if (formData) {
-            try {
-              var parsed = JSON.parse(formData);
-              pageId = parsed.slice_id || null;
-            } catch (e) {
-              // Try to extract slice_id from URL-encoded form_data
-              var sliceMatch = formData.match(/slice_id["\']?\s*:\s*(\d+)/);
-              if (sliceMatch) pageId = sliceMatch[1];
-            }
-          }
-          // Also check for slice_id directly in query params
-          if (!pageId) {
-            pageId = searchParams.get('slice_id') || null;
-          }
-        } else if (pathname.match(/\/superset\/sqllab/)) {
-          pageType = 'sql_lab';
-        } else if (pathname.match(/\/superset\/welcome/)) {
-          pageType = 'welcome';
-        } else if (pathname.match(/\/superset\/datasets/)) {
-          pageType = 'datasets';
-        } else if (pathname.match(/\/superset\/charts/)) {
-          pageType = 'charts_list';
-        } else if (pathname.match(/\/superset\/dashboards/)) {
-          pageType = 'dashboards_list';
-        } else if (pathname === '/superset/' || pathname === '/') {
-          pageType = 'home';
-        }
-        
-        // Try to extract name/title from page if available
-        var pageTitle = document.title || '';
-        if (pageTitle && pageTitle !== 'Superset') {
-          pageName = pageTitle.replace(/ - Superset$/, '').replace(/^Superset - /, '');
-        }
         
         // Send response back to parent
         event.source.postMessage({
           type: 'current_url',
           requestId: msg.requestId,
-          url: currentUrl,
-          pageType: pageType,
-          pageId: pageId,
-          pageName: pageName
+          url: currentUrl
         }, event.origin);
         
-        console.log('[HypersetBridge] Sent current_url response:', currentUrl, 'type:', pageType, 'id:', pageId);
+        console.log('[HypersetBridge] Sent current_url response:', currentUrl);
       } catch (err) {
         console.error('[HypersetBridge] Error getting current URL:', err);
         
@@ -624,7 +570,6 @@ HYPERSET_BRIDGE_SCRIPT = """
           type: 'current_url',
           requestId: msg.requestId,
           url: window.location.href || 'Unknown',
-          pageType: 'unknown',
           error: err.message
         }, event.origin);
       }
