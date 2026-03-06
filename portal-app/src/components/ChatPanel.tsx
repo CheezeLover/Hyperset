@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { AdminModal } from "./AdminModal";
+import { sendToSuperset, type SupersetToPortal } from "@/lib/superset-bridge";
 
 interface ChatPanelProps {
   isAdmin: boolean;
@@ -1270,6 +1271,8 @@ export function ChatPanel({
   const abortControllerRef = useRef<AbortController | null>(null);
   // Track the current URL of the Superset iframe
   const currentSupersetUrlRef = useRef<string>(supersetUrl);
+  // Track pending URL request callbacks - requestId -> callback
+  const pendingUrlRequestsRef = useRef<Map<string, (url: string) => void>>(new Map());
 
   // Probe endpoint on mount
   useEffect(() => {
@@ -1289,6 +1292,23 @@ export function ChatPanel({
     textareaRef.current?.focus();
     onInjectionConsumed();
   }, [injectedMessage, onInjectionConsumed]);
+
+  // Listen for current_url responses from Superset iframe
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (event.origin !== supersetOrigin) return;
+      const msg = event.data as SupersetToPortal;
+      if (msg?.type === "current_url" && msg.requestId) {
+        const callback = pendingUrlRequestsRef.current.get(msg.requestId);
+        if (callback) {
+          callback(msg.url);
+          pendingUrlRequestsRef.current.delete(msg.requestId);
+        }
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, [supersetOrigin]);
 
   // Auto-scroll
   useEffect(() => {
@@ -1589,9 +1609,43 @@ export function ChatPanel({
                 supersetOrigin
               );
             } else if (event.name === "get_superset_current_url") {
-              // Get the current URL from the iframe
-              const currentUrl = supersetIframeRef.current?.src || currentSupersetUrlRef.current || "Unknown";
-              tc.result = `Current Superset URL: ${currentUrl}`;
+              // Send postMessage to Superset iframe to get current URL
+              const requestId = `url_req_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+
+              // Create a promise that resolves when we get the response
+              const urlPromise = new Promise<string>((resolve) => {
+                pendingUrlRequestsRef.current.set(requestId, resolve);
+                // Set a timeout in case we don't get a response
+                setTimeout(() => {
+                  if (pendingUrlRequestsRef.current.has(requestId)) {
+                    pendingUrlRequestsRef.current.delete(requestId);
+                    resolve(supersetIframeRef.current?.src || currentSupersetUrlRef.current || "Unknown");
+                  }
+                }, 1000);
+              });
+
+              // Send the request to the iframe
+              sendToSuperset(
+                supersetIframeRef.current,
+                { type: "get_current_url", requestId },
+                supersetOrigin
+              );
+
+              // Wait for the response and update the tool call with the result
+              urlPromise.then((url) => {
+                setMessages((prev) => prev.map((m) => {
+                  if (m.id !== assistantId) return m;
+                  const calls = [...(m.toolCalls ?? [])];
+                  // Find the last get_superset_current_url call without a result
+                  for (let i = calls.length - 1; i >= 0; i--) {
+                    if (calls[i].name === "get_superset_current_url" && calls[i].result === undefined) {
+                      calls[i] = { ...calls[i], result: `Current Superset URL: ${url}` };
+                      break;
+                    }
+                  }
+                  return { ...m, toolCalls: calls };
+                }));
+              });
             }
             setMessages((prev) => prev.map((m) => m.id === assistantId
               ? { ...m, toolCalls: [...(m.toolCalls ?? []), tc] }
