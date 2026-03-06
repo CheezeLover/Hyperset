@@ -16,7 +16,7 @@ export type SupersetToPortal =
       query?: string;
       filters?: Record<string, unknown>;
     }
-  | { type: "current_url"; requestId: string; url: string }
+  | { type: "current_url"; requestId: string; url: string; pageType?: string; pageId?: string | null; pageName?: string | null; error?: string }
   | { type: "pong" }
   | { type: "ready" };
 
