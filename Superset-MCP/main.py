@@ -1526,6 +1526,9 @@ async def superset_get_chart_link(
     link_url = f"{SUPERSET_PUBLIC_URL}/superset/explore/?slice_id={chart_id}"
     link_markdown = f"[{title}]({link_url})"
 
+    # Track this page so superset_get_opened_page_link can return it later
+    await _update_tracked_page(link_url)
+
     return {
         "chart_id": chart_id,
         "title": title,
@@ -1582,6 +1585,9 @@ async def superset_get_dashboard_link(
     link_url = f"{SUPERSET_PUBLIC_URL}/superset/dashboard/{dashboard_id}/"
     link_markdown = f"[{title}]({link_url})"
 
+    # Track this page so superset_get_opened_page_link can return it later
+    await _update_tracked_page(link_url)
+
     return {
         "dashboard_id": dashboard_id,
         "title": title,
@@ -1591,6 +1597,102 @@ async def superset_get_dashboard_link(
             "Include link_markdown inline in your text to create a clickable link "
             "that opens the dashboard in the Superset panel.  Unlike embed_markdown, "
             "this does not create an inline iframe — it appears as a text hyperlink."
+        ),
+    }
+
+
+# ===== Current Page Tracking Tool =====
+
+# Pages service URL for the superset-tracker backend
+_PAGES_SERVICE_URL = os.getenv("PAGES_SERVICE_URL", "http://pages-service:8000")
+
+
+async def _update_tracked_page(url: str) -> None:
+    """
+    Update the tracked current page URL in the Pages-Service.
+    Silently fails on error (best-effort tracking).
+    """
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            await client.post(
+                f"{_PAGES_SERVICE_URL}/superset-tracker/api/current-page",
+                json={"url": url, "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()}
+            )
+    except Exception:
+        # Silently ignore tracking errors - it's best-effort
+        pass
+
+
+@mcp.tool()
+@handle_api_errors
+async def superset_get_opened_page_link(ctx: Context) -> Dict[str, Any]:
+    """
+    Get the link of the currently opened page in the Superset iframe.
+
+    This tool returns a clickable markdown link to whatever dashboard or chart
+    is currently being displayed in the Superset panel. Useful when the user
+    wants to share or reference the current view.
+
+    Returns:
+        A dictionary with link_markdown (paste verbatim), link_url, and page title
+        if available. If no page is currently tracked, returns an informative message.
+    """
+    try:
+        # Fetch the current page from the Pages-Service tracking endpoint
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(f"{_PAGES_SERVICE_URL}/superset-tracker/api/current-page")
+            if resp.status_code != 200:
+                return {
+                    "error": f"Failed to fetch current page: HTTP {resp.status_code}"
+                }
+            data = resp.json()
+    except Exception as e:
+        return {
+            "error": f"Could not connect to page tracking service: {str(e)}. "
+                     f"Make sure the Pages-Service is running and accessible."
+        }
+
+    url = data.get("url")
+    message = data.get("message", "")
+
+    if url is None:
+        return {
+            "link_url": None,
+            "link_markdown": None,
+            "message": message,
+            "usage": (
+                "No Superset page is currently tracked. "
+                "Navigate to a dashboard or chart first using the navigation tools, "
+                "or the tracking service may need to be initialized."
+            ),
+        }
+
+    # Extract a title from the URL if possible
+    title = "Current Superset Page"
+    if "/dashboard/" in url:
+        # Try to extract dashboard ID for the title
+        match = re.search(r'/dashboard/(\d+)', url)
+        if match:
+            title = f"Dashboard {match.group(1)}"
+    elif "/explore/" in url or "slice_id=" in url:
+        # Try to extract chart ID for the title
+        match = re.search(r'slice_id=(\d+)', url)
+        if match:
+            title = f"Chart {match.group(1)}"
+        else:
+            title = "Chart"
+
+    link_markdown = f"[{title}]({url})"
+
+    return {
+        "link_url": url,
+        "link_markdown": link_markdown,
+        "title": title,
+        "last_updated": data.get("last_updated"),
+        "message": message,
+        "usage": (
+            "Include link_markdown inline in your response to create a clickable link "
+            "to the currently opened Superset page."
         ),
     }
 
