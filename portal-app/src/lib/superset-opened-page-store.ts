@@ -70,6 +70,12 @@ export function setOpenedPageForUser(
     const normalizedKey = normalizeKey(key);
     if (!normalizedKey) continue;
 
+    // Prevent noisy "home" updates from overwriting a more specific page URL.
+    const previous = _openedPages.get(normalizedKey);
+    if (previous && !isGenericHomeUrl(previous.url) && isGenericHomeUrl(url)) {
+      continue;
+    }
+
     _openedPages.set(normalizedKey, entry);
   }
 
