@@ -19,11 +19,14 @@
   // preventing chart payloads from being intercepted by a malicious parent.
   const _hostParts = window.location.hostname.split(".");
   // Strip the leftmost subdomain label (e.g. "superset") to get the portal host.
-  const _portalHost = _hostParts.length > 2
-    ? _hostParts.slice(1).join(".")   // "superset.a.b" → "a.b"
+  const _portalHost = _hostParts.length > 1
+    ? _hostParts.slice(1).join(".")   // "superset.a.b" → "a.b", "superset.localhost" → "localhost"
     : _hostParts.join(".");            // already bare domain — use as-is
-  const PORTAL_ORIGIN = window.location.protocol + "//" + _portalHost;
+  const _port = window.location.port ? ":" + window.location.port : "";
+  let PORTAL_ORIGIN = window.location.protocol + "//" + _portalHost + _port;
 
+  // We will update PORTAL_ORIGIN with the exact parent origin once we receive a message from it.
+  
   function isPortalOrigin(origin) {
     try {
       const u = new URL(origin);
@@ -34,6 +37,16 @@
       return false;
     }
   }
+
+  // Attempt to initialize from document.referrer if available and valid
+  try {
+    if (document.referrer) {
+      const ref = new URL(document.referrer);
+      if (isPortalOrigin(ref.origin)) {
+        PORTAL_ORIGIN = ref.origin;
+      }
+    }
+  } catch (_) {}
 
   function getBestCurrentUrl() {
     // Prefer router state when available (some Superset views navigate without
@@ -124,6 +137,8 @@
   // ── Listen for commands from the portal ────────────────────────
   window.addEventListener("message", function (event) {
     if (!isPortalOrigin(event.origin)) return;
+    PORTAL_ORIGIN = event.origin; // Update to exact origin (e.g. including correct dev port)
+
     const msg = event.data;
     if (!msg || !msg.type) return;
 
