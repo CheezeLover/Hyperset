@@ -43,6 +43,8 @@ export function HypersetLayout({
   const [chatInjection, setChatInjection] = useState<string | null>(null);
   // Ref to Superset iframe for postMessage
   const supersetIframeRef = useRef<HTMLIFrameElement>(null);
+  // Prevent resetting opened-page tracking on unrelated re-renders.
+  const seededOpenedPageUrlRef = useRef<string | null>(null);
   // Chat message history — lifted here so it survives panel collapse/expand
   const [chatMessages, setChatMessages] = useState<Message[]>([]);
 
@@ -87,8 +89,47 @@ export function HypersetLayout({
 
   // ── Superset bridge: receive messages ────────────────────────
   useEffect(() => {
+    const trustedOrigin = (() => {
+      try {
+        return new URL(supersetUrl).origin;
+      } catch {
+        return "";
+      }
+    })();
+
+    const reportOpenedPage = (url: string, reason?: string) => {
+      void fetch("/api/superset-opened-page", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url, reason }),
+      }).catch(() => {
+        // Best-effort telemetry only.
+      });
+    };
+
+    const requestOpenedPage = () => {
+      supersetIframeRef.current?.contentWindow?.postMessage(
+        { type: "get_location" },
+        "*",
+      );
+      supersetIframeRef.current?.contentWindow?.postMessage(
+        { type: "ping" },
+        "*",
+      );
+    };
+
+    // Seed only once per configured Superset URL.
+    if (seededOpenedPageUrlRef.current !== supersetUrl) {
+      reportOpenedPage(supersetUrl, "seed");
+      seededOpenedPageUrlRef.current = supersetUrl;
+    }
+    // Ask bridge for the current live location.
+    requestOpenedPage();
+    const pollId = window.setInterval(requestOpenedPage, 5000);
+
     const handler = (event: MessageEvent) => {
-      if (event.origin !== new URL(supersetUrl).origin) return;
+      // Temporarily removing origin check for debugging
+      
       const msg = event.data;
       if (msg?.type === "inspect_chart") {
         const context = [
@@ -118,10 +159,20 @@ export function HypersetLayout({
             },
           ];
         });
+      } else if (msg?.type === "superset_location" && typeof msg.url === "string") {
+        reportOpenedPage(msg.url, typeof msg.reason === "string" ? msg.reason : "superset_location");
+      } else if (msg?.type === "ready") {
+        reportOpenedPage(supersetUrl, "debug_received_ready");
+        requestOpenedPage();
+      } else if (msg?.type === "pong") {
+        reportOpenedPage(supersetUrl, "debug_received_pong");
       }
     };
     window.addEventListener("message", handler);
-    return () => window.removeEventListener("message", handler);
+    return () => {
+      window.clearInterval(pollId);
+      window.removeEventListener("message", handler);
+    };
   }, [supersetUrl, mainFlex]);
 
   // ── Toggle a side panel ──────────────────────────────────────

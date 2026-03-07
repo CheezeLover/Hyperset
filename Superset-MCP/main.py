@@ -30,6 +30,7 @@ from dotenv import load_dotenv
 import json
 import logging
 from pathlib import Path
+from urllib.parse import urlparse, parse_qs
 
 logging.basicConfig(
     level=logging.INFO,
@@ -130,10 +131,50 @@ CLEANUP_EMAIL = os.getenv("HYPERSET_CLEANUP_EMAIL", "admin@HYPERSET.local")
 # host (e.g. http://localhost:3000 in local dev without the domain setup).
 # If neither is set the cleanup job falls back to HYPERSET_CLEANUP_DELAY_MINUTES.
 _hyperset_domain = os.getenv("HYPERSET_DOMAIN", "")
-PORTAL_URL = (
+
+
+def _normalize_url_with_default_https(raw_url: str) -> str:
+    """
+    Normalize service URLs from env vars.
+    If protocol is missing, default to https://.
+    """
+    url = (raw_url or "").strip()
+    if not url:
+        return ""
+    if not re.match(r"^https?://", url, flags=re.IGNORECASE):
+        url = f"https://{url}"
+    return url.rstrip("/")
+
+
+PORTAL_URL = _normalize_url_with_default_https(
     os.getenv("HYPERSET_PORTAL_URL")
     or (f"https://{_hyperset_domain}" if _hyperset_domain else "")
-).rstrip("/")
+)
+
+
+def _portal_url_candidates() -> list[str]:
+    """Return portal base URLs to try, in priority order."""
+    candidates: list[str] = []
+
+    explicit = _normalize_url_with_default_https(os.getenv("HYPERSET_PORTAL_URL", ""))
+    if explicit:
+        candidates.append(explicit)
+
+    if _hyperset_domain:
+        candidates.append(_normalize_url_with_default_https(f"https://{_hyperset_domain}"))
+
+    # In-container fallbacks on the podman network
+    candidates.append("http://hyperset-portal:3000")
+    candidates.append("http://portal:3000")
+
+    # De-duplicate while preserving order
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for c in candidates:
+        if c and c not in seen:
+            seen.add(c)
+            ordered.append(c)
+    return ordered
 
 # Regex to extract the ISO timestamp written into AI chart descriptions.
 _AI_STAMP_RE = re.compile(
@@ -521,19 +562,54 @@ async def _get_cleanup_delay_minutes() -> float:
     then to a hardcoded default of 120 minutes (2 hours).
     """
     default = float(os.getenv("HYPERSET_CLEANUP_DELAY_MINUTES", "120"))
-    if not PORTAL_URL:
-        return default
-    try:
-        mcp_secret = os.getenv("MCP_SERVICE_SECRET", "")
-        headers = {"Authorization": f"Bearer {mcp_secret}"} if mcp_secret else {}
-        async with httpx.AsyncClient(timeout=5.0) as c:
-            r = await c.get(f"{PORTAL_URL}/api/cleanup-config", headers=headers)
-            if r.status_code == 200:
-                minutes = float(r.json().get("cleanupDelayMinutes", default))
-                return max(1.0, min(10080.0, minutes))
-    except Exception as e:
-        logger.debug("Could not fetch cleanup delay from portal: %s — using default %.0f min", e, default)
+    mcp_secret = os.getenv("MCP_SERVICE_SECRET", "")
+    headers = {"Authorization": f"Bearer {mcp_secret}"} if mcp_secret else {}
+    for portal_base in _portal_url_candidates():
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as c:
+                r = await c.get(f"{portal_base}/api/cleanup-config", headers=headers)
+                if r.status_code == 200:
+                    minutes = float(r.json().get("cleanupDelayMinutes", default))
+                    return max(1.0, min(10080.0, minutes))
+        except Exception as e:
+            logger.debug(
+                "Could not fetch cleanup delay from portal (%s): %s",
+                portal_base,
+                e,
+            )
+    logger.debug("Using default cleanup delay %.0f min (portal unreachable)", default)
     return default
+
+
+async def _get_opened_page_from_portal(user_key: str) -> Dict[str, Any]:
+    """
+    Ask the portal for the current Superset iframe URL for a specific user key
+    (email/username/id depending on what the portal stores).
+    """
+    headers = {"Authorization": f"Bearer {_MCP_SECRET}"}
+    if not _portal_url_candidates():
+        return {
+            "error": "Portal URL is not configured (set HYPERSET_DOMAIN or HYPERSET_PORTAL_URL)."
+        }
+
+    errors: list[str] = []
+    for portal_base in _portal_url_candidates():
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as c:
+                r = await c.get(
+                    f"{portal_base}/api/superset-opened-page",
+                    params={"key": user_key},
+                    headers=headers,
+                )
+                if r.status_code == 200:
+                    return r.json()
+                errors.append(f"{portal_base}: HTTP {r.status_code}")
+        except Exception as e:
+            errors.append(f"{portal_base}: {e}")
+
+    return {
+        "error": "Could not fetch opened page from portal: " + " | ".join(errors[:3])
+    }
 
 
 async def _run_ai_chart_cleanup(delay_minutes: float) -> None:
@@ -1219,6 +1295,85 @@ async def superset_config_get_base_url(ctx: Context) -> Dict[str, Any]:
     return {
         "base_url": superset_ctx.base_url,
         "message": f"Connected to Superset instance at: {superset_ctx.base_url}",
+    }
+
+
+def _enrich_page_link_response(response: Dict[str, Any]) -> Dict[str, Any]:
+    url = response.get("url")
+    page_type = "unknown"
+    element_id = None
+    
+    if url:
+        parsed = urlparse(url)
+        path = parsed.path
+        
+        m_dash = re.search(r'/superset/dashboard/([\w-]+)', path)
+        if m_dash:
+            page_type = "dashboard"
+            element_id = m_dash.group(1)
+        elif "/superset/explore/" in path or "/explore/" in path:
+            page_type = "chart"
+            qs = parse_qs(parsed.query)
+            if "slice_id" in qs:
+                element_id = qs["slice_id"][0]
+        elif "/superset/sqllab/" in path or "/sqllab/" in path:
+            page_type = "sqllab"
+            qs = parse_qs(parsed.query)
+            if "savedQueryId" in qs:
+                element_id = qs["savedQueryId"][0]
+        elif path.rstrip("/") in ("/superset/welcome", "/welcome", "/superset", ""):
+            page_type = "welcome"
+        elif path.rstrip("/") == "/chart/list" or path.rstrip("/") == "/superset/chart/list":
+            page_type = "chart_list"
+        elif path.rstrip("/") == "/dashboard/list" or path.rstrip("/") == "/superset/dashboard/list":
+            page_type = "dashboard_list"
+            
+    response["page_type"] = page_type
+    response["element_id"] = element_id
+    return response
+
+@mcp.tool()
+@handle_api_errors
+async def superset_get_opened_page_link(ctx: Context) -> Dict[str, Any]:
+    """
+    Return the currently opened page URL in the main Superset iframe for the
+    authenticated user.
+
+    Returns:
+        A dictionary with the current URL (if available) and timestamp.
+        Also includes page_type (e.g. dashboard, chart, welcome) and element_id if applicable.
+    """
+    identity = extract_identity(ctx.request_context.request)
+
+    # Try username first (currently email in portal auth flow), then fallback to
+    # explicit email if different.
+    first = await _get_opened_page_from_portal(identity.username)
+    if "error" not in first and first.get("url"):
+        return _enrich_page_link_response({
+            "url": first.get("url"),
+            "updated_at": first.get("updated_at"),
+            "reason": first.get("reason"),
+            "source": "portal",
+            "key_used": identity.username,
+        })
+
+    if identity.email and identity.email != identity.username:
+        second = await _get_opened_page_from_portal(identity.email)
+        if "error" not in second and second.get("url"):
+            return _enrich_page_link_response({
+                "url": second.get("url"),
+                "updated_at": second.get("updated_at"),
+                "reason": second.get("reason"),
+                "source": "portal",
+                "key_used": identity.email,
+            })
+
+    if "error" in first:
+        return first
+
+    return {
+        "url": None,
+        "message": "No opened Superset page is currently tracked for this user.",
     }
 
 # ===== Data Analysis Tools =====

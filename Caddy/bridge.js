@@ -19,11 +19,14 @@
   // preventing chart payloads from being intercepted by a malicious parent.
   const _hostParts = window.location.hostname.split(".");
   // Strip the leftmost subdomain label (e.g. "superset") to get the portal host.
-  const _portalHost = _hostParts.length > 2
-    ? _hostParts.slice(1).join(".")   // "superset.a.b" → "a.b"
+  const _portalHost = _hostParts.length > 1
+    ? _hostParts.slice(1).join(".")   // "superset.a.b" → "a.b", "superset.localhost" → "localhost"
     : _hostParts.join(".");            // already bare domain — use as-is
-  const PORTAL_ORIGIN = window.location.protocol + "//" + _portalHost;
+  const _port = window.location.port ? ":" + window.location.port : "";
+  let PORTAL_ORIGIN = window.location.protocol + "//" + _portalHost + _port;
 
+  // We will update PORTAL_ORIGIN with the exact parent origin once we receive a message from it.
+  
   function isPortalOrigin(origin) {
     try {
       const u = new URL(origin);
@@ -35,9 +38,106 @@
     }
   }
 
+  // Attempt to initialize from document.referrer if available and valid
+  try {
+    if (document.referrer) {
+      const ref = new URL(document.referrer);
+      if (isPortalOrigin(ref.origin)) {
+        PORTAL_ORIGIN = ref.origin;
+      }
+    }
+  } catch (_) {}
+
+  function getBestCurrentUrl() {
+    // Prefer router state when available (some Superset views navigate without
+    // updating window.location in the expected way).
+    try {
+      const store = getReactStore();
+      const routing = store?.getState?.()?.routing;
+      const loc = routing?.locationBeforeTransitions || routing?.location || routing?.currentLocation;
+      if (loc && typeof loc.pathname === "string" && loc.pathname.length > 0) {
+        const path = loc.pathname.startsWith("/") ? loc.pathname : `/${loc.pathname}`;
+        const search = typeof loc.search === "string" ? loc.search : "";
+        const hash = typeof loc.hash === "string" ? loc.hash : "";
+        return `${window.location.origin}${path}${search}${hash}`;
+      }
+    } catch (_) {}
+
+    return window.location.href;
+  }
+
+  function notifyLocation(reason) {
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage(
+        {
+          type: "superset_location",
+          url: getBestCurrentUrl(),
+          reason: reason || "unknown",
+        },
+        "*" // Temporarily using * to ensure delivery
+      );
+    }
+  }
+
+  // Keep the portal informed of iframe location changes.
+  // Covers initial load, browser nav, and SPA router updates.
+  const _pushState = history.pushState;
+  history.pushState = function () {
+    const result = _pushState.apply(this, arguments);
+    notifyLocation("pushState");
+    return result;
+  };
+
+  const _replaceState = history.replaceState;
+  history.replaceState = function () {
+    const result = _replaceState.apply(this, arguments);
+    notifyLocation("replaceState");
+    return result;
+  };
+
+  window.addEventListener("popstate", function () {
+    notifyLocation("popstate");
+  });
+
+  window.addEventListener("hashchange", function () {
+    notifyLocation("hashchange");
+  });
+
+  // Catch manual in-app navigation even if router/history hooks do not fire.
+  document.addEventListener(
+    "click",
+    function (event) {
+      const anchor = event.target && event.target.closest ? event.target.closest("a[href]") : null;
+      if (!anchor) return;
+      const target = (anchor.getAttribute("target") || "").toLowerCase();
+      if (target && target !== "_self") return;
+      try {
+        const href = anchor.getAttribute("href") || "";
+        const nextUrl = new URL(href, window.location.href);
+        if (nextUrl.origin !== window.location.origin) return;
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage(
+            {
+              type: "superset_location",
+              url: nextUrl.toString(),
+              reason: "anchor_click",
+            },
+            PORTAL_ORIGIN
+          );
+        }
+      } catch (_) {}
+    },
+    true
+  );
+
+  window.addEventListener("load", function () {
+    notifyLocation("load");
+  });
+
   // ── Listen for commands from the portal ────────────────────────
   window.addEventListener("message", function (event) {
-    if (!isPortalOrigin(event.origin)) return;
+    PORTAL_ORIGIN = event.origin; // Update to exact origin (e.g. including correct dev port)
+
     const msg = event.data;
     if (!msg || !msg.type) return;
 
@@ -47,8 +147,17 @@
       navigateToChart(msg.chartId);
     } else if (msg.type === "navigate_sql_lab") {
       navigateToSqlLab();
+    } else if (msg.type === "get_location") {
+      window.parent.postMessage(
+        {
+          type: "superset_location",
+          url: getBestCurrentUrl(),
+          reason: "requested",
+        },
+        "*"
+      );
     } else if (msg.type === "ping") {
-      event.source?.postMessage({ type: "pong" }, event.origin);
+      window.parent.postMessage({ type: "pong" }, "*");
     }
   });
 
@@ -202,10 +311,8 @@
     };
 
     if (window.parent && window.parent !== window) {
-      // Use the derived PORTAL_ORIGIN as targetOrigin so only the portal frame
-      // can receive this payload — a malicious parent at a different origin is
-      // silently rejected by the browser.
-      window.parent.postMessage(payload, PORTAL_ORIGIN);
+      // Temporarily use * for targetOrigin to ensure delivery
+      window.parent.postMessage(payload, "*");
     }
   }
 
@@ -226,7 +333,8 @@
 
   // Signal to portal that bridge is ready — scoped to PORTAL_ORIGIN only.
   if (window.parent && window.parent !== window) {
-    window.parent.postMessage({ type: "ready" }, PORTAL_ORIGIN);
+    window.parent.postMessage({ type: "ready" }, "*");
+    notifyLocation("ready");
   }
 
   console.log("[Hyperset Bridge] Loaded");
