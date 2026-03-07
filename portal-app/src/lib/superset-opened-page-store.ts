@@ -48,7 +48,6 @@ function normalizeKey(raw: string | undefined): string {
   return (raw ?? "").trim().toLowerCase();
 }
 
-export function setOpenedPageForUser(keys: Array<string | undefined>, rawUrl: string): OpenedPageEntry | null {
 export function setOpenedPageForUser(
   keys: Array<string | undefined>,
   rawUrl: string,
