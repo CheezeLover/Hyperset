@@ -29,6 +29,10 @@ function pruneExpired(nowMs: number): void {
   }
 }
 
+function normalizeKey(raw: string | undefined): string {
+  return (raw ?? "").trim().toLowerCase();
+}
+
 export function setOpenedPageForUser(keys: Array<string | undefined>, rawUrl: string): OpenedPageEntry | null {
   const url = normalizeUrl(rawUrl);
   if (!url) return null;
@@ -40,7 +44,7 @@ export function setOpenedPageForUser(keys: Array<string | undefined>, rawUrl: st
 
   const entry: OpenedPageEntry = { url, updatedAt: nowIso };
   for (const key of keys) {
-    const normalizedKey = (key ?? "").trim();
+    const normalizedKey = normalizeKey(key);
     if (!normalizedKey) continue;
     _openedPages.set(normalizedKey, entry);
   }
@@ -49,7 +53,7 @@ export function setOpenedPageForUser(keys: Array<string | undefined>, rawUrl: st
 }
 
 export function getOpenedPageForKey(key: string): OpenedPageEntry | null {
-  const normalizedKey = (key ?? "").trim();
+  const normalizedKey = normalizeKey(key);
   if (!normalizedKey) return null;
 
   const nowMs = Date.now();

@@ -97,6 +97,10 @@ export function HypersetLayout({
       });
     };
 
+    // Seed the tracker with the iframe start URL even if bridge events are not
+    // available yet.
+    reportOpenedPage(supersetUrl);
+
     const handler = (event: MessageEvent) => {
       if (event.origin !== new URL(supersetUrl).origin) return;
       const msg = event.data;
