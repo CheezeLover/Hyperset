@@ -626,10 +626,13 @@ def FLASK_APP_MUTATOR(app):
         if response.content_type and 'text/html' in response.content_type:
             try:
                 html = response.get_data(as_text=True)
-                if '</head>' in html:
-                    html = html.replace('</head>', DARK_MODE_CSS + '</head>')
-                    response.set_data(html)
-                    logger.debug("[Theme] Injected dark mode CSS")
+                import re
+                if re.search(r'</head>', html, re.IGNORECASE):
+                    html = re.sub(r'</head>', DARK_MODE_CSS + '\n<script src="/bridge.js"></script>\n</head>', html, flags=re.IGNORECASE)
+                elif re.search(r'</body>', html, re.IGNORECASE):
+                    html = re.sub(r'</body>', DARK_MODE_CSS + '\n<script src="/bridge.js"></script>\n</body>', html, flags=re.IGNORECASE)
+                response.set_data(html)
+                logger.debug("[Theme] Injected dark mode CSS")
             except Exception as e:
                 logger.error(f"[Theme] Error injecting CSS: {e}")
         return response

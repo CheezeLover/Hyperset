@@ -45,25 +45,31 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const user = getUserFromRequest(request);
   if (!user.email) {
+    console.error("[OpenedPage] POST rejected: no user email");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   let body: { url?: unknown; reason?: unknown };
   try {
     body = await request.json();
+    console.log(`[OpenedPage] POST received for ${user.email}: url=${body.url} reason=${body.reason}`);
   } catch {
+    console.error("[OpenedPage] POST rejected: invalid JSON body");
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
   if (typeof body.url !== "string") {
+    console.error("[OpenedPage] POST rejected: invalid url type");
     return NextResponse.json({ error: "Missing or invalid url" }, { status: 400 });
   }
 
   const reason = typeof body.reason === "string" ? body.reason : undefined;
   const saved = setOpenedPageForUser([user.id, user.email], body.url, reason);
   if (!saved) {
+    console.error(`[OpenedPage] POST rejected: setOpenedPageForUser returned null for url=${body.url}`);
     return NextResponse.json({ error: "Invalid URL" }, { status: 400 });
   }
 
+  console.log(`[OpenedPage] POST success: saved url=${saved.url}`);
   return NextResponse.json({ ok: true, url: saved.url, updated_at: saved.updatedAt, reason: saved.reason ?? null });
 }

@@ -108,10 +108,13 @@ export function HypersetLayout({
     };
 
     const requestOpenedPage = () => {
-      if (!trustedOrigin) return;
       supersetIframeRef.current?.contentWindow?.postMessage(
         { type: "get_location" },
-        trustedOrigin,
+        "*",
+      );
+      supersetIframeRef.current?.contentWindow?.postMessage(
+        { type: "ping" },
+        "*",
       );
     };
 
@@ -125,9 +128,7 @@ export function HypersetLayout({
     const pollId = window.setInterval(requestOpenedPage, 5000);
 
     const handler = (event: MessageEvent) => {
-      if (!trustedOrigin) return;
       // Temporarily removing origin check for debugging
-      // if (event.origin !== trustedOrigin) return;
       
       const msg = event.data;
       if (msg?.type === "inspect_chart") {
@@ -161,7 +162,10 @@ export function HypersetLayout({
       } else if (msg?.type === "superset_location" && typeof msg.url === "string") {
         reportOpenedPage(msg.url, typeof msg.reason === "string" ? msg.reason : "superset_location");
       } else if (msg?.type === "ready") {
+        reportOpenedPage(supersetUrl, "debug_received_ready");
         requestOpenedPage();
+      } else if (msg?.type === "pong") {
+        reportOpenedPage(supersetUrl, "debug_received_pong");
       }
     };
     window.addEventListener("message", handler);
