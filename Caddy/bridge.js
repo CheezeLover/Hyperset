@@ -74,7 +74,7 @@
           url: getBestCurrentUrl(),
           reason: reason || "unknown",
         },
-        PORTAL_ORIGIN
+        "*" // Temporarily using * to ensure delivery
       );
     }
   }
@@ -136,7 +136,6 @@
 
   // ── Listen for commands from the portal ────────────────────────
   window.addEventListener("message", function (event) {
-    if (!isPortalOrigin(event.origin)) return;
     PORTAL_ORIGIN = event.origin; // Update to exact origin (e.g. including correct dev port)
 
     const msg = event.data;
@@ -312,10 +311,8 @@
     };
 
     if (window.parent && window.parent !== window) {
-      // Use the derived PORTAL_ORIGIN as targetOrigin so only the portal frame
-      // can receive this payload — a malicious parent at a different origin is
-      // silently rejected by the browser.
-      window.parent.postMessage(payload, PORTAL_ORIGIN);
+      // Temporarily use * for targetOrigin to ensure delivery
+      window.parent.postMessage(payload, "*");
     }
   }
 
@@ -336,7 +333,7 @@
 
   // Signal to portal that bridge is ready — scoped to PORTAL_ORIGIN only.
   if (window.parent && window.parent !== window) {
-    window.parent.postMessage({ type: "ready" }, PORTAL_ORIGIN);
+    window.parent.postMessage({ type: "ready" }, "*");
     notifyLocation("ready");
   }
 

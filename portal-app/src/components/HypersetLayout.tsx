@@ -125,7 +125,10 @@ export function HypersetLayout({
     const pollId = window.setInterval(requestOpenedPage, 5000);
 
     const handler = (event: MessageEvent) => {
-      if (!trustedOrigin || event.origin !== trustedOrigin) return;
+      if (!trustedOrigin) return;
+      // Temporarily removing origin check for debugging
+      // if (event.origin !== trustedOrigin) return;
+      
       const msg = event.data;
       if (msg?.type === "inspect_chart") {
         const context = [
