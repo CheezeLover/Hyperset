@@ -150,6 +150,31 @@ PORTAL_URL = _normalize_url_with_default_https(
     or (f"https://{_hyperset_domain}" if _hyperset_domain else "")
 )
 
+
+def _portal_url_candidates() -> list[str]:
+    """Return portal base URLs to try, in priority order."""
+    candidates: list[str] = []
+
+    explicit = _normalize_url_with_default_https(os.getenv("HYPERSET_PORTAL_URL", ""))
+    if explicit:
+        candidates.append(explicit)
+
+    if _hyperset_domain:
+        candidates.append(_normalize_url_with_default_https(f"https://{_hyperset_domain}"))
+
+    # In-container fallbacks on the podman network
+    candidates.append("http://hyperset-portal:3000")
+    candidates.append("http://portal:3000")
+
+    # De-duplicate while preserving order
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for c in candidates:
+        if c and c not in seen:
+            seen.add(c)
+            ordered.append(c)
+    return ordered
+
 # Regex to extract the ISO timestamp written into AI chart descriptions.
 _AI_STAMP_RE = re.compile(
     r'\[HYPERSET-AI-TEMPORARY\]\s+(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)'
@@ -536,18 +561,22 @@ async def _get_cleanup_delay_minutes() -> float:
     then to a hardcoded default of 120 minutes (2 hours).
     """
     default = float(os.getenv("HYPERSET_CLEANUP_DELAY_MINUTES", "120"))
-    if not PORTAL_URL:
-        return default
-    try:
-        mcp_secret = os.getenv("MCP_SERVICE_SECRET", "")
-        headers = {"Authorization": f"Bearer {mcp_secret}"} if mcp_secret else {}
-        async with httpx.AsyncClient(timeout=5.0) as c:
-            r = await c.get(f"{PORTAL_URL}/api/cleanup-config", headers=headers)
-            if r.status_code == 200:
-                minutes = float(r.json().get("cleanupDelayMinutes", default))
-                return max(1.0, min(10080.0, minutes))
-    except Exception as e:
-        logger.debug("Could not fetch cleanup delay from portal: %s — using default %.0f min", e, default)
+    mcp_secret = os.getenv("MCP_SERVICE_SECRET", "")
+    headers = {"Authorization": f"Bearer {mcp_secret}"} if mcp_secret else {}
+    for portal_base in _portal_url_candidates():
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as c:
+                r = await c.get(f"{portal_base}/api/cleanup-config", headers=headers)
+                if r.status_code == 200:
+                    minutes = float(r.json().get("cleanupDelayMinutes", default))
+                    return max(1.0, min(10080.0, minutes))
+        except Exception as e:
+            logger.debug(
+                "Could not fetch cleanup delay from portal (%s): %s",
+                portal_base,
+                e,
+            )
+    logger.debug("Using default cleanup delay %.0f min (portal unreachable)", default)
     return default
 
 
@@ -556,24 +585,30 @@ async def _get_opened_page_from_portal(user_key: str) -> Dict[str, Any]:
     Ask the portal for the current Superset iframe URL for a specific user key
     (email/username/id depending on what the portal stores).
     """
-    if not PORTAL_URL:
+    headers = {"Authorization": f"Bearer {_MCP_SECRET}"}
+    if not _portal_url_candidates():
         return {
             "error": "Portal URL is not configured (set HYPERSET_DOMAIN or HYPERSET_PORTAL_URL)."
         }
 
-    headers = {"Authorization": f"Bearer {_MCP_SECRET}"}
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as c:
-            r = await c.get(
-                f"{PORTAL_URL}/api/superset-opened-page",
-                params={"key": user_key},
-                headers=headers,
-            )
-            if r.status_code == 200:
-                return r.json()
-            return {"error": f"Portal {r.status_code}: {r.text[:200]}"}
-    except Exception as e:
-        return {"error": f"Could not fetch opened page from portal: {e}"}
+    errors: list[str] = []
+    for portal_base in _portal_url_candidates():
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as c:
+                r = await c.get(
+                    f"{portal_base}/api/superset-opened-page",
+                    params={"key": user_key},
+                    headers=headers,
+                )
+                if r.status_code == 200:
+                    return r.json()
+                errors.append(f"{portal_base}: HTTP {r.status_code}")
+        except Exception as e:
+            errors.append(f"{portal_base}: {e}")
+
+    return {
+        "error": "Could not fetch opened page from portal: " + " | ".join(errors[:3])
+    }
 
 
 async def _run_ai_chart_cleanup(delay_minutes: float) -> None:
