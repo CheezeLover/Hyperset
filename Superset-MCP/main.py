@@ -536,6 +536,31 @@ async def _get_cleanup_delay_minutes() -> float:
     return default
 
 
+async def _get_opened_page_from_portal(user_key: str) -> Dict[str, Any]:
+    """
+    Ask the portal for the current Superset iframe URL for a specific user key
+    (email/username/id depending on what the portal stores).
+    """
+    if not PORTAL_URL:
+        return {
+            "error": "Portal URL is not configured (set HYPERSET_DOMAIN or HYPERSET_PORTAL_URL)."
+        }
+
+    headers = {"Authorization": f"Bearer {_MCP_SECRET}"}
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as c:
+            r = await c.get(
+                f"{PORTAL_URL}/api/superset-opened-page",
+                params={"key": user_key},
+                headers=headers,
+            )
+            if r.status_code == 200:
+                return r.json()
+            return {"error": f"Portal {r.status_code}: {r.text[:200]}"}
+    except Exception as e:
+        return {"error": f"Could not fetch opened page from portal: {e}"}
+
+
 async def _run_ai_chart_cleanup(delay_minutes: float) -> None:
     """
     Delete all ``[HYPERSET-AI-TEMPORARY]`` charts whose embedded timestamp is
@@ -1219,6 +1244,48 @@ async def superset_config_get_base_url(ctx: Context) -> Dict[str, Any]:
     return {
         "base_url": superset_ctx.base_url,
         "message": f"Connected to Superset instance at: {superset_ctx.base_url}",
+    }
+
+
+@mcp.tool()
+@handle_api_errors
+async def superset_get_opened_page_link(ctx: Context) -> Dict[str, Any]:
+    """
+    Return the currently opened page URL in the main Superset iframe for the
+    authenticated user.
+
+    Returns:
+        A dictionary with the current URL (if available) and timestamp.
+    """
+    identity = extract_identity(ctx.request_context.request)
+
+    # Try username first (currently email in portal auth flow), then fallback to
+    # explicit email if different.
+    first = await _get_opened_page_from_portal(identity.username)
+    if "error" not in first and first.get("url"):
+        return {
+            "url": first.get("url"),
+            "updated_at": first.get("updated_at"),
+            "source": "portal",
+            "key_used": identity.username,
+        }
+
+    if identity.email and identity.email != identity.username:
+        second = await _get_opened_page_from_portal(identity.email)
+        if "error" not in second and second.get("url"):
+            return {
+                "url": second.get("url"),
+                "updated_at": second.get("updated_at"),
+                "source": "portal",
+                "key_used": identity.email,
+            }
+
+    if "error" in first:
+        return first
+
+    return {
+        "url": None,
+        "message": "No opened Superset page is currently tracked for this user.",
     }
 
 # ===== Data Analysis Tools =====

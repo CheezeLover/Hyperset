@@ -35,6 +35,47 @@
     }
   }
 
+  function notifyLocation(reason) {
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage(
+        {
+          type: "superset_location",
+          url: window.location.href,
+          reason: reason || "unknown",
+        },
+        PORTAL_ORIGIN
+      );
+    }
+  }
+
+  // Keep the portal informed of iframe location changes.
+  // Covers initial load, browser nav, and SPA router updates.
+  const _pushState = history.pushState;
+  history.pushState = function () {
+    const result = _pushState.apply(this, arguments);
+    notifyLocation("pushState");
+    return result;
+  };
+
+  const _replaceState = history.replaceState;
+  history.replaceState = function () {
+    const result = _replaceState.apply(this, arguments);
+    notifyLocation("replaceState");
+    return result;
+  };
+
+  window.addEventListener("popstate", function () {
+    notifyLocation("popstate");
+  });
+
+  window.addEventListener("hashchange", function () {
+    notifyLocation("hashchange");
+  });
+
+  window.addEventListener("load", function () {
+    notifyLocation("load");
+  });
+
   // ── Listen for commands from the portal ────────────────────────
   window.addEventListener("message", function (event) {
     if (!isPortalOrigin(event.origin)) return;
@@ -227,6 +268,7 @@
   // Signal to portal that bridge is ready — scoped to PORTAL_ORIGIN only.
   if (window.parent && window.parent !== window) {
     window.parent.postMessage({ type: "ready" }, PORTAL_ORIGIN);
+    notifyLocation("ready");
   }
 
   console.log("[Hyperset Bridge] Loaded");

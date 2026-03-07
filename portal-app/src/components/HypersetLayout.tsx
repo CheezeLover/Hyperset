@@ -87,6 +87,16 @@ export function HypersetLayout({
 
   // ── Superset bridge: receive messages ────────────────────────
   useEffect(() => {
+    const reportOpenedPage = (url: string) => {
+      void fetch("/api/superset-opened-page", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      }).catch(() => {
+        // Best-effort telemetry only.
+      });
+    };
+
     const handler = (event: MessageEvent) => {
       if (event.origin !== new URL(supersetUrl).origin) return;
       const msg = event.data;
@@ -118,6 +128,8 @@ export function HypersetLayout({
             },
           ];
         });
+      } else if (msg?.type === "superset_location" && typeof msg.url === "string") {
+        reportOpenedPage(msg.url);
       }
     };
     window.addEventListener("message", handler);
