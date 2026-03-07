@@ -88,6 +88,15 @@
       navigateToChart(msg.chartId);
     } else if (msg.type === "navigate_sql_lab") {
       navigateToSqlLab();
+    } else if (msg.type === "get_location") {
+      event.source?.postMessage(
+        {
+          type: "superset_location",
+          url: window.location.href,
+          reason: "requested",
+        },
+        event.origin
+      );
     } else if (msg.type === "ping") {
       event.source?.postMessage({ type: "pong" }, event.origin);
     }

@@ -87,6 +87,14 @@ export function HypersetLayout({
 
   // ── Superset bridge: receive messages ────────────────────────
   useEffect(() => {
+    const trustedOrigin = (() => {
+      try {
+        return new URL(supersetUrl).origin;
+      } catch {
+        return "";
+      }
+    })();
+
     const reportOpenedPage = (url: string) => {
       void fetch("/api/superset-opened-page", {
         method: "POST",
@@ -97,12 +105,23 @@ export function HypersetLayout({
       });
     };
 
+    const requestOpenedPage = () => {
+      if (!trustedOrigin) return;
+      supersetIframeRef.current?.contentWindow?.postMessage(
+        { type: "get_location" },
+        trustedOrigin,
+      );
+    };
+
     // Seed the tracker with the iframe start URL even if bridge events are not
     // available yet.
     reportOpenedPage(supersetUrl);
+    // Ask bridge for the current live location.
+    requestOpenedPage();
+    const pollId = window.setInterval(requestOpenedPage, 5000);
 
     const handler = (event: MessageEvent) => {
-      if (event.origin !== new URL(supersetUrl).origin) return;
+      if (!trustedOrigin || event.origin !== trustedOrigin) return;
       const msg = event.data;
       if (msg?.type === "inspect_chart") {
         const context = [
@@ -134,10 +153,15 @@ export function HypersetLayout({
         });
       } else if (msg?.type === "superset_location" && typeof msg.url === "string") {
         reportOpenedPage(msg.url);
+      } else if (msg?.type === "ready") {
+        requestOpenedPage();
       }
     };
     window.addEventListener("message", handler);
-    return () => window.removeEventListener("message", handler);
+    return () => {
+      window.clearInterval(pollId);
+      window.removeEventListener("message", handler);
+    };
   }, [supersetUrl, mainFlex]);
 
   // ── Toggle a side panel ──────────────────────────────────────
