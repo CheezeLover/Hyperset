@@ -130,10 +130,25 @@ CLEANUP_EMAIL = os.getenv("HYPERSET_CLEANUP_EMAIL", "admin@HYPERSET.local")
 # host (e.g. http://localhost:3000 in local dev without the domain setup).
 # If neither is set the cleanup job falls back to HYPERSET_CLEANUP_DELAY_MINUTES.
 _hyperset_domain = os.getenv("HYPERSET_DOMAIN", "")
-PORTAL_URL = (
+
+
+def _normalize_url_with_default_https(raw_url: str) -> str:
+    """
+    Normalize service URLs from env vars.
+    If protocol is missing, default to https://.
+    """
+    url = (raw_url or "").strip()
+    if not url:
+        return ""
+    if not re.match(r"^https?://", url, flags=re.IGNORECASE):
+        url = f"https://{url}"
+    return url.rstrip("/")
+
+
+PORTAL_URL = _normalize_url_with_default_https(
     os.getenv("HYPERSET_PORTAL_URL")
     or (f"https://{_hyperset_domain}" if _hyperset_domain else "")
-).rstrip("/")
+)
 
 # Regex to extract the ISO timestamp written into AI chart descriptions.
 _AI_STAMP_RE = re.compile(
