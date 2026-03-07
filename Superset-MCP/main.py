@@ -30,6 +30,7 @@ from dotenv import load_dotenv
 import json
 import logging
 from pathlib import Path
+from urllib.parse import urlparse, parse_qs
 
 logging.basicConfig(
     level=logging.INFO,
@@ -1297,6 +1298,40 @@ async def superset_config_get_base_url(ctx: Context) -> Dict[str, Any]:
     }
 
 
+def _enrich_page_link_response(response: Dict[str, Any]) -> Dict[str, Any]:
+    url = response.get("url")
+    page_type = "unknown"
+    element_id = None
+    
+    if url:
+        parsed = urlparse(url)
+        path = parsed.path
+        
+        m_dash = re.search(r'/superset/dashboard/([\w-]+)', path)
+        if m_dash:
+            page_type = "dashboard"
+            element_id = m_dash.group(1)
+        elif "/superset/explore/" in path or "/explore/" in path:
+            page_type = "chart"
+            qs = parse_qs(parsed.query)
+            if "slice_id" in qs:
+                element_id = qs["slice_id"][0]
+        elif "/superset/sqllab/" in path or "/sqllab/" in path:
+            page_type = "sqllab"
+            qs = parse_qs(parsed.query)
+            if "savedQueryId" in qs:
+                element_id = qs["savedQueryId"][0]
+        elif path.rstrip("/") in ("/superset/welcome", "/welcome", "/superset", ""):
+            page_type = "welcome"
+        elif path.rstrip("/") == "/chart/list" or path.rstrip("/") == "/superset/chart/list":
+            page_type = "chart_list"
+        elif path.rstrip("/") == "/dashboard/list" or path.rstrip("/") == "/superset/dashboard/list":
+            page_type = "dashboard_list"
+            
+    response["page_type"] = page_type
+    response["element_id"] = element_id
+    return response
+
 @mcp.tool()
 @handle_api_errors
 async def superset_get_opened_page_link(ctx: Context) -> Dict[str, Any]:
@@ -1306,6 +1341,7 @@ async def superset_get_opened_page_link(ctx: Context) -> Dict[str, Any]:
 
     Returns:
         A dictionary with the current URL (if available) and timestamp.
+        Also includes page_type (e.g. dashboard, chart, welcome) and element_id if applicable.
     """
     identity = extract_identity(ctx.request_context.request)
 
@@ -1313,24 +1349,24 @@ async def superset_get_opened_page_link(ctx: Context) -> Dict[str, Any]:
     # explicit email if different.
     first = await _get_opened_page_from_portal(identity.username)
     if "error" not in first and first.get("url"):
-        return {
+        return _enrich_page_link_response({
             "url": first.get("url"),
             "updated_at": first.get("updated_at"),
             "reason": first.get("reason"),
             "source": "portal",
             "key_used": identity.username,
-        }
+        })
 
     if identity.email and identity.email != identity.username:
         second = await _get_opened_page_from_portal(identity.email)
         if "error" not in second and second.get("url"):
-            return {
+            return _enrich_page_link_response({
                 "url": second.get("url"),
                 "updated_at": second.get("updated_at"),
                 "reason": second.get("reason"),
                 "source": "portal",
                 "key_used": identity.email,
-            }
+            })
 
     if "error" in first:
         return first
