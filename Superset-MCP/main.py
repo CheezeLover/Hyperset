@@ -1221,21 +1221,6 @@ async def superset_config_get_base_url(ctx: Context) -> Dict[str, Any]:
         "message": f"Connected to Superset instance at: {superset_ctx.base_url}",
     }
 
-
-@mcp.tool()
-@handle_api_errors
-async def superset_get_iframe_url(ctx: Context) -> Dict[str, Any]:
-    """
-    Get the public URL of the Superset instance displayed in the iframe.
-
-    Returns:
-        A dictionary with the iframe URL (public Superset URL)
-    """
-    return {
-        "iframe_url": SUPERSET_PUBLIC_URL,
-        "message": f"Superset iframe URL: {SUPERSET_PUBLIC_URL}",
-    }
-
 # ===== Data Analysis Tools =====
 
 def _classify_column(col: Dict[str, Any]) -> str:
