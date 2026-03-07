@@ -90,6 +90,33 @@
     notifyLocation("hashchange");
   });
 
+  // Catch manual in-app navigation even if router/history hooks do not fire.
+  document.addEventListener(
+    "click",
+    function (event) {
+      const anchor = event.target && event.target.closest ? event.target.closest("a[href]") : null;
+      if (!anchor) return;
+      const target = (anchor.getAttribute("target") || "").toLowerCase();
+      if (target && target !== "_self") return;
+      try {
+        const href = anchor.getAttribute("href") || "";
+        const nextUrl = new URL(href, window.location.href);
+        if (nextUrl.origin !== window.location.origin) return;
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage(
+            {
+              type: "superset_location",
+              url: nextUrl.toString(),
+              reason: "anchor_click",
+            },
+            PORTAL_ORIGIN
+          );
+        }
+      } catch (_) {}
+    },
+    true
+  );
+
   window.addEventListener("load", function () {
     notifyLocation("load");
   });

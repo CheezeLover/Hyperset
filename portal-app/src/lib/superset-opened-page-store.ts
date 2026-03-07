@@ -20,6 +20,20 @@ function normalizeUrl(raw: string): string | null {
   }
 }
 
+function isGenericHomeUrl(raw: string): boolean {
+  try {
+    const u = new URL(raw);
+    const p = (u.pathname || "/").replace(/\/+$/, "") || "/";
+    return (
+      (p === "/" || p === "/superset" || p === "/superset/welcome" || p === "/welcome") &&
+      !u.search &&
+      !u.hash
+    );
+  } catch {
+    return false;
+  }
+}
+
 function pruneExpired(nowMs: number): void {
   for (const [key, value] of _openedPages.entries()) {
     const ts = Date.parse(value.updatedAt);
@@ -46,6 +60,13 @@ export function setOpenedPageForUser(keys: Array<string | undefined>, rawUrl: st
   for (const key of keys) {
     const normalizedKey = normalizeKey(key);
     if (!normalizedKey) continue;
+
+    // Prevent noisy "home" updates from overwriting a more specific page URL.
+    const previous = _openedPages.get(normalizedKey);
+    if (previous && !isGenericHomeUrl(previous.url) && isGenericHomeUrl(url)) {
+      continue;
+    }
+
     _openedPages.set(normalizedKey, entry);
   }
 
