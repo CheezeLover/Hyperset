@@ -43,6 +43,8 @@ export function HypersetLayout({
   const [chatInjection, setChatInjection] = useState<string | null>(null);
   // Ref to Superset iframe for postMessage
   const supersetIframeRef = useRef<HTMLIFrameElement>(null);
+  // Prevent resetting opened-page tracking on unrelated re-renders.
+  const seededOpenedPageUrlRef = useRef<string | null>(null);
   // Chat message history — lifted here so it survives panel collapse/expand
   const [chatMessages, setChatMessages] = useState<Message[]>([]);
 
@@ -113,9 +115,11 @@ export function HypersetLayout({
       );
     };
 
-    // Seed the tracker with the iframe start URL even if bridge events are not
-    // available yet.
-    reportOpenedPage(supersetUrl);
+    // Seed only once per configured Superset URL.
+    if (seededOpenedPageUrlRef.current !== supersetUrl) {
+      reportOpenedPage(supersetUrl);
+      seededOpenedPageUrlRef.current = supersetUrl;
+    }
     // Ask bridge for the current live location.
     requestOpenedPage();
     const pollId = window.setInterval(requestOpenedPage, 5000);

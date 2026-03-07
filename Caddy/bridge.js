@@ -35,12 +35,30 @@
     }
   }
 
+  function getBestCurrentUrl() {
+    // Prefer router state when available (some Superset views navigate without
+    // updating window.location in the expected way).
+    try {
+      const store = getReactStore();
+      const routing = store?.getState?.()?.routing;
+      const loc = routing?.locationBeforeTransitions || routing?.location || routing?.currentLocation;
+      if (loc && typeof loc.pathname === "string" && loc.pathname.length > 0) {
+        const path = loc.pathname.startsWith("/") ? loc.pathname : `/${loc.pathname}`;
+        const search = typeof loc.search === "string" ? loc.search : "";
+        const hash = typeof loc.hash === "string" ? loc.hash : "";
+        return `${window.location.origin}${path}${search}${hash}`;
+      }
+    } catch (_) {}
+
+    return window.location.href;
+  }
+
   function notifyLocation(reason) {
     if (window.parent && window.parent !== window) {
       window.parent.postMessage(
         {
           type: "superset_location",
-          url: window.location.href,
+          url: getBestCurrentUrl(),
           reason: reason || "unknown",
         },
         PORTAL_ORIGIN
@@ -92,7 +110,7 @@
       event.source?.postMessage(
         {
           type: "superset_location",
-          url: window.location.href,
+          url: getBestCurrentUrl(),
           reason: "requested",
         },
         event.origin
