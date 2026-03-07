@@ -97,11 +97,11 @@ export function HypersetLayout({
       }
     })();
 
-    const reportOpenedPage = (url: string) => {
+    const reportOpenedPage = (url: string, reason?: string) => {
       void fetch("/api/superset-opened-page", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ url, reason }),
       }).catch(() => {
         // Best-effort telemetry only.
       });
@@ -117,7 +117,7 @@ export function HypersetLayout({
 
     // Seed only once per configured Superset URL.
     if (seededOpenedPageUrlRef.current !== supersetUrl) {
-      reportOpenedPage(supersetUrl);
+      reportOpenedPage(supersetUrl, "seed");
       seededOpenedPageUrlRef.current = supersetUrl;
     }
     // Ask bridge for the current live location.
@@ -156,7 +156,7 @@ export function HypersetLayout({
           ];
         });
       } else if (msg?.type === "superset_location" && typeof msg.url === "string") {
-        reportOpenedPage(msg.url);
+        reportOpenedPage(msg.url, typeof msg.reason === "string" ? msg.reason : "superset_location");
       } else if (msg?.type === "ready") {
         requestOpenedPage();
       }

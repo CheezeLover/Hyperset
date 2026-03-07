@@ -1316,6 +1316,7 @@ async def superset_get_opened_page_link(ctx: Context) -> Dict[str, Any]:
         return {
             "url": first.get("url"),
             "updated_at": first.get("updated_at"),
+            "reason": first.get("reason"),
             "source": "portal",
             "key_used": identity.username,
         }
@@ -1326,6 +1327,7 @@ async def superset_get_opened_page_link(ctx: Context) -> Dict[str, Any]:
             return {
                 "url": second.get("url"),
                 "updated_at": second.get("updated_at"),
+                "reason": second.get("reason"),
                 "source": "portal",
                 "key_used": identity.email,
             }

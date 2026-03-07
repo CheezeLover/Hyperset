@@ -1,6 +1,7 @@
 interface OpenedPageEntry {
   url: string;
   updatedAt: string;
+  reason?: string;
 }
 
 const _openedPages = new Map<string, OpenedPageEntry>();
@@ -48,6 +49,11 @@ function normalizeKey(raw: string | undefined): string {
 }
 
 export function setOpenedPageForUser(keys: Array<string | undefined>, rawUrl: string): OpenedPageEntry | null {
+export function setOpenedPageForUser(
+  keys: Array<string | undefined>,
+  rawUrl: string,
+  reason?: string,
+): OpenedPageEntry | null {
   const url = normalizeUrl(rawUrl);
   if (!url) return null;
 
@@ -56,7 +62,11 @@ export function setOpenedPageForUser(keys: Array<string | undefined>, rawUrl: st
   const nowMs = now.getTime();
   pruneExpired(nowMs);
 
-  const entry: OpenedPageEntry = { url, updatedAt: nowIso };
+  const entry: OpenedPageEntry = {
+    url,
+    updatedAt: nowIso,
+    reason: typeof reason === "string" && reason.trim() ? reason.trim().slice(0, 80) : undefined,
+  };
   for (const key of keys) {
     const normalizedKey = normalizeKey(key);
     if (!normalizedKey) continue;

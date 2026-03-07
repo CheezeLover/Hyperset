@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.json(
-    { url: entry.url, updated_at: entry.updatedAt },
+    { url: entry.url, updated_at: entry.updatedAt, reason: entry.reason ?? null },
     { headers: { "Cache-Control": "no-store" } },
   );
 }
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body: { url?: unknown };
+  let body: { url?: unknown; reason?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -59,10 +59,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Missing or invalid url" }, { status: 400 });
   }
 
-  const saved = setOpenedPageForUser([user.id, user.email], body.url);
+  const reason = typeof body.reason === "string" ? body.reason : undefined;
+  const saved = setOpenedPageForUser([user.id, user.email], body.url, reason);
   if (!saved) {
     return NextResponse.json({ error: "Invalid URL" }, { status: 400 });
   }
 
-  return NextResponse.json({ ok: true, url: saved.url, updated_at: saved.updatedAt });
+  return NextResponse.json({ ok: true, url: saved.url, updated_at: saved.updatedAt, reason: saved.reason ?? null });
 }
