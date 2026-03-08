@@ -1642,6 +1642,7 @@ export function ChatPanel({
       display: "flex", 
       flexDirection: "column", 
       height: "100%", 
+      minHeight: 0,
       background: "var(--md-surface-cont)",
       fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
     }}>
@@ -1664,6 +1665,7 @@ export function ChatPanel({
         .chat-messages {
           scrollbar-width: thin;
           scrollbar-color: var(--md-outline) transparent;
+          scrollbar-gutter: stable;
         }
         
         .chat-messages::-webkit-scrollbar {
@@ -1765,7 +1767,7 @@ export function ChatPanel({
       )}
 
       {/* Message list */}
-      <div className="chat-messages" style={{ flex: 1, overflowY: "auto", padding: "16px 0" }}>
+      <div className="chat-messages" style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "16px 0" }}>
         {messages.length === 0 && (
           <div style={{
             display: "flex",
