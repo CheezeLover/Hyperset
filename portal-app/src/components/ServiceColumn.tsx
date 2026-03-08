@@ -162,18 +162,6 @@ export function ServiceColumn({
         </svg>
       </ServiceBtn>
 
-      {/* Separator before pages */}
-      {pages.length > 0 && (
-        <div
-          style={{
-            width: 24,
-            height: 1,
-            background: "var(--md-outline-var)",
-            margin: "4px 0",
-          }}
-        />
-      )}
-
       {/* Dynamic page buttons */}
       {pages.map((page) => (
         <ServiceBtn
