@@ -1660,28 +1660,28 @@ export function ChatPanel({
           }
         }
         
-        /* Modern thin scrollbar */
-        ::-webkit-scrollbar {
+        /* Modern thin scrollbar - only visible when needed */
+        .chat-messages {
+          scrollbar-width: thin;
+          scrollbar-color: var(--md-outline) transparent;
+        }
+        
+        .chat-messages::-webkit-scrollbar {
           width: 6px;
           height: 6px;
         }
         
-        ::-webkit-scrollbar-track {
+        .chat-messages::-webkit-scrollbar-track {
           background: transparent;
         }
         
-        ::-webkit-scrollbar-thumb {
+        .chat-messages::-webkit-scrollbar-thumb {
           background: var(--md-outline);
           border-radius: 10px;
         }
         
-        ::-webkit-scrollbar-thumb:hover {
+        .chat-messages::-webkit-scrollbar-thumb:hover {
           background: var(--md-primary-muted);
-        }
-        
-        * {
-          scrollbar-width: thin;
-          scrollbar-color: var(--md-outline) transparent;
         }
       `}</style>
 
@@ -1765,7 +1765,7 @@ export function ChatPanel({
       )}
 
       {/* Message list */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "16px 0" }}>
+      <div className="chat-messages" style={{ flex: 1, overflowY: "auto", padding: "16px 0" }}>
         {messages.length === 0 && (
           <div style={{
             display: "flex",
