@@ -435,18 +435,13 @@ function Resizer({
   onTouchStart: React.TouchEventHandler;
 }) {
   const [hovered, setHovered] = useState(false);
-  const backgroundColor =
-    colorClass === "primary"
-      ? "#FFE5D9"  // Very light orange background for chat separator
-      : "#F5F5F5"; // Very light gray background for others
-  const barColor =
-    colorClass === "primary"
-      ? "#E85A2D"  // Classic dark orange for the bar
-      : "#A0AEC0"; // Gray for other bars
-  const barHoverColor =
-    colorClass === "primary"
-      ? "#FF6B35"  // Bright orange on hover
-      : "#718096"; // Darker gray on hover
+  const backgroundColor = "var(--md-surface-cont)";
+  const barColor = colorClass === "primary" 
+    ? "var(--md-primary)" 
+    : "var(--md-outline)";
+  const barHoverColor = colorClass === "primary" 
+    ? "var(--md-primary-muted)" 
+    : "var(--md-outline-var)";
 
   return (
     <div
