@@ -1642,6 +1642,7 @@ export function ChatPanel({
       display: "flex", 
       flexDirection: "column", 
       height: "100%", 
+      minHeight: 0,
       background: "var(--md-surface-cont)",
       fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
     }}>
@@ -1660,28 +1661,14 @@ export function ChatPanel({
           }
         }
         
-        /* Modern thin scrollbar */
-        ::-webkit-scrollbar {
-          width: 6px;
-          height: 6px;
+        /* Hide scrollbar but keep scrolling */
+        .chat-messages {
+          scrollbar-width: none;
+          -ms-overflow-style: none;
         }
         
-        ::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        
-        ::-webkit-scrollbar-thumb {
-          background: var(--md-outline);
-          border-radius: 10px;
-        }
-        
-        ::-webkit-scrollbar-thumb:hover {
-          background: var(--md-primary-muted);
-        }
-        
-        * {
-          scrollbar-width: thin;
-          scrollbar-color: var(--md-outline) transparent;
+        .chat-messages::-webkit-scrollbar {
+          display: none;
         }
       `}</style>
 
@@ -1690,7 +1677,6 @@ export function ChatPanel({
         display: "flex", 
         alignItems: "center", 
         padding: "12px 16px",
-        borderBottom: "1px solid var(--md-outline-var)",
         gap: 10,
         minHeight: 52,
         flexShrink: 0,
@@ -1765,14 +1751,43 @@ export function ChatPanel({
       )}
 
       {/* Message list */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "16px 0" }}>
+      <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
+        {/* Top gradient */}
+        <div style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 24,
+          background: "linear-gradient(to bottom, var(--md-surface-cont), transparent)",
+          zIndex: 1,
+          pointerEvents: "none",
+        }} />
+        {/* Bottom gradient */}
+        <div style={{
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: 24,
+          background: "linear-gradient(to top, var(--md-surface-cont), transparent)",
+          zIndex: 1,
+          pointerEvents: "none",
+        }} />
+        <div 
+          className="chat-messages" 
+          style={{ 
+            height: "100%", 
+            overflowY: "auto", 
+            padding: "16px 0" 
+        }}>
         {messages.length === 0 && (
           <div style={{
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
-            height: "100%",
+            minHeight: "100%",
             gap: 16,
             userSelect: "none",
             animation: "fadeInUp 0.5s ease-out",
@@ -1804,6 +1819,7 @@ export function ChatPanel({
           />
         ))}
         <div ref={messagesEndRef} style={{ height: 8 }} />
+      </div>
       </div>
 
       {/* Floating Input area */}
