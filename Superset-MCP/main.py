@@ -1329,9 +1329,9 @@ def _enrich_page_link_response(response: Dict[str, Any]) -> Dict[str, Any]:
             page_type = "dashboard_list"
             
     if page_type not in ("dashboard", "chart"):
-        return {
-            "message": "Unsupported page. Please ask the user to navigate to a specific chart or dashboard."
-        }
+        response["page_type"] = page_type
+        response["message"] = "Unsupported page. Please ask the user to navigate to a specific chart or dashboard."
+        return response
         
     response["page_type"] = page_type
     response["element_id"] = element_id
