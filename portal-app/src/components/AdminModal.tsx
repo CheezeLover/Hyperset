@@ -2,6 +2,10 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 
+const spinKeyframes = `
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+`;
+
 interface AdminModalProps {
   onClose: () => void;
 }
@@ -38,7 +42,7 @@ interface TestResult {
   model?: string;
 }
 
-type Tab = "llm" | "knowledge";
+type Tab = "llm" | "knowledge" | "additional";
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -89,13 +93,14 @@ function KnowledgeBaseTab() {
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [description, setDescription] = useState("");
   const [textContent, setTextContent] = useState("");
   const [textName, setTextName] = useState("");
   const [uploadMode, setUploadMode] = useState<"file" | "text">("file");
   const [routingGuide, setRoutingGuide] = useState("");
   const [routingGuideSaving, setRoutingGuideSaving] = useState(false);
+  const [routingGuideSaved, setRoutingGuideSaved] = useState(false);
 
   const loadDocuments = useCallback(async () => {
     try {
@@ -117,27 +122,29 @@ function KnowledgeBaseTab() {
   }, [loadDocuments]);
 
   const handleFileUpload = async () => {
-    if (!selectedFile) return;
+    if (selectedFiles.length === 0) return;
 
     setUploading(true);
     setError("");
 
     try {
-      const formData = new FormData();
-      formData.append("file", selectedFile);
-      formData.append("description", description);
+      for (const file of selectedFiles) {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("description", description);
 
-      const res = await fetch("/api/knowledge-base", {
-        method: "POST",
-        body: formData,
-      });
+        const res = await fetch("/api/knowledge-base", {
+          method: "POST",
+          body: formData,
+        });
 
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Upload failed");
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || `Upload failed for ${file.name}`);
+        }
       }
 
-      setSelectedFile(null);
+      setSelectedFiles([]);
       setDescription("");
       await loadDocuments();
     } catch (e) {
@@ -198,75 +205,95 @@ function KnowledgeBaseTab() {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {/* Upload Section */}
-      <div>
-        <p style={{ fontSize: 11, fontWeight: 600, opacity: 0.45, textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 12px" }}>
-          Upload Document
-        </p>
+      <section style={{
+        background: "var(--md-surface)", borderRadius: 16, padding: 20,
+        border: "1px solid var(--md-outline-var)",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--md-primary)" }} />
+          <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--md-on-surface)", margin: 0 }}>Upload Document</h3>
+        </div>
 
-        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
           <button
             onClick={() => setUploadMode("file")}
             style={{
-              ...tabBtnStyle,
-              background: uploadMode === "file" ? "var(--md-primary)" : "var(--md-surface)",
-              color: uploadMode === "file" ? "#fff" : "var(--md-on-surface)",
+              flex: 1, padding: "10px 16px", borderRadius: 10, fontSize: 12, fontWeight: 600,
+              cursor: "pointer", border: "none", transition: "all 0.2s ease",
+              background: uploadMode === "file" ? "var(--md-primary)" : "var(--md-surface-cont)",
+              color: uploadMode === "file" ? "white" : "var(--md-on-surface)",
+              opacity: uploadMode === "file" ? 1 : 0.6,
             }}
           >
-            File Upload
+            📄 File Upload
           </button>
           <button
             onClick={() => setUploadMode("text")}
             style={{
-              ...tabBtnStyle,
-              background: uploadMode === "text" ? "var(--md-primary)" : "var(--md-surface)",
-              color: uploadMode === "text" ? "#fff" : "var(--md-on-surface)",
+              flex: 1, padding: "10px 16px", borderRadius: 10, fontSize: 12, fontWeight: 600,
+              cursor: "pointer", border: "none", transition: "all 0.2s ease",
+              background: uploadMode === "text" ? "var(--md-primary)" : "var(--md-surface-cont)",
+              color: uploadMode === "text" ? "white" : "var(--md-on-surface)",
+              opacity: uploadMode === "text" ? 1 : 0.6,
             }}
           >
-            Text Input
+            ✏️ Text Input
           </button>
         </div>
 
         {uploadMode === "file" ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-              <span style={labelStyle}>Select .md file</span>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span style={labelStyle}>Select .md files (multiple allowed)</span>
               <input
                 type="file"
                 accept=".md"
-                onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-                style={{ ...inputStyle, padding: "5px 10px" }}
+                multiple
+                onChange={(e) => setSelectedFiles(Array.from(e.target.files || []))}
+                style={{ ...inputStyle, padding: "8px 10px" }}
                 disabled={uploading}
               />
             </label>
-            {selectedFile && (
-              <p style={{ fontSize: 11, opacity: 0.6, margin: 0 }}>
-                Selected: {selectedFile.name} ({formatBytes(selectedFile.size)})
-              </p>
+            {selectedFiles.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {selectedFiles.map((file, idx) => (
+                  <p key={idx} style={{ fontSize: 12, opacity: 0.7, margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ color: "var(--md-primary)" }}>📄</span>
+                    {file.name} ({formatBytes(file.size)})
+                    <button
+                      onClick={() => setSelectedFiles(selectedFiles.filter((_, i) => i !== idx))}
+                      style={{ border: "none", background: "none", cursor: "pointer", color: "var(--md-on-surface)", opacity: 0.5, padding: "0 4px" }}
+                    >
+                      ×
+                    </button>
+                  </p>
+                ))}
+              </div>
             )}
-            <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-              <span style={labelStyle}>Description (optional)</span>
+            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span style={labelStyle}>Description (optional, applied to all files)</span>
               <input
                 type="text"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Brief description of this document..."
+                placeholder="Brief description of these documents..."
                 style={inputStyle}
                 disabled={uploading}
               />
             </label>
             <button
               onClick={handleFileUpload}
-              disabled={!selectedFile || uploading}
-              style={{ ...primaryBtnStyle, alignSelf: "flex-start", opacity: (!selectedFile || uploading) ? 0.5 : 1 }}
+              disabled={selectedFiles.length === 0 || uploading}
+              style={{ ...primaryBtnStyle, alignSelf: "flex-start", opacity: (selectedFiles.length === 0 || uploading) ? 0.5 : 1 }}
             >
-              {uploading ? "Uploading..." : "Upload"}
+              {uploading ? "Uploading..." : `Upload ${selectedFiles.length > 0 ? `${selectedFiles.length} ` : ""}Document${selectedFiles.length !== 1 ? "s" : ""}`}
             </button>
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <span style={labelStyle}>Document Name</span>
               <input
                 type="text"
@@ -277,7 +304,7 @@ function KnowledgeBaseTab() {
                 disabled={uploading}
               />
             </label>
-            <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <span style={labelStyle}>Description (optional)</span>
               <input
                 type="text"
@@ -288,7 +315,7 @@ function KnowledgeBaseTab() {
                 disabled={uploading}
               />
             </label>
-            <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <span style={labelStyle}>Content (Markdown)</span>
               <textarea
                 value={textContent}
@@ -304,17 +331,21 @@ function KnowledgeBaseTab() {
               disabled={!textName.trim() || !textContent.trim() || uploading}
               style={{ ...primaryBtnStyle, alignSelf: "flex-start", opacity: (!textName.trim() || !textContent.trim() || uploading) ? 0.5 : 1 }}
             >
-              {uploading ? "Uploading..." : "Upload"}
+              {uploading ? "Uploading..." : "Upload Document"}
             </button>
           </div>
         )}
-      </div>
+      </section>
 
       {/* Documents List */}
-      <div style={{ borderTop: "1px solid var(--md-outline-var)", paddingTop: 16 }}>
-        <p style={{ fontSize: 11, fontWeight: 600, opacity: 0.45, textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 12px" }}>
-          Knowledge Base Documents ({documents.length})
-        </p>
+      <section style={{
+        background: "var(--md-surface)", borderRadius: 16, padding: 20,
+        border: "1px solid var(--md-outline-var)",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#4caf50" }} />
+          <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--md-on-surface)", margin: 0 }}>Knowledge Base Documents ({documents.length})</h3>
+        </div>
 
         {loading ? (
           <p style={{ opacity: 0.6, fontSize: 13 }}>Loading documents...</p>
@@ -323,7 +354,7 @@ function KnowledgeBaseTab() {
             No documents in knowledge base. Upload .md files to enrich LLM responses with company-specific information.
           </p>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {documents.map((doc) => (
               <div
                 key={doc.id}
@@ -331,9 +362,9 @@ function KnowledgeBaseTab() {
                   display: "flex",
                   alignItems: "flex-start",
                   gap: 12,
-                  padding: 12,
-                  background: "var(--md-surface)",
-                  borderRadius: 8,
+                  padding: 14,
+                  background: "var(--md-surface-cont)",
+                  borderRadius: 12,
                   border: "1px solid var(--md-outline-var)",
                 }}
               >
@@ -351,7 +382,7 @@ function KnowledgeBaseTab() {
                       {doc.description}
                     </p>
                   )}
-                  <p style={{ fontSize: 10, opacity: 0.5, margin: 0 }}>
+                  <p style={{ fontSize: 11, opacity: 0.5, margin: 0 }}>
                     Created: {formatDate(doc.createdAt)}
                   </p>
                 </div>
@@ -365,25 +396,27 @@ function KnowledgeBaseTab() {
                   }}
                   title="Delete document"
                 >
-                  {deletingId === doc.id ? "..." : "Delete"}
+                  {deletingId === doc.id ? "..." : "🗑️ Delete"}
                 </button>
               </div>
             ))}
           </div>
         )}
-      </div>
+      </section>
 
       {/* Routing Guide Editor */}
-      <div style={{ borderTop: "1px solid var(--md-outline-var)", paddingTop: 16, marginTop: 8 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-          <p style={{ fontSize: 11, fontWeight: 600, opacity: 0.45, textTransform: "uppercase", letterSpacing: "0.06em", margin: 0 }}>
-            Routing Guide — Which Document to Use When
-          </p>
-          <span style={{ fontSize: 10, opacity: 0.5 }}>
+      <section style={{
+        background: "var(--md-surface)", borderRadius: 16, padding: 20,
+        border: "1px solid var(--md-outline-var)",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#9c27b0" }} />
+          <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--md-on-surface)", margin: 0 }}>Routing Guide</h3>
+          <span style={{ fontSize: 11, opacity: 0.5, marginLeft: "auto" }}>
             {routingGuide.length} chars
           </span>
         </div>
-        <p style={{ fontSize: 11, opacity: 0.6, margin: "0 0 8px", lineHeight: 1.4 }}>
+        <p style={{ fontSize: 12, opacity: 0.6, margin: "0 0 12px", lineHeight: 1.5 }}>
           Explain to the AI which document to use for different topics. Be specific about routing decisions.
         </p>
         <textarea
@@ -400,7 +433,7 @@ When user asks about "revenue", "costs", "profits" → Check airline-metrics.md 
 When user asks about "delays", "on-time performance" → Check company-overview.md first
 When user mentions abbreviations like "OTP", "RASM", "CASM" → Check airline-terminology.md`}
           rows={10}
-          style={{ ...inputStyle, resize: "vertical", fontFamily: "monospace", fontSize: 12, lineHeight: 1.5, marginBottom: 8 }}
+          style={{ ...inputStyle, resize: "vertical", fontFamily: "monospace", fontSize: 12, lineHeight: 1.5, marginBottom: 12 }}
         />
         <button
           onClick={async () => {
@@ -413,6 +446,8 @@ When user mentions abbreviations like "OTP", "RASM", "CASM" → Check airline-te
                 body: JSON.stringify({ routingGuide }),
               });
               if (!res.ok) throw new Error("Failed to save routing guide");
+              setRoutingGuideSaved(true);
+              setTimeout(() => setRoutingGuideSaved(false), 2000);
             } catch (e) {
               setError("Failed to save routing guide");
             } finally {
@@ -420,15 +455,20 @@ When user mentions abbreviations like "OTP", "RASM", "CASM" → Check airline-te
             }
           }}
           disabled={routingGuideSaving}
-          style={{ ...primaryBtnStyle, alignSelf: "flex-start", opacity: routingGuideSaving ? 0.5 : 1 }}
+          style={{ 
+            ...primaryBtnStyle, alignSelf: "flex-start", 
+            padding: "12px 24px",
+            boxShadow: routingGuideSaved ? "none" : "0 4px 12px rgba(211, 84, 0, 0.3)",
+            ...(routingGuideSaved ? { background: "#4caf50", boxShadow: "0 4px 12px rgba(76, 175, 80, 0.3)" } : {}),
+          }}
         >
-          {routingGuideSaving ? "Saving..." : "Save Routing Guide"}
+          {routingGuideSaved ? "✓ Saved" : routingGuideSaving ? "Saving..." : "Save Routing Guide"}
         </button>
-      </div>
+      </section>
 
       {error && (
-        <div style={{ padding: "8px 10px", borderRadius: 8, background: "rgba(211,47,47,0.12)", border: "1px solid rgba(211,47,47,0.3)" }}>
-          <span style={{ color: "#ef5350", fontSize: 12 }}>{error}</span>
+        <div style={{ padding: "12px 16px", borderRadius: 12, background: "rgba(211,47,47,0.1)", border: "1px solid rgba(211,47,47,0.25)" }}>
+          <span style={{ color: "#ef5350", fontSize: 13 }}>{error}</span>
         </div>
       )}
     </div>
@@ -525,82 +565,122 @@ export function AdminModal({ onClose }: AdminModalProps) {
   };
 
   return (
-    <div
-      style={{
-        position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)",
-        zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center",
-      }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
+    <>
+      <style>{spinKeyframes}</style>
+      <div
+        style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)",
+          zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center",
+          backdropFilter: "blur(4px)",
+        }}
+        onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      >
       <div style={{
-        background: "var(--md-surface-cont)", borderRadius: "var(--radius-l)",
-        padding: 24, minWidth: 360, maxWidth: 600, width: "92%",
-        maxHeight: "90vh", overflowY: "auto",
-        boxShadow: "0 8px 32px rgba(0,0,0,0.28)",
-        display: "flex", flexDirection: "column", gap: 0,
+        background: "var(--md-surface-cont)", borderRadius: 20,
+        padding: 0, minWidth: 380, maxWidth: 640, width: "94%",
+        maxHeight: "85vh", overflow: "hidden",
+        boxShadow: "0 24px 48px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,255,255,0.05)",
+        display: "flex", flexDirection: "column",
       }}>
-        {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", marginBottom: 20, gap: 10 }}>
-          <svg viewBox="0 0 24 24" width={18} height={18} fill="var(--md-secondary)">
-            <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z" />
-          </svg>
-          <h2 style={{ fontSize: 15, fontWeight: 600, flex: 1, color: "var(--md-on-surface)" }}>Admin Settings</h2>
+        {/* Header - sticky */}
+        <div style={{ 
+          display: "flex", alignItems: "center", padding: "20px 24px", gap: 14, 
+          borderBottom: "1px solid var(--md-outline-var)",
+          background: "var(--md-surface-cont)", borderRadius: "20px 20px 0 0",
+          flexShrink: 0,
+        }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: 10,
+            background: "linear-gradient(135deg, var(--md-primary) 0%, var(--md-primary-muted) 100%)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+          }}>
+            <svg viewBox="0 0 24 24" width={18} height={18} fill="white">
+              <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z" />
+            </svg>
+          </div>
+          <div style={{ flex: 1 }}>
+            <h2 style={{ fontSize: 18, fontWeight: 600, color: "var(--md-on-surface)", margin: 0, lineHeight: 1.3 }}>Admin Settings</h2>
+            <p style={{ fontSize: 12, color: "var(--md-on-surface)", opacity: 0.5, margin: "2px 0 0" }}>Configure LLM and knowledge base</p>
+          </div>
           <button onClick={onClose}
-            style={{ border: "none", background: "none", cursor: "pointer",
-              color: "var(--md-on-surface)", fontSize: 18, lineHeight: 1, padding: "2px 6px", borderRadius: 6 }}>
+            style={{ border: "none", background: "var(--md-surface)", cursor: "pointer",
+              color: "var(--md-on-surface)", fontSize: 18, lineHeight: 1, padding: "6px 10px", borderRadius: 10,
+              transition: "all 0.15s ease", opacity: 0.7 }}>
             ×
           </button>
         </div>
 
-        {/* Tab Navigation */}
-        <div style={{ display: "flex", gap: 0, marginBottom: 20, borderBottom: "1px solid var(--md-outline-var)" }}>
+        {/* Scrollable Content */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "0 24px 24px" }}>
+          {/* Tab Navigation */}
+          <div style={{ display: "flex", gap: 4, marginBottom: 24, marginTop: 20,
+            background: "var(--md-surface)", padding: 4, borderRadius: 14 }}>
           <button
             onClick={() => setActiveTab("llm")}
             style={{
-              ...tabBtnStyle,
-              borderBottom: activeTab === "llm" ? "2px solid var(--md-primary)" : "2px solid transparent",
-              background: "none",
-              color: activeTab === "llm" ? "var(--md-primary)" : "var(--md-on-surface)",
-              opacity: activeTab === "llm" ? 1 : 0.7,
-              borderRadius: 0,
-              padding: "8px 16px",
+              flex: 1, padding: "10px 12px", borderRadius: 10, fontSize: 12, fontWeight: 600,
+              cursor: "pointer", border: "none", transition: "all 0.2s ease",
+              background: activeTab === "llm" ? "var(--md-primary)" : "transparent",
+              color: activeTab === "llm" ? "white" : "var(--md-on-surface)",
+              opacity: activeTab === "llm" ? 1 : 0.6,
+              boxShadow: activeTab === "llm" ? "0 2px 8px rgba(0,0,0,0.15)" : "none",
             }}
           >
-            LLM Settings
+            🤖 LLM
           </button>
           <button
             onClick={() => setActiveTab("knowledge")}
             style={{
-              ...tabBtnStyle,
-              borderBottom: activeTab === "knowledge" ? "2px solid var(--md-primary)" : "2px solid transparent",
-              background: "none",
-              color: activeTab === "knowledge" ? "var(--md-primary)" : "var(--md-on-surface)",
-              opacity: activeTab === "knowledge" ? 1 : 0.7,
-              borderRadius: 0,
-              padding: "8px 16px",
+              flex: 1, padding: "10px 12px", borderRadius: 10, fontSize: 12, fontWeight: 600,
+              cursor: "pointer", border: "none", transition: "all 0.2s ease",
+              background: activeTab === "knowledge" ? "var(--md-primary)" : "transparent",
+              color: activeTab === "knowledge" ? "white" : "var(--md-on-surface)",
+              opacity: activeTab === "knowledge" ? 1 : 0.6,
+              boxShadow: activeTab === "knowledge" ? "0 2px 8px rgba(0,0,0,0.15)" : "none",
             }}
           >
-            Knowledge Base
+            📚 Knowledge
+          </button>
+          <button
+            onClick={() => setActiveTab("additional")}
+            style={{
+              flex: 1, padding: "10px 12px", borderRadius: 10, fontSize: 12, fontWeight: 600,
+              cursor: "pointer", border: "none", transition: "all 0.2s ease",
+              background: activeTab === "additional" ? "var(--md-primary)" : "transparent",
+              color: activeTab === "additional" ? "white" : "var(--md-on-surface)",
+              opacity: activeTab === "additional" ? 1 : 0.6,
+              boxShadow: activeTab === "additional" ? "0 2px 8px rgba(0,0,0,0.15)" : "none",
+            }}
+          >
+            ⚙️ Pages
           </button>
         </div>
 
         {loading && activeTab === "llm" ? (
-          <p style={{ opacity: 0.6, textAlign: "center", fontSize: 13 }}>Loading...</p>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 40 }}>
+            <div style={{ width: 24, height: 24, border: "3px solid var(--md-outline)", borderTopColor: "var(--md-primary)", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+          </div>
         ) : activeTab === "llm" ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             {/* ── LLM connection ── */}
-            <p style={{ fontSize: 11, fontWeight: 600, opacity: 0.45, textTransform: "uppercase", letterSpacing: "0.06em", margin: 0 }}>
-              LLM Connection
-            </p>
+            <section style={{
+              background: "var(--md-surface)", borderRadius: 16, padding: 20,
+              border: "1px solid var(--md-outline-var)",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--md-primary)" }} />
+                <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--md-on-surface)", margin: 0 }}>LLM Connection</h3>
+              </div>
 
-            <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <span style={labelStyle}>API URL</span>
               <input type="url" value={settings.apiUrl}
                 onChange={(e) => setSettings((s) => ({ ...s, apiUrl: e.target.value }))}
                 placeholder="https://api.mistral.ai/v1" style={inputStyle} disabled={saving} />
             </label>
 
-            <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <span style={labelStyle}>API Key{settings.isCustom ? " (overridden)" : ""}</span>
               <input type="password" value={settings.apiKey}
                 onChange={(e) => setSettings((s) => ({ ...s, apiKey: e.target.value }))}
@@ -608,18 +688,18 @@ export function AdminModal({ onClose }: AdminModalProps) {
                 style={inputStyle} disabled={saving} />
             </label>
 
-            <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <span style={labelStyle}>Model</span>
               <input type="text" value={settings.model}
                 onChange={(e) => setSettings((s) => ({ ...s, model: e.target.value }))}
                 placeholder="ministral-3b-2512" style={inputStyle} disabled={saving} />
             </label>
 
-            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <button onClick={handleTest}
                 disabled={testing || saving || !settings.apiUrl || !settings.model || (!settings.apiKey && !settings.isCustom)}
                 style={testBtnStyle} title="Send a minimal test request to verify these credentials work">
-                {testing ? "Testing..." : "Test connection"}
+                {testing ? "Testing..." : "Test Connection"}
               </button>
               {settings.isCustom && (
                 <button onClick={handleReset} disabled={saving} style={ghostBtnStyle}>Reset to env</button>
@@ -627,40 +707,49 @@ export function AdminModal({ onClose }: AdminModalProps) {
             </div>
 
             {testResult && <TestResultBanner result={testResult} />}
+            </section>
 
             {/* ── System prompt ── */}
-            <div style={{ marginTop: 8, borderTop: "1px solid var(--md-outline-var)", paddingTop: 12 }}>
-              <p style={{ fontSize: 11, fontWeight: 600, opacity: 0.45, textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 8px" }}>
-                System Prompt
-              </p>
-              <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+            <section style={{
+              background: "var(--md-surface)", borderRadius: 16, padding: 20,
+              border: "1px solid var(--md-outline-var)",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#9c27b0" }} />
+                <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--md-on-surface)", margin: 0 }}>System Prompt</h3>
+              </div>
+              <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <span style={labelStyle}>Preprompt — injected as system message before every conversation</span>
                 <textarea
                   value={settings.systemPrompt}
                   onChange={(e) => setSettings((s) => ({ ...s, systemPrompt: e.target.value }))}
                   placeholder={`You are Hyperset, an intelligent assistant for Apache Superset analytics...\n\n(Leave blank to use the default built-in prompt)`}
-                  rows={6}
+                  rows={5}
                   style={{ ...inputStyle, resize: "vertical", fontFamily: "monospace", fontSize: 12, lineHeight: 1.5 }}
                   disabled={saving}
                 />
               </label>
-              <label style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 6 }}>
+              <label style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 12 }}>
                 <span style={labelStyle}>Currently applied value (default when field is empty)</span>
                 <textarea
                   value={effectiveSystemPromptPreview}
                   readOnly
-                  rows={6}
-                  style={{ ...inputStyle, resize: "vertical", fontFamily: "monospace", fontSize: 11, lineHeight: 1.4, opacity: 0.8 }}
+                  rows={4}
+                  style={{ ...inputStyle, resize: "vertical", fontFamily: "monospace", fontSize: 11, lineHeight: 1.4, opacity: 0.75, background: "var(--md-surface-cont-hi)" }}
                 />
               </label>
-            </div>
+            </section>
 
             {/* ── Model parameters ── */}
-            <div style={{ marginTop: 8, borderTop: "1px solid var(--md-outline-var)", paddingTop: 12 }}>
-              <p style={{ fontSize: 11, fontWeight: 600, opacity: 0.45, textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 8px" }}>
-                Model Parameters (JSON)
-              </p>
-              <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+            <section style={{
+              background: "var(--md-surface)", borderRadius: 16, padding: 20,
+              border: "1px solid var(--md-outline-var)",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#2196f3" }} />
+                <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--md-on-surface)", margin: 0 }}>Model Parameters (JSON)</h3>
+              </div>
+              <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <span style={labelStyle}>Extra parameters merged into every chat completion request</span>
                 <textarea
                   value={settings.modelParams}
@@ -671,16 +760,20 @@ export function AdminModal({ onClose }: AdminModalProps) {
                   disabled={saving}
                 />
               </label>
-            </div>
+            </section>
 
             {/* ── Chat context controls ── */}
-            <div style={{ marginTop: 8, borderTop: "1px solid var(--md-outline-var)", paddingTop: 12 }}>
-              <p style={{ fontSize: 11, fontWeight: 600, opacity: 0.45, textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 8px" }}>
-                Chat Context
-              </p>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <section style={{
+              background: "var(--md-surface)", borderRadius: 16, padding: 20,
+              border: "1px solid var(--md-outline-var)",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#4caf50" }} />
+                <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--md-on-surface)", margin: 0 }}>Chat Context</h3>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
-                <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   <span style={labelStyle}>Max tool-call turns per response <span style={{ opacity: 0.5 }}>(1 – 200, default 40)</span></span>
                   <input
                     type="number" min={1} max={200}
@@ -691,7 +784,7 @@ export function AdminModal({ onClose }: AdminModalProps) {
                   />
                 </label>
 
-                <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   <span style={labelStyle}>Max characters stored per tool result in history <span style={{ opacity: 0.5 }}>(500 – 50 000, default 3 000)</span></span>
                   <input
                     type="number" min={500} max={50000} step={500}
@@ -702,7 +795,7 @@ export function AdminModal({ onClose }: AdminModalProps) {
                   />
                 </label>
 
-                <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   <span style={labelStyle}>Max messages kept in the sliding context window <span style={{ opacity: 0.5 }}>(4 – 200, default 20)</span></span>
                   <input
                     type="number" min={4} max={200}
@@ -714,21 +807,25 @@ export function AdminModal({ onClose }: AdminModalProps) {
                 </label>
 
               </div>
-            </div>
+            </section>
 
             {/* ── AI chart cleanup ── */}
-            <div style={{ marginTop: 8, borderTop: "1px solid var(--md-outline-var)", paddingTop: 12 }}>
-              <p style={{ fontSize: 11, fontWeight: 600, opacity: 0.45, textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 8px" }}>
-                AI Chart Cleanup
-              </p>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <section style={{
+              background: "var(--md-surface)", borderRadius: 16, padding: 20,
+              border: "1px solid var(--md-outline-var)",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#ff9800" }} />
+                <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--md-on-surface)", margin: 0 }}>AI Chart Cleanup</h3>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
-                <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   <span style={labelStyle}>
                     Temporary chart lifetime{" "}
                     <span style={{ opacity: 0.5 }}>(minutes before auto-deletion, 1 – 10 080, default 120)</span>
                   </span>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <input
                       type="number" min={1} max={10080} step={1}
                       value={settings.cleanupDelayMinutes}
@@ -739,7 +836,7 @@ export function AdminModal({ onClose }: AdminModalProps) {
                       style={{ ...inputStyle, width: 100 }}
                       disabled={saving}
                     />
-                    <span style={{ fontSize: 11, opacity: 0.5 }}>
+                    <span style={{ fontSize: 12, opacity: 0.6, color: "var(--md-on-surface)" }}>
                       {(() => {
                         const m = settings.cleanupDelayMinutes;
                         if (m < 60) return `${m} min`;
@@ -747,72 +844,83 @@ export function AdminModal({ onClose }: AdminModalProps) {
                         const rem = m % 60;
                         return rem === 0 ? `${h} h` : `${h} h ${rem} min`;
                       })()}
-                      {" "}— charts tagged <code style={{ fontSize: 10, background: "var(--md-surface-cont-hi)", padding: "1px 4px", borderRadius: 4 }}>[HYPERSET-AI-TEMPORARY]</code> are deleted after this delay
                     </span>
                   </div>
                 </label>
 
-                <p style={{ fontSize: 11, opacity: 0.45, margin: 0, lineHeight: 1.5 }}>
-                  The MCP server reads this setting dynamically via{" "}
-                  <code style={{ fontSize: 10, background: "var(--md-surface-cont-hi)", padding: "1px 4px", borderRadius: 4 }}>HYPERSET_DOMAIN</code>
-                  {" "}— changes take effect on the next cleanup cycle without restarting the server.
-                  For local dev without a domain, set{" "}
-                  <code style={{ fontSize: 10, background: "var(--md-surface-cont-hi)", padding: "1px 4px", borderRadius: 4 }}>HYPERSET_PORTAL_URL</code>
-                  {" "}(e.g. <code style={{ fontSize: 10, background: "var(--md-surface-cont-hi)", padding: "1px 4px", borderRadius: 4 }}>http://localhost:3000</code>) in the MCP server's{" "}
-                  <code style={{ fontSize: 10, background: "var(--md-surface-cont-hi)", padding: "1px 4px", borderRadius: 4 }}>.env</code>.
+                <p style={{ fontSize: 11, opacity: 0.5, margin: 0, lineHeight: 1.6, color: "var(--md-on-surface)" }}>
+                  Charts tagged <code style={{ fontSize: 10, background: "var(--md-surface-cont-hi)", padding: "2px 6px", borderRadius: 4 }}>[HYPERSET-AI-TEMPORARY]</code> are deleted after this delay.
+                  The MCP server reads this setting dynamically via <code style={{ fontSize: 10, background: "var(--md-surface-cont-hi)", padding: "2px 6px", borderRadius: 4 }}>HYPERSET_DOMAIN</code>.
                 </p>
 
               </div>
-            </div>
+            </section>
 
             {saveError && <p style={{ color: "#ef5350", fontSize: 12, marginTop: 4 }}>{saveError}</p>}
 
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8, gap: 10 }}>
               <button onClick={handleSave} disabled={saving}
-                style={{ ...primaryBtnStyle, ...(saved ? { background: "#4caf50" } : {}) }}>
-                {saved ? "Saved ✓" : saving ? "Saving..." : "Save"}
+                style={{ 
+                  ...primaryBtnStyle, 
+                  padding: "12px 28px",
+                  boxShadow: saved ? "none" : "0 4px 12px rgba(211, 84, 0, 0.3)",
+                  ...(saved ? { background: "#4caf50", boxShadow: "0 4px 12px rgba(76, 175, 80, 0.3)" } : {}),
+                }}>
+                {saved ? "✓ Saved" : saving ? "Saving..." : "Save Changes"}
               </button>
             </div>
           </div>
-        ) : (
+        ) : activeTab === "knowledge" ? (
           <KnowledgeBaseTab />
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            <section style={{
+              background: "var(--md-surface)", borderRadius: 16, padding: 40,
+              border: "1px solid var(--md-outline-var)", textAlign: "center",
+            }}>
+              <div style={{ fontSize: 48, marginBottom: 16 }}>🚧</div>
+              <h3 style={{ fontSize: 18, fontWeight: 600, color: "var(--md-on-surface)", margin: "0 0 8px" }}>Work in Progress</h3>
+              <p style={{ fontSize: 13, color: "var(--md-on-surface)", opacity: 0.6, margin: 0, lineHeight: 1.5 }}>
+                Additional pages configuration is coming soon.<br />
+                Stay tuned for updates!
+              </p>
+            </section>
+          </div>
         )}
-      </div>
-    </div>
+        </div>
+        </div>
+        </div>
+      </>
   );
 }
 
-const labelStyle: React.CSSProperties = { fontSize: 11, fontWeight: 500, opacity: 0.65 };
+const labelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 500, opacity: 0.7, color: "var(--md-on-surface)" };
 
 const inputStyle: React.CSSProperties = {
-  background: "var(--md-surface)", border: "1px solid var(--md-outline-var)",
-  borderRadius: 8, padding: "7px 10px", fontSize: 12,
+  background: "var(--md-surface-cont)", border: "1px solid var(--md-outline)",
+  borderRadius: 10, padding: "10px 14px", fontSize: 13,
   color: "var(--md-on-surface)", outline: "none", width: "100%",
+  transition: "all 0.2s ease", boxShadow: "inset 0 1px 2px rgba(0,0,0,0.04)",
 };
 
 const primaryBtnStyle: React.CSSProperties = {
-  background: "var(--md-primary)", color: "var(--md-on-primary-cont)", border: "none", borderRadius: 8,
-  padding: "8px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "background 0.2s",
+  background: "var(--md-primary)", color: "var(--md-on-primary-cont)", border: "none", borderRadius: 10,
+  padding: "10px 24px", fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "all 0.2s ease",
 };
 
 const dangerBtnStyle: React.CSSProperties = {
-  background: "rgba(211,47,47,0.1)", color: "#ef5350", border: "1px solid rgba(211,47,47,0.3)", borderRadius: 8,
-  padding: "5px 12px", fontSize: 12, cursor: "pointer", transition: "all 0.2s",
+  background: "rgba(211,47,47,0.08)", color: "#ef5350", border: "1px solid rgba(211,47,47,0.2)", borderRadius: 8,
+  padding: "6px 14px", fontSize: 12, cursor: "pointer", transition: "all 0.2s ease",
 };
 
 const testBtnStyle: React.CSSProperties = {
-  background: "var(--md-surface)", color: "var(--md-on-surface)",
-  border: "1px solid var(--md-outline)", borderRadius: 8,
-  padding: "5px 12px", fontSize: 12, cursor: "pointer", opacity: 1,
+  background: "var(--md-surface-cont)", color: "var(--md-on-surface)",
+  border: "1px solid var(--md-outline)", borderRadius: 10,
+  padding: "8px 16px", fontSize: 12, fontWeight: 500, cursor: "pointer", opacity: 1,
+  transition: "all 0.2s ease", boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
 };
 
 const ghostBtnStyle: React.CSSProperties = {
   background: "none", color: "var(--md-on-surface)", border: "none", borderRadius: 8,
-  padding: "5px 10px", fontSize: 12, cursor: "pointer", opacity: 0.55, textDecoration: "underline",
-};
-
-const tabBtnStyle: React.CSSProperties = {
-  border: "none", borderRadius: 8,
-  padding: "6px 12px", fontSize: 13, cursor: "pointer", fontWeight: 500,
-  transition: "all 0.2s",
+  padding: "8px 12px", fontSize: 12, cursor: "pointer", opacity: 0.6, transition: "opacity 0.2s ease",
 };
