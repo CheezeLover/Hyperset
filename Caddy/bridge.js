@@ -48,36 +48,37 @@
     }
   } catch (_) {}
 
-  function getBestCurrentUrl() {
-    // Prefer router state when available (some Superset views navigate without
-    // updating window.location in the expected way).
-    try {
-      const store = getReactStore();
-      const routing = store?.getState?.()?.routing;
-      const loc = routing?.locationBeforeTransitions || routing?.location || routing?.currentLocation;
-      if (loc && typeof loc.pathname === "string" && loc.pathname.length > 0) {
-        const path = loc.pathname.startsWith("/") ? loc.pathname : `/${loc.pathname}`;
-        const search = typeof loc.search === "string" ? loc.search : "";
-        const hash = typeof loc.hash === "string" ? loc.hash : "";
-        return `${window.location.origin}${path}${search}${hash}`;
-      }
-    } catch (_) {}
+  let lastReportedUrl = "";
 
+  function getBestCurrentUrl() {
     return window.location.href;
   }
 
   function notifyLocation(reason) {
     if (window.parent && window.parent !== window) {
-      window.parent.postMessage(
-        {
-          type: "superset_location",
-          url: getBestCurrentUrl(),
-          reason: reason || "unknown",
-        },
-        "*" // Temporarily using * to ensure delivery
-      );
+      // Use setTimeout to ensure any pending state updates are complete
+      setTimeout(() => {
+        const url = getBestCurrentUrl();
+        lastReportedUrl = url;
+        window.parent.postMessage(
+          {
+            type: "superset_location",
+            url: url,
+            reason: reason || "unknown",
+          },
+          "*" 
+        );
+      }, 50);
     }
   }
+
+  // Set up a polling interval to catch ANY URL changes that might bypass history hooks
+  setInterval(() => {
+    const currentUrl = getBestCurrentUrl();
+    if (currentUrl !== lastReportedUrl) {
+      notifyLocation("polling_change");
+    }
+  }, 500);
 
   // Keep the portal informed of iframe location changes.
   // Covers initial load, browser nav, and SPA router updates.
