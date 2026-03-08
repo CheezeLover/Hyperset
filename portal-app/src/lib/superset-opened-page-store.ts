@@ -70,6 +70,16 @@ export function setOpenedPageForUser(
     const normalizedKey = normalizeKey(key);
     if (!normalizedKey) continue;
 
+    // Prevent noisy "home" updates from overwriting a more specific page URL.
+    // However, if the user explicitly navigates to welcome (reason is pushState, replaceState or polling_change)
+    // we DO want to update it. We only want to ignore "seed", "load" or generic requested updates when we already have a specific page.
+    const previous = _openedPages.get(normalizedKey);
+    const isExplicitNavigation = reason === "pushState" || reason === "replaceState" || reason === "polling_change" || reason === "anchor_click";
+    
+    if (previous && !isGenericHomeUrl(previous.url) && isGenericHomeUrl(url) && !isExplicitNavigation) {
+      continue;
+    }
+
     _openedPages.set(normalizedKey, entry);
   }
 
