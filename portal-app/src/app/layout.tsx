@@ -8,10 +8,7 @@ import { join } from "path";
 export const metadata: Metadata = {
   title: "Hyperset",
   description: "Analytics Portal",
-  icons: { 
-    icon: "/logos/hyperset-logo-square.png",
-    appleTouchIcon: "/logos/hyperset-logo-square.png",
-  },
+  icons: { icon: "/logo_hyperset.png" },
 };
 
 // Read theme at build time for SSR
