@@ -1677,7 +1677,6 @@ export function ChatPanel({
         display: "flex", 
         alignItems: "center", 
         padding: "12px 16px",
-        borderBottom: "1px solid var(--md-outline-var)",
         gap: 10,
         minHeight: 52,
         flexShrink: 0,
