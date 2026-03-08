@@ -436,9 +436,8 @@ function Resizer({
 }) {
   const [hovered, setHovered] = useState(false);
   const backgroundColor = hovered 
-    ? (colorClass === "primary" ? "var(--md-primary)" : "var(--md-outline)") 
+    ? "var(--md-primary)" 
     : "var(--md-outline-var)";
-  const barColor = backgroundColor;
 
   return (
     <div
