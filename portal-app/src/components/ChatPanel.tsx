@@ -931,7 +931,7 @@ function ToolCallsZone({ toolCalls, streaming }: { toolCalls: ToolCall[]; stream
 
   return (
     <div style={{
-      maxWidth: "88%",
+      maxWidth: "98%",
       borderRadius: "12px",
       marginBottom: "8px",
       overflow: "hidden",
@@ -1017,7 +1017,7 @@ function MessageBubble({ msg, supersetUrl, onSuggestionClick, onSupersetLinkClic
 
       {msg.content && (
         <div style={{
-          maxWidth: "88%",
+          maxWidth: "98%",
           padding: isUser ? "10px 16px" : "8px 0",
           borderRadius: isUser ? "18px" : 0,
           background: isUser ? "var(--md-primary-cont)" : "transparent",
@@ -1045,7 +1045,7 @@ function MessageBubble({ msg, supersetUrl, onSuggestionClick, onSupersetLinkClic
       )}
       
       {isAssistant && !msg.streaming && msg.followupSuggestions && msg.followupSuggestions.length > 0 && onSuggestionClick && (
-        <div style={{ maxWidth: "88%", marginTop: "6px" }}>
+        <div style={{ maxWidth: "98%", marginTop: "6px" }}>
           <FollowupSuggestions 
             suggestions={msg.followupSuggestions} 
             onSuggestionClick={onSuggestionClick}
