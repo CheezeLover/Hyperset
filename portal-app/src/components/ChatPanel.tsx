@@ -1661,29 +1661,14 @@ export function ChatPanel({
           }
         }
         
-        /* Modern thin scrollbar - only visible when needed */
+        /* Hide scrollbar but keep scrolling */
         .chat-messages {
-          scrollbar-width: thin;
-          scrollbar-color: var(--md-outline) transparent;
-          scrollbar-gutter: stable;
+          scrollbar-width: none;
+          -ms-overflow-style: none;
         }
         
         .chat-messages::-webkit-scrollbar {
-          width: 6px;
-          height: 6px;
-        }
-        
-        .chat-messages::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        
-        .chat-messages::-webkit-scrollbar-thumb {
-          background: var(--md-outline);
-          border-radius: 10px;
-        }
-        
-        .chat-messages::-webkit-scrollbar-thumb:hover {
-          background: var(--md-primary-muted);
+          display: none;
         }
       `}</style>
 
@@ -1772,7 +1757,7 @@ export function ChatPanel({
         style={{ 
           flex: 1, 
           minHeight: 0, 
-          overflowY: messages.length > 0 ? "auto" : "hidden", 
+          overflowY: "auto", 
           padding: "16px 0" 
       }}>
         {messages.length === 0 && (
