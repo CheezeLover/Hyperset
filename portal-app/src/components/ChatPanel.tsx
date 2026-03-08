@@ -1752,14 +1752,36 @@ export function ChatPanel({
       )}
 
       {/* Message list */}
-      <div 
-        className="chat-messages" 
-        style={{ 
-          flex: 1, 
-          minHeight: 0, 
-          overflowY: "auto", 
-          padding: "16px 0" 
-      }}>
+      <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
+        {/* Top gradient */}
+        <div style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 24,
+          background: "linear-gradient(to bottom, var(--md-surface-cont), transparent)",
+          zIndex: 1,
+          pointerEvents: "none",
+        }} />
+        {/* Bottom gradient */}
+        <div style={{
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: 24,
+          background: "linear-gradient(to top, var(--md-surface-cont), transparent)",
+          zIndex: 1,
+          pointerEvents: "none",
+        }} />
+        <div 
+          className="chat-messages" 
+          style={{ 
+            height: "100%", 
+            overflowY: "auto", 
+            padding: "16px 0" 
+        }}>
         {messages.length === 0 && (
           <div style={{
             display: "flex",
@@ -1798,6 +1820,7 @@ export function ChatPanel({
           />
         ))}
         <div ref={messagesEndRef} style={{ height: 8 }} />
+      </div>
       </div>
 
       {/* Floating Input area */}
