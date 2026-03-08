@@ -1767,14 +1767,21 @@ export function ChatPanel({
       )}
 
       {/* Message list */}
-      <div className="chat-messages" style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "16px 0" }}>
+      <div 
+        className="chat-messages" 
+        style={{ 
+          flex: 1, 
+          minHeight: 0, 
+          overflowY: messages.length > 0 ? "auto" : "hidden", 
+          padding: "16px 0" 
+      }}>
         {messages.length === 0 && (
           <div style={{
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
-            height: "100%",
+            minHeight: "100%",
             gap: 16,
             userSelect: "none",
             animation: "fadeInUp 0.5s ease-out",
