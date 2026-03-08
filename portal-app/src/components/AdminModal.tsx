@@ -555,13 +555,18 @@ export function AdminModal({ onClose }: AdminModalProps) {
       >
       <div style={{
         background: "var(--md-surface-cont)", borderRadius: 20,
-        padding: 28, minWidth: 380, maxWidth: 640, width: "94%",
-        maxHeight: "90vh", overflowY: "auto",
+        padding: 0, minWidth: 380, maxWidth: 640, width: "94%",
+        maxHeight: "85vh", overflow: "hidden",
         boxShadow: "0 24px 48px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,255,255,0.05)",
-        display: "flex", flexDirection: "column", gap: 0,
+        display: "flex", flexDirection: "column",
       }}>
-        {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", marginBottom: 24, gap: 14 }}>
+        {/* Header - sticky */}
+        <div style={{ 
+          display: "flex", alignItems: "center", padding: "20px 24px", gap: 14, 
+          borderBottom: "1px solid var(--md-outline-var)",
+          background: "var(--md-surface-cont)", borderRadius: "20px 20px 0 0",
+          flexShrink: 0,
+        }}>
           <div style={{
             width: 36, height: 36, borderRadius: 10,
             background: "linear-gradient(135deg, var(--md-primary) 0%, var(--md-primary-muted) 100%)",
@@ -584,9 +589,11 @@ export function AdminModal({ onClose }: AdminModalProps) {
           </button>
         </div>
 
-        {/* Tab Navigation */}
-        <div style={{ display: "flex", gap: 4, marginBottom: 24, 
-          background: "var(--md-surface)", padding: 4, borderRadius: 14 }}>
+        {/* Scrollable Content */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "0 24px 24px" }}>
+          {/* Tab Navigation */}
+          <div style={{ display: "flex", gap: 4, marginBottom: 24, marginTop: 20,
+            background: "var(--md-surface)", padding: 4, borderRadius: 14 }}>
           <button
             onClick={() => setActiveTab("llm")}
             style={{
@@ -827,13 +834,14 @@ export function AdminModal({ onClose }: AdminModalProps) {
                 {saved ? "✓ Saved" : saving ? "Saving..." : "Save Changes"}
               </button>
             </div>
-          </div>
-        ) : (
-          <KnowledgeBaseTab />
+            </div>
+          ) : (
+            <KnowledgeBaseTab />
         )}
-      </div>
-    </div>
-    </>
+        </div>
+        </div>
+        </div>
+      </>
   );
 }
 
