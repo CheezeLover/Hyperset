@@ -422,6 +422,7 @@ export function HypersetLayout({
 
         {/* Service column (icon strip) */}
         <ServiceColumn
+          isPortraitMode={isPortraitMode}
           openPanelKeys={openPanelKeys}
           pages={pages}
           pagesUrl={pagesUrl}

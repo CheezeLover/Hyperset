@@ -7,6 +7,7 @@ interface Page {
 }
 
 interface ServiceColumnProps {
+  isPortraitMode: boolean;
   openPanelKeys: Set<string>;
   pages: Page[];
   pagesUrl: string;
@@ -123,6 +124,7 @@ function ServiceBtn({
 }
 
 export function ServiceColumn({
+  isPortraitMode,
   openPanelKeys,
   pages,
   pagesUrl: _pagesUrl,
@@ -134,13 +136,14 @@ export function ServiceColumn({
     <div
       style={{
         display: "flex",
-        flexDirection: "column",
+        flexDirection: isPortraitMode ? "row" : "column",
         alignItems: "center",
-        justifyContent: "flex-start",
-        padding: "8px 0",
-        gap: 4,
-        width: 48,
-        minWidth: 48,
+        justifyContent: isPortraitMode ? "space-between" : "flex-start",
+        padding: isPortraitMode ? "0 16px" : "8px 0",
+        gap: isPortraitMode ? 8 : 4,
+        width: isPortraitMode ? "100%" : 48,
+        minWidth: isPortraitMode ? "100%" : 48,
+        height: isPortraitMode ? 48 : "100%",
         flexShrink: 0,
         background: "var(--md-surface)",
         zIndex: 20,
@@ -184,8 +187,8 @@ export function ServiceColumn({
         </ServiceBtn>
       ))}
 
-      {/* Spacer to push disconnect button to bottom */}
-      <div style={{ flex: 1 }} />
+      {/* Spacer to push disconnect button to bottom (only in column mode) */}
+      {!isPortraitMode && <div style={{ flex: 1 }} />}
 
       {/* Disconnect button at bottom */}
       {onDisconnect && (
