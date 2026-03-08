@@ -47,6 +47,8 @@ export function HypersetLayout({
   const seededOpenedPageUrlRef = useRef<string | null>(null);
   // Chat message history — lifted here so it survives panel collapse/expand
   const [chatMessages, setChatMessages] = useState<Message[]>([]);
+  const [isPortraitMode, setIsPortraitMode] = useState(false);
+  const isPortraitModeRef = useRef(false);
 
   // Drag state
   const dragging = useRef<{
@@ -60,6 +62,9 @@ export function HypersetLayout({
 
   const isMobile = () =>
     typeof window !== "undefined" && window.innerWidth <= 768;
+
+  const isPortrait = () =>
+    typeof window !== "undefined" && window.innerWidth < window.innerHeight;
 
   // ── Dynamic pages discovery ──────────────────────────────────
   const loadPages = useCallback(async () => {
@@ -86,6 +91,17 @@ export function HypersetLayout({
     const id = setInterval(loadPages, 10_000);
     return () => clearInterval(id);
   }, [loadPages]);
+
+  useEffect(() => {
+    const updateOrientation = () => {
+      const portrait = window.innerWidth < window.innerHeight;
+      setIsPortraitMode(portrait);
+      isPortraitModeRef.current = portrait;
+    };
+    updateOrientation();
+    window.addEventListener("resize", updateOrientation);
+    return () => window.removeEventListener("resize", updateOrientation);
+  }, []);
 
   // ── Superset bridge: receive messages ────────────────────────
   useEffect(() => {
@@ -234,8 +250,8 @@ export function HypersetLayout({
       const container = document.getElementById("hyperset-container");
       if (!container) return;
       const rect = container.getBoundingClientRect();
-      const pos = isMobile() ? clientY - rect.top : clientX - rect.left;
-      const size = isMobile() ? rect.height : rect.width;
+      const pos = isPortraitModeRef.current ? clientY - rect.top : clientX - rect.left;
+      const size = isPortraitModeRef.current ? rect.height : rect.width;
       const panel = panels.find((p) => p.key === key);
       if (!panel) return;
       dragging.current = {
@@ -250,7 +266,7 @@ export function HypersetLayout({
       document.querySelectorAll("iframe").forEach((f) => {
         (f as HTMLIFrameElement).style.pointerEvents = "none";
       });
-      document.body.style.cursor = isMobile() ? "row-resize" : "col-resize";
+      document.body.style.cursor = isPortraitModeRef.current ? "row-resize" : "col-resize";
       document.body.style.userSelect = "none";
     },
     [mainFlex, panels]
@@ -263,7 +279,7 @@ export function HypersetLayout({
       const container = document.getElementById("hyperset-container");
       if (!container) return;
       const rect = container.getBoundingClientRect();
-      const pos = isMobile() ? e.clientY - rect.top : e.clientX - rect.left;
+      const pos = isPortraitModeRef.current ? e.clientY - rect.top : e.clientX - rect.left;
       const d = dragging.current;
       const delta = pos - d.startPos;
       const flexPerPx = d.totalFlex / d.containerSize;
@@ -326,7 +342,7 @@ export function HypersetLayout({
           display: "flex",
           width: "100%",
           height: "100%",
-          flexDirection: "row",
+          flexDirection: isPortraitMode ? "column" : "row",
           background: "var(--md-surface)",
         }}
       >
@@ -334,8 +350,10 @@ export function HypersetLayout({
         <div
           style={{
             flex: mainFlex,
-            minWidth: 50,
-            height: "100%",
+            minWidth: isPortraitMode ? "100%" : 50,
+            minHeight: isPortraitMode ? 50 : "100%",
+            width: isPortraitMode ? "100%" : undefined,
+            height: isPortraitMode ? "100%" : "100%",
             overflow: "hidden",
             background: "var(--md-surface-cont)",
           }}
@@ -351,6 +369,7 @@ export function HypersetLayout({
           <React.Fragment key={panel.key}>
             {/* Resizer */}
             <Resizer
+              isPortrait={isPortraitMode}
               colorClass={panel.resizerColor}
               onMouseDown={(e) => startResize(panel.key, e.clientX, e.clientY)}
               onTouchStart={(e) =>
@@ -365,8 +384,10 @@ export function HypersetLayout({
             <div
               style={{
                 flex: panel.flex,
-                minWidth: 50,
-                height: "100%",
+                minWidth: isPortraitMode ? "100%" : 50,
+                minHeight: isPortraitMode ? 50 : "100%",
+                width: isPortraitMode ? "100%" : undefined,
+                height: isPortraitMode ? "100%" : "100%",
                 overflow: "hidden",
                 background: "var(--md-surface-cont)",
                 display: "flex",
@@ -426,10 +447,12 @@ export function HypersetLayout({
 
 // ── Resizer handle ─────────────────────────────────────────────
 function Resizer({
+  isPortrait,
   colorClass,
   onMouseDown,
   onTouchStart,
 }: {
+  isPortrait: boolean;
   colorClass: "primary" | "secondary";
   onMouseDown: React.MouseEventHandler;
   onTouchStart: React.TouchEventHandler;
@@ -446,9 +469,10 @@ function Resizer({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        width: 3,
+        width: isPortrait ? "100%" : 3,
+        height: isPortrait ? 3 : "100%",
         background: backgroundColor,
-        cursor: "col-resize",
+        cursor: isPortrait ? "row-resize" : "col-resize",
         flexShrink: 0,
         zIndex: 10,
         transition: "background 0.2s",
