@@ -446,7 +446,7 @@ function Resizer({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        width: 5,
+        width: 3,
         background: backgroundColor,
         cursor: "col-resize",
         flexShrink: 0,
