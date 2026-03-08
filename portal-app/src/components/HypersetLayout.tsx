@@ -435,13 +435,10 @@ function Resizer({
   onTouchStart: React.TouchEventHandler;
 }) {
   const [hovered, setHovered] = useState(false);
-  const backgroundColor = "var(--md-surface-cont)";
-  const barColor = colorClass === "primary" 
-    ? "var(--md-primary)" 
-    : "var(--md-outline)";
-  const barHoverColor = colorClass === "primary" 
-    ? "var(--md-primary-muted)" 
+  const backgroundColor = hovered 
+    ? (colorClass === "primary" ? "var(--md-primary)" : "var(--md-outline)") 
     : "var(--md-outline-var)";
+  const barColor = backgroundColor;
 
   return (
     <div
@@ -450,32 +447,13 @@ function Resizer({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        width: 5,  // Narrower strip
-        background: backgroundColor,  // Light orange/gray background
+        width: 5,
+        background: backgroundColor,
         cursor: "col-resize",
         flexShrink: 0,
-        position: "relative",
         zIndex: 10,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
+        transition: "background 0.2s",
       }}
-    >
-      <div
-        style={{
-          position: "absolute",
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%)",  // Perfectly centered
-          width: hovered ? 3 : 2,
-          height: hovered ? 56 : 32,
-          borderRadius: 2,
-          background: hovered ? barHoverColor : barColor,  // Dark orange bar
-          opacity: 1,
-          transition: "all 0.2s",
-          pointerEvents: "none",
-        }}
-      />
-    </div>
+    />
   );
 }
