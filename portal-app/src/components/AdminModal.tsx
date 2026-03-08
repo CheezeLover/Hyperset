@@ -42,7 +42,7 @@ interface TestResult {
   model?: string;
 }
 
-type Tab = "llm" | "knowledge";
+type Tab = "llm" | "knowledge" | "additional";
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -93,13 +93,14 @@ function KnowledgeBaseTab() {
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [description, setDescription] = useState("");
   const [textContent, setTextContent] = useState("");
   const [textName, setTextName] = useState("");
   const [uploadMode, setUploadMode] = useState<"file" | "text">("file");
   const [routingGuide, setRoutingGuide] = useState("");
   const [routingGuideSaving, setRoutingGuideSaving] = useState(false);
+  const [routingGuideSaved, setRoutingGuideSaved] = useState(false);
 
   const loadDocuments = useCallback(async () => {
     try {
@@ -121,27 +122,29 @@ function KnowledgeBaseTab() {
   }, [loadDocuments]);
 
   const handleFileUpload = async () => {
-    if (!selectedFile) return;
+    if (selectedFiles.length === 0) return;
 
     setUploading(true);
     setError("");
 
     try {
-      const formData = new FormData();
-      formData.append("file", selectedFile);
-      formData.append("description", description);
+      for (const file of selectedFiles) {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("description", description);
 
-      const res = await fetch("/api/knowledge-base", {
-        method: "POST",
-        body: formData,
-      });
+        const res = await fetch("/api/knowledge-base", {
+          method: "POST",
+          body: formData,
+        });
 
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Upload failed");
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || `Upload failed for ${file.name}`);
+        }
       }
 
-      setSelectedFile(null);
+      setSelectedFiles([]);
       setDescription("");
       await loadDocuments();
     } catch (e) {
@@ -241,39 +244,51 @@ function KnowledgeBaseTab() {
         </div>
 
         {uploadMode === "file" ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-              <span style={labelStyle}>Select .md file</span>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span style={labelStyle}>Select .md files (multiple allowed)</span>
               <input
                 type="file"
                 accept=".md"
-                onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-                style={{ ...inputStyle, padding: "5px 10px" }}
+                multiple
+                onChange={(e) => setSelectedFiles(Array.from(e.target.files || []))}
+                style={{ ...inputStyle, padding: "8px 10px" }}
                 disabled={uploading}
               />
             </label>
-            {selectedFile && (
-              <p style={{ fontSize: 11, opacity: 0.6, margin: 0 }}>
-                Selected: {selectedFile.name} ({formatBytes(selectedFile.size)})
-              </p>
+            {selectedFiles.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {selectedFiles.map((file, idx) => (
+                  <p key={idx} style={{ fontSize: 12, opacity: 0.7, margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ color: "var(--md-primary)" }}>📄</span>
+                    {file.name} ({formatBytes(file.size)})
+                    <button
+                      onClick={() => setSelectedFiles(selectedFiles.filter((_, i) => i !== idx))}
+                      style={{ border: "none", background: "none", cursor: "pointer", color: "var(--md-on-surface)", opacity: 0.5, padding: "0 4px" }}
+                    >
+                      ×
+                    </button>
+                  </p>
+                ))}
+              </div>
             )}
             <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <span style={labelStyle}>Description (optional)</span>
+              <span style={labelStyle}>Description (optional, applied to all files)</span>
               <input
                 type="text"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Brief description of this document..."
+                placeholder="Brief description of these documents..."
                 style={inputStyle}
                 disabled={uploading}
               />
             </label>
             <button
               onClick={handleFileUpload}
-              disabled={!selectedFile || uploading}
-              style={{ ...primaryBtnStyle, alignSelf: "flex-start", opacity: (!selectedFile || uploading) ? 0.5 : 1 }}
+              disabled={selectedFiles.length === 0 || uploading}
+              style={{ ...primaryBtnStyle, alignSelf: "flex-start", opacity: (selectedFiles.length === 0 || uploading) ? 0.5 : 1 }}
             >
-              {uploading ? "Uploading..." : "Upload Document"}
+              {uploading ? "Uploading..." : `Upload ${selectedFiles.length > 0 ? `${selectedFiles.length} ` : ""}Document${selectedFiles.length !== 1 ? "s" : ""}`}
             </button>
           </div>
         ) : (
@@ -431,6 +446,8 @@ When user mentions abbreviations like "OTP", "RASM", "CASM" → Check airline-te
                 body: JSON.stringify({ routingGuide }),
               });
               if (!res.ok) throw new Error("Failed to save routing guide");
+              setRoutingGuideSaved(true);
+              setTimeout(() => setRoutingGuideSaved(false), 2000);
             } catch (e) {
               setError("Failed to save routing guide");
             } finally {
@@ -438,9 +455,14 @@ When user mentions abbreviations like "OTP", "RASM", "CASM" → Check airline-te
             }
           }}
           disabled={routingGuideSaving}
-          style={{ ...primaryBtnStyle, alignSelf: "flex-start", opacity: routingGuideSaving ? 0.5 : 1 }}
+          style={{ 
+            ...primaryBtnStyle, alignSelf: "flex-start", 
+            padding: "12px 24px",
+            boxShadow: routingGuideSaved ? "none" : "0 4px 12px rgba(211, 84, 0, 0.3)",
+            ...(routingGuideSaved ? { background: "#4caf50", boxShadow: "0 4px 12px rgba(76, 175, 80, 0.3)" } : {}),
+          }}
         >
-          {routingGuideSaving ? "Saving..." : "Save Routing Guide"}
+          {routingGuideSaved ? "✓ Saved" : routingGuideSaving ? "Saving..." : "Save Routing Guide"}
         </button>
       </section>
 
@@ -597,7 +619,7 @@ export function AdminModal({ onClose }: AdminModalProps) {
           <button
             onClick={() => setActiveTab("llm")}
             style={{
-              flex: 1, padding: "10px 16px", borderRadius: 10, fontSize: 13, fontWeight: 600,
+              flex: 1, padding: "10px 12px", borderRadius: 10, fontSize: 12, fontWeight: 600,
               cursor: "pointer", border: "none", transition: "all 0.2s ease",
               background: activeTab === "llm" ? "var(--md-primary)" : "transparent",
               color: activeTab === "llm" ? "white" : "var(--md-on-surface)",
@@ -605,12 +627,12 @@ export function AdminModal({ onClose }: AdminModalProps) {
               boxShadow: activeTab === "llm" ? "0 2px 8px rgba(0,0,0,0.15)" : "none",
             }}
           >
-            🤖 LLM Settings
+            🤖 LLM
           </button>
           <button
             onClick={() => setActiveTab("knowledge")}
             style={{
-              flex: 1, padding: "10px 16px", borderRadius: 10, fontSize: 13, fontWeight: 600,
+              flex: 1, padding: "10px 12px", borderRadius: 10, fontSize: 12, fontWeight: 600,
               cursor: "pointer", border: "none", transition: "all 0.2s ease",
               background: activeTab === "knowledge" ? "var(--md-primary)" : "transparent",
               color: activeTab === "knowledge" ? "white" : "var(--md-on-surface)",
@@ -618,7 +640,20 @@ export function AdminModal({ onClose }: AdminModalProps) {
               boxShadow: activeTab === "knowledge" ? "0 2px 8px rgba(0,0,0,0.15)" : "none",
             }}
           >
-            📚 Knowledge Base
+            📚 Knowledge
+          </button>
+          <button
+            onClick={() => setActiveTab("additional")}
+            style={{
+              flex: 1, padding: "10px 12px", borderRadius: 10, fontSize: 12, fontWeight: 600,
+              cursor: "pointer", border: "none", transition: "all 0.2s ease",
+              background: activeTab === "additional" ? "var(--md-primary)" : "transparent",
+              color: activeTab === "additional" ? "white" : "var(--md-on-surface)",
+              opacity: activeTab === "additional" ? 1 : 0.6,
+              boxShadow: activeTab === "additional" ? "0 2px 8px rgba(0,0,0,0.15)" : "none",
+            }}
+          >
+            ⚙️ Pages
           </button>
         </div>
 
@@ -834,9 +869,23 @@ export function AdminModal({ onClose }: AdminModalProps) {
                 {saved ? "✓ Saved" : saving ? "Saving..." : "Save Changes"}
               </button>
             </div>
-            </div>
-          ) : (
-            <KnowledgeBaseTab />
+          </div>
+        ) : activeTab === "knowledge" ? (
+          <KnowledgeBaseTab />
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            <section style={{
+              background: "var(--md-surface)", borderRadius: 16, padding: 40,
+              border: "1px solid var(--md-outline-var)", textAlign: "center",
+            }}>
+              <div style={{ fontSize: 48, marginBottom: 16 }}>🚧</div>
+              <h3 style={{ fontSize: 18, fontWeight: 600, color: "var(--md-on-surface)", margin: "0 0 8px" }}>Work in Progress</h3>
+              <p style={{ fontSize: 13, color: "var(--md-on-surface)", opacity: 0.6, margin: 0, lineHeight: 1.5 }}>
+                Additional pages configuration is coming soon.<br />
+                Stay tuned for updates!
+              </p>
+            </section>
+          </div>
         )}
         </div>
         </div>
