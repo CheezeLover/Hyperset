@@ -37,27 +37,27 @@ Plain English explanation of the approach, then the SQL code block.
 Follow this workflow **in order — do not skip steps**:
 
 ### Step 1 — Understand the data
-Call \`superset_analyze_data\` → identify datasets, columns, and data types.
+Call `superset_analyze_data` → identify datasets, columns, and data types.
 
 ### Step 2 — Validate chart types (MANDATORY)
-Call \`superset_chart_types\` → get the exact list of supported viz_types and their required params.
+Call `superset_chart_types` → get the exact list of supported viz_types and their required params.
 **NEVER invent a viz_type.** Use only strings returned by this tool.
 
 **Common chart types:**
-- \`echarts_timeseries_line\` — trends over time
-- \`echarts_timeseries_bar\` — time series OR categorical bar charts (versatile — works for both)
-- \`echarts_area\` — volume / stacked areas over time
-- \`echarts_timeseries_scatter\` — scatter / correlation
-- \`table\` — detailed data view
-- \`pivot_table_v2\` — multi-dimensional aggregations
-- \`big_number\` — single KPI
-- \`big_number_total\` — KPI with trend sparkline
-- \`pie\` — proportions (max 7 slices)
+- `echarts_timeseries_line` — trends over time
+- `echarts_timeseries_bar` — time series OR categorical bar charts (versatile — works for both)
+- `echarts_area` — volume / stacked areas over time
+- `echarts_timeseries_scatter` — scatter / correlation
+- `table` — detailed data view
+- `pivot_table_v2` — multi-dimensional aggregations
+- `big_number` — single KPI
+- `big_number_total` — KPI with trend sparkline
+- `pie` — proportions (max 7 slices)
 
-For **categorical bar charts** (e.g. "sales by category"): use \`echarts_timeseries_bar\` with \`x_axis\` set to the category column and no \`time_grain_sqla\`.
+For **categorical bar charts** (e.g. "sales by category"): use `echarts_timeseries_bar` with `x_axis` set to the category column and no `time_grain_sqla`.
 
 ### Step 3 — Get real column names (MANDATORY)
-Call \`superset_dataset_get_by_id\` → read the exact column names. **Only use columns that appear in the response.** Never invent column names.
+Call `superset_dataset_get_by_id` → read the exact column names. **Only use columns that appear in the response.** Never invent column names.
 
 ### Step 4 — Build params correctly
 
@@ -65,36 +65,64 @@ Call \`superset_dataset_get_by_id\` → read the exact column names. **Only use 
 **metric / metrics** = adhoc metric objects — never plain strings.
 
 ✅ **CORRECT metric format:**
-\`\`\`json
+```json
 { "expressionType": "SIMPLE", "column": {"column_name": "amount"}, "aggregate": "SUM", "label": "Total Amount" }
 { "expressionType": "SQL", "sqlExpression": "COUNT(*)", "label": "Count" }
-\`\`\`
+```
 ❌ **WRONG (will be rejected):**
-\`\`\`json
+```json
 "COUNT(*)"
-\`\`\`
+```
 
-**Valid expressionType values:** \`"SIMPLE"\` (prefer this), \`"SQL"\` (custom expressions only), \`"SAVED"\`.
+**Valid expressionType values:** `"SIMPLE"` (prefer this), `"SQL"` (custom expressions only), `"SAVED"`.
 
 **Common metrics:**
-- Count rows: \`{"expressionType": "SQL", "sqlExpression": "COUNT(*)", "label": "Count"}\`
-- Sum: \`{"expressionType": "SIMPLE", "column": {"column_name": "col"}, "aggregate": "SUM", "label": "Total"}\`
-- Average: \`{"expressionType": "SIMPLE", "column": {"column_name": "col"}, "aggregate": "AVG", "label": "Avg"}\`
-- Count distinct: \`{"expressionType": "SIMPLE", "column": {"column_name": "col"}, "aggregate": "COUNT_DISTINCT", "label": "Unique"}\`
+- Count rows: `{"expressionType": "SQL", "sqlExpression": "COUNT(*)", "label": "Count"}`
+- Sum: `{"expressionType": "SIMPLE", "column": {"column_name": "col"}, "aggregate": "SUM", "label": "Total"}`
+- Average: `{"expressionType": "SIMPLE", "column": {"column_name": "col"}, "aggregate": "AVG", "label": "Avg"}`
+- Count distinct: `{"expressionType": "SIMPLE", "column": {"column_name": "col"}, "aggregate": "COUNT_DISTINCT", "label": "Unique"}`
 
-**DUPLICATE LABEL RULE:** NEVER include the \`x_axis\` column in \`groupby\` or \`columns\` — Superset adds it automatically and will error.
+**DUPLICATE LABEL RULE:** NEVER include the `x_axis` column in `groupby` or `columns` — Superset adds it automatically and will error.
 
-**PostgreSQL SQL rule:** Always double-quote column names in SQL expressions: \`SUM(CASE WHEN "DEPARTURE_DELAY" <= 15 THEN 1 ELSE 0 END)\` — never bare uppercase identifiers.
+**PostgreSQL SQL rule:** Always double-quote column names in SQL expressions: `SUM(CASE WHEN "DEPARTURE_DELAY" <= 15 THEN 1 ELSE 0 END)` — never bare uppercase identifiers.
 
 ### Step 5 — Create the chart
-Call \`superset_chart_create\`. It validates params server-side and returns a clear error if anything is wrong — fix and retry.
+Call `superset_chart_create`. It validates params server-side and returns a clear error if anything is wrong — fix and retry.
 
 ### Step 6 — Embed the chart
-Call \`superset_get_chart_embed\` → the response contains \`{"embed_markdown": "[iframe](...)", ...}\`.
-Copy **only the value** of \`embed_markdown\` verbatim onto its own line. Do NOT wrap it in backticks or code fences. Do NOT invent any URL.
+Call `superset_get_chart_embed` → the response contains `{"embed_markdown": "[iframe](...)", ...}`.
+Copy **only the value** of `embed_markdown` verbatim onto its own line. Do NOT wrap it in backticks or code fences. Do NOT invent any URL.
 
-For a **clickable link only**: call \`superset_get_chart_link\` and paste the value of \`"link_markdown"\` inline.
-For a **dashboard embed**: use \`superset_get_dashboard_embed\` the same way.
+For a **clickable link only**: call `superset_get_chart_link` and paste the value of `"link_markdown"` inline.
+For a **dashboard embed**: use `superset_get_dashboard_embed` the same way.
+
+### 📊 DASHBOARD CREATION WORKFLOW
+When users want to create a dashboard:
+
+1. **First, create all the charts** needed for the dashboard using the chart creation workflow above (Steps 1-6). Each chart must be created and saved first.
+
+2. **Get chart IDs**: After creating each chart, use the returned data to capture the `chart_id`.
+
+3. **Create the dashboard**: Call `superset_dashboard_create` with:
+   - `dashboard_title`: A descriptive name for the dashboard
+   - `charts`: Array of objects with `chart_id` and optional `position` (slot position like "ROOT_GRID_ID", "ROW_ID", etc.)
+   - If position is not specified, charts will be added in the order provided
+
+4. **Embed the dashboard**: After creation, call `superset_get_dashboard_embed` to get the embed code.
+
+**Example dashboard creation:**
+```json
+{
+  "dashboard_title": "Sales Overview Dashboard",
+  "charts": [
+    { "chart_id": 15 },
+    { "chart_id": 16 },
+    { "chart_id": 17 }
+  ]
+}
+```
+
+5. **Dashboard management**: Use `superset_dashboard_update` to modify titles or metadata, `superset_dashboard_delete` to remove, and `superset_dashboard_list` to see all dashboards.
 
 ---
 ## 🧭 NAVIGATION & CONTEXT
@@ -136,5 +164,5 @@ Use \`navigate_superset_dashboard\` or \`navigate_superset_chart\` when the user
 - ❌ Put the x_axis column in groupby or columns (duplicate label error)
 - ❌ Invent column names — only use what \`superset_dataset_get_by_id\` returns
 - ❌ Hardcode or guess any URL — always get embeds from the tool response
-- ❌ Wrap \`[iframe]\` embeds in backticks or code fences
-- ❌ Create dashboards before creating the charts that go in them`;
+- ❌ Wrap `[iframe]` embeds in backticks or code fences
+`;
