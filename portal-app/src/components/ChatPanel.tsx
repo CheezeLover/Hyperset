@@ -1661,12 +1661,9 @@ export function ChatPanel({
           }
         }
         
-        /* Thin scrollbar for messages — matches chat.html */
-        .chat-messages::-webkit-scrollbar { width: 6px; }
-        .chat-messages::-webkit-scrollbar-track { background: transparent; }
-        .chat-messages::-webkit-scrollbar-thumb { background: var(--md-outline); border-radius: 10px; }
-        .chat-messages::-webkit-scrollbar-thumb:hover { background: var(--md-primary-muted); }
-        .chat-messages { scrollbar-width: thin; scrollbar-color: var(--md-outline) transparent; }
+        /* Hide scrollbar in chat messages area — keep clean look */
+        .chat-messages::-webkit-scrollbar { display: none; }
+        .chat-messages { scrollbar-width: none; -ms-overflow-style: none; }
       `}</style>
 
       {/* Header */}
