@@ -1776,10 +1776,10 @@ export function ChatPanel({
         }} />
         <div 
           className="chat-messages" 
-          style={{ 
-            height: "100%", 
-            overflowY: "auto", 
-            padding: "16px 0" 
+          style={{
+            height: "100%",
+            overflowY: messages.length === 0 ? "hidden" : "auto",
+            padding: "16px 0"
         }}>
         {messages.length === 0 && (
           <div style={{
