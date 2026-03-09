@@ -105,6 +105,13 @@ if _PALETTE:
         "colorLinkHover": _primary,
         "colorLinkActive": _primary_dark,
         "colorSuccess": _success,
+        # Explicit success tokens — give Published badge a clearly filled warm
+        # background so it's visually distinct from Draft's outline-only style
+        "colorSuccessBg": _get_color("state.success.background", "#FFF7ED"),
+        "colorSuccessBgHover": "#FFE8D0",
+        "colorSuccessBorder": "#F5A070",
+        "colorSuccessText": _success,
+        "colorSuccessTextHover": _get_color("primary.dark", "#A04000"),
         "colorWarning": _warning,
         "colorError": _error,
         "colorInfo": _info,
@@ -154,12 +161,32 @@ if _PALETTE:
         "colorPrimary": _primary_dark_mode,
         "colorPrimaryHover": _primary_darker,
         "colorPrimaryActive": _primary_darker,
-        "colorPrimaryText": _text_inverse_dark,
-        "colorPrimaryTextHover": _text_inverse_dark,
+        "colorPrimaryText": _primary_dark_mode,
+        "colorPrimaryTextHover": _primary_darker,
         "colorLink": _primary_dark_mode,
         "colorLinkHover": _primary_darker,
         "colorLinkActive": _primary_darker,
         "colorSuccess": _success_dark,
+        # Explicit success badge tokens — prevents Ant Design from auto-generating
+        # a blinding light background in dark mode (Published tag, etc.)
+        "colorSuccessBg": _get_color("state.success.backgroundDark", "#2D1608"),
+        "colorSuccessBgHover": "#3D2010",
+        "colorSuccessBorder": "#5A2D10",
+        "colorSuccessText": _success_dark,
+        "colorSuccessTextHover": _get_color("primary.muted", "#FF8A5C"),
+        # Explicit primary bg tokens — prevents Ant Design from auto-deriving
+        # near-white from colorPrimary=#FF8A5C (Physical badge, All tab, buttons)
+        "colorPrimaryBg": "#241205",
+        "colorPrimaryBgHover": "#341A08",
+        "colorPrimaryBorder": "#5C2E0A",
+        # Fill tokens — prevents default tags and fills from auto-deriving
+        # light backgrounds (Draft badge, general surfaces in dark mode)
+        "colorFill": "#303030",
+        "colorFillSecondary": "#262626",
+        "colorFillTertiary": "#1E1E1E",
+        "colorFillQuaternary": "#181818",
+        "colorFillContent": "#242424",
+        "colorFillAlter": "#1A1A1A",
         "colorWarning": _warning_dark,
         "colorError": _error_dark,
         "colorInfo": _info_dark,
@@ -181,8 +208,13 @@ if _PALETTE:
         "fontFamilyCode": "'Fira Code', Monaco, Consolas, monospace",
     }
     
-    # Add component-specific overrides for buttons
+    # Add component-specific overrides
     THEME_DARK_COMPONENTS = {
+        "Tag": {
+            # Default (uncolored) tags — Draft badge, Virtual badge, etc.
+            "defaultBg": "#1E1E1E",
+            "defaultColor": _primary_dark_mode,
+        },
         "Button": {
             "colorPrimary": _primary_dark_mode,
             "colorPrimaryText": _text_inverse_dark,

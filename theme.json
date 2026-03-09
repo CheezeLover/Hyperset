@@ -70,9 +70,9 @@
     "state": {
       "success": {
         "base": "#C2410C",
-        "light": "#FB923C",
+        "light": "#C46E38",
         "background": "#FFF7ED",
-        "backgroundDark": "#431407"
+        "backgroundDark": "#2D1608"
       },
       "warning": {
         "base": "#D97706",
