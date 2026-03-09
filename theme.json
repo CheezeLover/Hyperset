@@ -69,10 +69,10 @@
     },
     "state": {
       "success": {
-        "base": "#059669",
-        "light": "#10B981",
-        "background": "#D1FAE5",
-        "backgroundDark": "#064E3B"
+        "base": "#0D9488",
+        "light": "#2DD4BF",
+        "background": "#CCFBF1",
+        "backgroundDark": "#134E4A"
       },
       "warning": {
         "base": "#D97706",
