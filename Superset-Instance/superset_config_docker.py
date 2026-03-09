@@ -161,8 +161,8 @@ if _PALETTE:
         "colorPrimary": _primary_dark_mode,
         "colorPrimaryHover": _primary_darker,
         "colorPrimaryActive": _primary_darker,
-        "colorPrimaryText": _text_inverse_dark,
-        "colorPrimaryTextHover": _text_inverse_dark,
+        "colorPrimaryText": _primary_dark_mode,
+        "colorPrimaryTextHover": _primary_darker,
         "colorLink": _primary_dark_mode,
         "colorLinkHover": _primary_darker,
         "colorLinkActive": _primary_darker,
@@ -213,7 +213,7 @@ if _PALETTE:
         "Tag": {
             # Default (uncolored) tags — Draft badge, Virtual badge, etc.
             "defaultBg": "#1E1E1E",
-            "defaultColor": "#A3A3A3",
+            "defaultColor": _primary_dark_mode,
         },
         "Button": {
             "colorPrimary": _primary_dark_mode,
