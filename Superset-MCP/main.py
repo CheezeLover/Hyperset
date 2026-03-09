@@ -1612,8 +1612,6 @@ async def superset_analyze_data(
     if not datasets_raw:
         return {
             "question": question,
-            "base_terms": base_terms,
-            "search_terms": search_terms,
             "instruction": "No datasets found in Superset.",
             "summary": {"databases": len(databases_raw), "datasets": 0},
             "schema_catalog": [],
@@ -1772,8 +1770,6 @@ async def superset_analyze_data(
     
     return {
         "question": question,
-        "base_terms": base_terms,
-        "search_terms": search_terms,
         "instruction": instruction,
         "summary": {
             "databases": len(databases_out),
