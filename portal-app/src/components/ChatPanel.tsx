@@ -1661,21 +1661,18 @@ export function ChatPanel({
           }
         }
         
-        /* Hide scrollbar but keep scrolling */
-        .chat-messages {
-          scrollbar-width: none;
-          -ms-overflow-style: none;
-        }
-        
-        .chat-messages::-webkit-scrollbar {
-          display: none;
-        }
+        /* Thin scrollbar for messages — matches chat.html */
+        .chat-messages::-webkit-scrollbar { width: 6px; }
+        .chat-messages::-webkit-scrollbar-track { background: transparent; }
+        .chat-messages::-webkit-scrollbar-thumb { background: var(--md-outline); border-radius: 10px; }
+        .chat-messages::-webkit-scrollbar-thumb:hover { background: var(--md-primary-muted); }
+        .chat-messages { scrollbar-width: thin; scrollbar-color: var(--md-outline) transparent; }
       `}</style>
 
       {/* Header */}
       <div style={{
-        display: "flex", 
-        alignItems: "center", 
+        display: "flex",
+        alignItems: "center",
         padding: "12px 16px",
         gap: 10,
         minHeight: 52,
@@ -1776,10 +1773,10 @@ export function ChatPanel({
         }} />
         <div 
           className="chat-messages" 
-          style={{ 
-            height: "100%", 
-            overflowY: "auto", 
-            padding: "16px 0" 
+          style={{
+            height: "100%",
+            overflowY: messages.length === 0 ? "hidden" : "auto",
+            padding: "16px 0"
         }}>
         {messages.length === 0 && (
           <div style={{
@@ -1802,7 +1799,7 @@ export function ChatPanel({
               justifyContent: "center",
               boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
             }}>
-              <svg viewBox="0 0 24 24" width={32} height={32} fill="var(--md-on-primary-cont)">
+              <svg viewBox="0 0 24 24" width={32} height={32} fill="var(--md-primary)">
                 <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z" />
               </svg>
             </div>
@@ -1838,7 +1835,7 @@ export function ChatPanel({
           border: `2px solid ${input.trim() ? "var(--md-primary)" : hasSentMessage ? "var(--md-outline)" : "var(--md-outline-var)"}`,
           transition: "all 0.2s ease-out",
           boxShadow: input.trim() 
-            ? "0 4px 12px rgba(32, 167, 201, 0.15), 0 2px 4px rgba(0,0,0,0.06)"
+            ? "0 4px 12px rgba(255, 107, 53, 0.15), 0 2px 4px rgba(0,0,0,0.06)"
             : "0 2px 8px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02)",
         }}>
           <textarea
@@ -1928,7 +1925,7 @@ export function ChatPanel({
                 }}
                 onMouseOver={e => { if (input.trim()) { e.currentTarget.style.filter = "brightness(1.1)"; e.currentTarget.style.transform = "scale(1.1)"; } }}
                 onMouseOut={e => { e.currentTarget.style.filter = "none"; e.currentTarget.style.transform = "none"; }}>
-                <svg viewBox="0 0 24 24" width={22} height={22} fill={input.trim() ? "var(--md-on-primary-cont)" : "var(--md-outline)"} style={{ transition: "fill 0.2s ease" }}>
+                <svg viewBox="0 0 24 24" width={22} height={22} fill={input.trim() ? "#FFFFFF" : "var(--md-primary)"} style={{ transition: "fill 0.2s ease" }}>
                   <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" transform="rotate(-45 12 12)" />
                 </svg>
               </button>
