@@ -69,10 +69,10 @@
     },
     "state": {
       "success": {
-        "base": "#0D9488",
-        "light": "#2DD4BF",
-        "background": "#CCFBF1",
-        "backgroundDark": "#134E4A"
+        "base": "#C2410C",
+        "light": "#FB923C",
+        "background": "#FFF7ED",
+        "backgroundDark": "#431407"
       },
       "warning": {
         "base": "#D97706",
@@ -81,10 +81,10 @@
         "backgroundDark": "#78350F"
       },
       "error": {
-        "base": "#DC2626",
-        "light": "#EF4444",
-        "background": "#FEE2E2",
-        "backgroundDark": "#7F1D1D"
+        "base": "#C0392B",
+        "light": "#E74C3C",
+        "background": "#FDEDEC",
+        "backgroundDark": "#641E16"
       },
       "info": {
         "base": "#D35400",
