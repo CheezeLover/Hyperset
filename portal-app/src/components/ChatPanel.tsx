@@ -1417,20 +1417,23 @@ export function ChatPanel({
               ? { ...m, streaming: false }
               : m
             ));
+          } else if (event.type === "followup_suggestions") {
+            // Validate that suggestions is a string array
+            const suggestions = Array.isArray(event.suggestions)
+              ? event.suggestions.filter((s): s is string => typeof s === "string")
+              : [];
+            setMessages((prev) => prev.map((m) => m.id === assistantId
+              ? { ...m, followupSuggestions: suggestions }
+              : m
+            ));
           } else if (event.type === "error") {
             setMessages((prev) => prev.map((m) => m.id === assistantId
-              ? { ...m, content: m.content + "\n\n**Error:** " + (event.message as string), streaming: false }
+              ? { ...m, content: m.content || (event.message as string), streaming: false }
               : m
             ));
           }
         }
       }
-      
-      // Ensure streaming is marked as false when the stream ends
-      setMessages((prev) => prev.map((m) => m.id === assistantId && m.streaming
-        ? { ...m, streaming: false }
-        : m
-      ));
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") {
         // Request was aborted by user
@@ -1606,18 +1609,12 @@ export function ChatPanel({
             ));
           } else if (event.type === "error") {
             setMessages((prev) => prev.map((m) => m.id === assistantId
-              ? { ...m, content: m.content + "\n\n**Error:** " + (event.message as string), streaming: false }
+              ? { ...m, content: m.content || (event.message as string), streaming: false }
               : m
             ));
           }
         }
       }
-      
-      // Ensure streaming is marked as false when the stream ends
-      setMessages((prev) => prev.map((m) => m.id === assistantId && m.streaming
-        ? { ...m, streaming: false }
-        : m
-      ));
     })
     .catch((err) => {
       if (err instanceof Error && err.name === "AbortError") {
