@@ -119,6 +119,7 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <head>
+        <link rel="icon" href="/logos/hyperset-logo-only.png" />
         {themeScript && (
           <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         )}
