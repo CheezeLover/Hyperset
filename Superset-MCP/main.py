@@ -1399,12 +1399,17 @@ def _classify_column(col: Dict[str, Any]) -> str:
 
 @mcp.tool()
 @handle_api_errors
-async def superset_analyze_data(ctx: Context, question: str) -> Dict[str, Any]:
+async def superset_analyze_data(
+    ctx: Context,
+    question: str,
+    max_datasets_per_db: int = 10,
+    include_column_types: bool = False,
+) -> Dict[str, Any]:
     """
-    RECOMMENDED FIRST STEP: Discover the full schema catalog and return it structured for SQL generation.
+    RECOMMENDED FIRST STEP: Discover the schema catalog and return it structured for SQL generation.
 
-    This tool fetches all databases and datasets, classifies every column by semantic
-    category (datetime / numeric / text / boolean / other), and returns a catalog
+    This tool fetches databases and datasets, classifies columns by semantic
+    category (datetime / numeric / text / boolean / other), and returns a compact catalog
     optimised for LLM consumption.
 
     After calling this tool:
@@ -1414,6 +1419,8 @@ async def superset_analyze_data(ctx: Context, question: str) -> Dict[str, Any]:
 
     Args:
         question: The data question to answer (e.g., 'What are the top 10 customers by revenue?')
+        max_datasets_per_db: Maximum datasets to return per database (default 10). Increase if you need more.
+        include_column_types: Whether to include SQL types for each column (default False). Enable if you need type information.
 
     Returns:
         A structured catalog with instruction, summary, and schema_catalog (databases → datasets →
@@ -1444,25 +1451,32 @@ async def superset_analyze_data(ctx: Context, question: str) -> Dict[str, Any]:
         if db_id is not None:
             datasets_by_db.setdefault(db_id, []).append(ds)
 
-    # Per-category column caps — datetime is unlimited (few but critical for time filters),
-    # numeric gets the most room (aggregations), text and others are capped aggressively.
+    # Per-category column caps — aggressive limits to keep output compact for low-context models.
+    # datetime is most important for time filtering, numeric for aggregations.
     MAX_PER_CATEGORY: Dict[str, Optional[int]] = {
-        "datetime": None,   # always include all datetime columns
-        "numeric":  25,
-        "text":     15,
-        "boolean":  10,
-        "other":    5,
+        "datetime": 10,   # time columns are critical but cap to avoid bloat
+        "numeric":  12,   # metrics/aggregations
+        "text":     8,    # dimensions/labels
+        "boolean":  5,    # flags
+        "other":    3,    # miscellaneous
     }
 
     # Step 4: Build structured catalog
     databases_out: List[Dict[str, Any]] = []
     total_datasets = 0
+    total_datasets_omitted = 0
 
     for db in databases_raw:
         db_id = db.get("id")
+        db_datasets_raw = datasets_by_db.get(db_id, [])
         db_datasets: List[Dict[str, Any]] = []
+        
+        # Limit datasets per database to keep output compact
+        datasets_to_process = db_datasets_raw[:max_datasets_per_db]
+        if len(db_datasets_raw) > max_datasets_per_db:
+            total_datasets_omitted += len(db_datasets_raw) - max_datasets_per_db
 
-        for ds in datasets_by_db.get(db_id, []):
+        for ds in datasets_to_process:
             ds_id = ds.get("id")
             table_name = ds.get("table_name", "unknown")
             schema = ds.get("schema") or None
@@ -1486,11 +1500,14 @@ async def superset_analyze_data(ctx: Context, question: str) -> Dict[str, Any]:
                 "other":    [],
             }
             for col in detail_result.get("columns", []):
-                col_entry = {
-                    "name": col.get("column_name", col.get("name", "unknown")),
-                    "type": col.get("type", "UNKNOWN"),
-                }
-                category = _classify_column({**col_entry, "is_dttm": col.get("is_dttm", False)})
+                col_name = col.get("column_name", col.get("name", "unknown"))
+                col_type = col.get("type", "UNKNOWN")
+                # Compact format: just name by default, add type only if requested
+                if include_column_types:
+                    col_entry: Dict[str, str] = {"name": col_name, "type": col_type}
+                else:
+                    col_entry = {"name": col_name}
+                category = _classify_column({"name": col_name, "type": col_type, "is_dttm": col.get("is_dttm", False)})
                 columns_by_category[category].append(col_entry)
 
             total_cols = sum(len(v) for v in columns_by_category.values())
@@ -1503,34 +1520,46 @@ async def superset_analyze_data(ctx: Context, question: str) -> Dict[str, Any]:
                     continue
                 cap = MAX_PER_CATEGORY.get(cat)
                 if cap is not None and len(cols) > cap:
-                    columns_out[cat] = cols[:cap]
-                    truncation_notes.append(f"{cat}: showing {cap} of {len(cols)}")
+                    # For compact output without types, just return a list of names
+                    if include_column_types:
+                        columns_out[cat] = cols[:cap]
+                    else:
+                        columns_out[cat] = [c["name"] for c in cols[:cap]]
+                    truncation_notes.append(f"{cat}: {cap}/{len(cols)}")
                 else:
-                    columns_out[cat] = cols
+                    if include_column_types:
+                        columns_out[cat] = cols
+                    else:
+                        columns_out[cat] = [c["name"] for c in cols]
 
             dataset_entry: Dict[str, Any] = {
-                "dataset_id":    ds_id,
-                "table_name":    table_name,
-                "sql_ref":       sql_ref,       # use this in your FROM clause
-                "total_columns": total_cols,
-                "columns":       columns_out,
+                "id":         ds_id,
+                "table":      sql_ref,       # use this in your FROM clause
+                "cols":       total_cols,
             }
+            if columns_out:
+                dataset_entry["by_cat"] = columns_out  # compact key name
             if ds.get("description"):
-                dataset_entry["description"] = ds["description"]
+                dataset_entry["desc"] = ds["description"][:100]  # truncate long descriptions
             if truncation_notes:
-                dataset_entry["columns_truncated"] = truncation_notes
+                dataset_entry["trunc"] = truncation_notes
 
             db_datasets.append(dataset_entry)
 
         total_datasets += len(db_datasets)
 
-        databases_out.append({
-            "database_id":   db_id,
-            "database_name": db.get("database_name", "Unknown"),
-            "backend":       db.get("backend", "Unknown"),  # SQL dialect (postgresql, mysql, …)
-            "dataset_count": len(db_datasets),
-            "datasets":      db_datasets,
-        })
+        db_entry: Dict[str, Any] = {
+            "id":   db_id,
+            "name": db.get("database_name", "Unknown"),
+            "be":   db.get("backend", "Unknown"),  # SQL dialect (postgresql, mysql, …)
+            "ds":   len(db_datasets),
+        }
+        if db_datasets:
+            db_entry["datasets"] = db_datasets
+        if len(db_datasets_raw) > max_datasets_per_db:
+            db_entry["ds_omitted"] = len(db_datasets_raw) - max_datasets_per_db
+
+        databases_out.append(db_entry)
 
     return {
         "question": question,
@@ -1542,8 +1571,9 @@ async def superset_analyze_data(ctx: Context, question: str) -> Dict[str, Any]:
             "text = labels/dimensions, boolean = flags/filters."
         ),
         "summary": {
-            "total_databases": len(databases_out),
-            "total_datasets":  total_datasets,
+            "databases": len(databases_out),
+            "datasets":  total_datasets,
+            **({"datasets_omitted": total_datasets_omitted} if total_datasets_omitted else {}),
         },
         "schema_catalog": databases_out,
     }
