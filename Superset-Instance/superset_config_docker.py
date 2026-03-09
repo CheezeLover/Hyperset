@@ -160,6 +160,13 @@ if _PALETTE:
         "colorLinkHover": _primary_darker,
         "colorLinkActive": _primary_darker,
         "colorSuccess": _success_dark,
+        # Explicit success badge tokens — prevents Ant Design from auto-generating
+        # a blinding light background in dark mode (Published tag, etc.)
+        "colorSuccessBg": _get_color("state.success.backgroundDark", "#2D1608"),
+        "colorSuccessBgHover": "#3D2010",
+        "colorSuccessBorder": "#5A2D10",
+        "colorSuccessText": _success_dark,
+        "colorSuccessTextHover": _get_color("primary.muted", "#FF8A5C"),
         "colorWarning": _warning_dark,
         "colorError": _error_dark,
         "colorInfo": _info_dark,
