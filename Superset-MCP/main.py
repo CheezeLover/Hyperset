@@ -1398,6 +1398,80 @@ def _classify_column(col: Dict[str, Any]) -> str:
     return "other"
 
 
+async def _generate_synonyms_with_llm(term: str) -> List[str]:
+    """Use LLM to generate up to 20 related words/synonyms for a search term."""
+    api_key = os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY")
+    api_url = os.getenv("LLM_API_URL") or "https://api.openai.com/v1"
+    model = os.getenv("LLM_MODEL") or "gpt-4o-mini"
+    
+    if not api_key:
+        logger.debug("No LLM API key configured, skipping synonym generation")
+        return []
+    
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.post(
+                f"{api_url}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": model,
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": "You are a helpful assistant that generates related words for database table searching. Respond with ONLY a JSON array of strings."
+                        },
+                        {
+                            "role": "user", 
+                            "content": f'Generate up to 20 words related to "{term}" that might appear in database table names. Include synonyms, related business terms, and alternative phrasings. Respond with ONLY a JSON array like ["word1", "word2", ...].'
+                        }
+                    ],
+                    "temperature": 0.3,
+                    "max_tokens": 200,
+                }
+            )
+            
+            if response.status_code != 200:
+                logger.debug(f"LLM API error: {response.status_code}")
+                return []
+            
+            data = response.json()
+            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            
+            # Extract JSON array from response
+            try:
+                # Try to find JSON array in the response
+                match = re.search(r'\[.*?\]', content, re.DOTALL)
+                if match:
+                    synonyms = json.loads(match.group(0))
+                    if isinstance(synonyms, list):
+                        # Filter to only string items and limit to 20
+                        return [str(s).lower().strip() for s in synonyms if isinstance(s, (str, int, float))][:20]
+            except Exception as e:
+                logger.debug(f"Failed to parse LLM synonym response: {e}")
+                return []
+                
+    except Exception as e:
+        logger.debug(f"Error calling LLM for synonyms: {e}")
+        return []
+    
+    return []
+
+
+async def _expand_with_llm_synonyms(terms: List[str]) -> List[str]:
+    """Expand search terms using LLM-generated synonyms."""
+    expanded = set(terms)  # Start with original terms
+    
+    # Generate synonyms for each term using LLM
+    for term in terms:
+        synonyms = await _generate_synonyms_with_llm(term)
+        expanded.update(synonyms)
+    
+    return list(expanded)
+
+
 def _extract_search_terms(question: str) -> List[str]:
     """Extract meaningful search terms from a natural language question."""
     # Common words to filter out
@@ -1499,8 +1573,9 @@ async def superset_analyze_data(
     RECOMMENDED FIRST STEP: Discover relevant datasets by analyzing the question.
     
     This tool intelligently filters datasets based on how well their names match the question.
-    It extracts keywords from your question, scores each dataset for relevance, and only
-    returns detailed column information for the most relevant datasets.
+    It extracts keywords from your question, expands them with common synonyms (e.g., "sales" 
+    also matches "revenue", "income"), scores each dataset for relevance, and only returns 
+    detailed column information for the most relevant datasets.
     
     After calling this tool:
     - Review the relevance scores to identify the best dataset(s)
@@ -1517,8 +1592,10 @@ async def superset_analyze_data(
         A structured catalog with relevance scores, showing only the most relevant datasets with
         their columns grouped by category: datetime, numeric, text, boolean, other
     """
-    # Step 1: Extract search terms from the question
-    search_terms = _extract_search_terms(question)
+    # Step 1: Extract search terms and expand with LLM-generated synonyms
+    base_terms = _extract_search_terms(question)
+    search_terms = await _expand_with_llm_synonyms(base_terms)
+    logger.info(f"Expanded search terms: {base_terms} -> {len(search_terms)} terms")
     
     # Step 2: Get databases
     db_response = await superset_request(ctx, "get", "/api/v1/database/")
@@ -1535,6 +1612,7 @@ async def superset_analyze_data(
     if not datasets_raw:
         return {
             "question": question,
+            "base_terms": base_terms,
             "search_terms": search_terms,
             "instruction": "No datasets found in Superset.",
             "summary": {"databases": len(databases_raw), "datasets": 0},
@@ -1674,26 +1752,27 @@ async def superset_analyze_data(
     # Build instruction based on match quality
     if has_good_matches:
         instruction = (
-            f"Found {total_returned} relevant dataset(s) for your question. "
+            f"Found {total_returned} relevant dataset(s) matching your question (including synonyms). "
             "Datasets are scored by relevance (1.0 = perfect match). "
             "Use the `table` field in your FROM clause and `id` as database_id for SQL queries. "
             "Columns grouped by: datetime (time filters), numeric (aggregations), text (dimensions)."
         )
     elif include_all_if_no_match:
         instruction = (
-            "No strong matches found for your question. Returning all datasets. "
+            "No strong matches found for your question (including synonyms). Returning all datasets. "
             "Review the table names to find the most relevant one. "
             "Use the `table` field in your FROM clause and `id` as database_id."
         )
     else:
         instruction = (
-            "No strong matches found for your question. Showing top 3 datasets with low relevance scores. "
+            "No strong matches found for your question (searched with synonyms). Showing top 3 datasets with low relevance scores. "
             "You may want to: 1) Rephrase your question with different keywords, 2) Check available datasets with superset_dataset_list, "
             "or 3) Set include_all_if_no_match=True to see all datasets."
         )
     
     return {
         "question": question,
+        "base_terms": base_terms,
         "search_terms": search_terms,
         "instruction": instruction,
         "summary": {
