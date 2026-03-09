@@ -1573,20 +1573,21 @@ async def superset_analyze_data(
     RECOMMENDED FIRST STEP: Discover relevant datasets by analyzing the question.
     
     This tool intelligently filters datasets based on how well their names match the question.
-    It extracts keywords from your question, expands them with common synonyms (e.g., "sales" 
-    also matches "revenue", "income"), scores each dataset for relevance, and only returns 
-    detailed column information for the most relevant datasets.
+    It extracts keywords from your question, expands them with AI-generated synonyms, scores 
+    each dataset for relevance, and returns basic column information for the most relevant datasets.
     
     After calling this tool:
     - Review the relevance scores to identify the best dataset(s)
     - Use the `table` field as the table name in your FROM clause
     - Use the `database_id` when calling superset_sqllab_execute_query
+    - **If you need detailed column info for a specific dataset**, call `superset_dataset_get_by_id` 
+      or `superset_dataset_columns` instead of using `include_column_types` or `include_all_if_no_match`
 
     Args:
         question: The data question to answer (e.g., 'What are the top 10 customers by revenue?')
         max_datasets: Maximum number of most relevant datasets to return (default 5)
-        include_column_types: Whether to include SQL types for each column (default False)
-        include_all_if_no_match: If True and no good matches found, include all datasets (default False)
+        include_column_types: DEPRECATED - Use `superset_dataset_get_by_id` for column details instead
+        include_all_if_no_match: DEPRECATED - Use `superset_dataset_list` to browse all datasets instead
 
     Returns:
         A structured catalog with relevance scores, showing only the most relevant datasets with
