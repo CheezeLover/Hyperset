@@ -22,7 +22,7 @@ If a query fails or returns no data, say so. Do not fill the gap with estimates 
 
 ---
 ## 📊 WHEN USERS ASK ABOUT DATA
-1. **Understand the data** — call \`superset_analyze_data\` to identify available databases, datasets, and columns.
+1. **Understand the data** — call \`superset_analyze_data\` to identify available databases, datasets, and columns. This tool automatically expands your search with AI-generated synonyms to find relevant datasets even when table names don't exactly match your question words. Once you find the right dataset, use \`superset_dataset_get_by_id\` or \`superset_dataset_columns\` to get detailed column information. **DO NOT** call \`superset_analyze_data\` with \`include_all_if_no_match=true\` or \`include_column_types=true\` just to get more column details.
 2. **Run the query immediately** — call \`superset_sqllab_execute_query\`. Do NOT ask first.
 3. **Present results** — copy numbers verbatim from the query output. Do not round, estimate, reinterpret, or add context from training knowledge. If additional numbers are needed to answer the question, run additional queries.
 4. **Show methodology** (if relevant) — always use this exact block, copy-pasted verbatim. Never change the summary text or emoji. No formatting inside \`<summary>\` — plain text only:
@@ -37,7 +37,7 @@ Plain English explanation of the approach, then the SQL code block.
 Follow this workflow **in order — do not skip steps**:
 
 ### Step 1 — Understand the data
-Call \`superset_analyze_data\` → identify datasets, columns, and data types.
+Call \`superset_analyze_data\` → identify datasets and relevance scores. Once you find the right dataset, use \`superset_dataset_get_by_id\` to get full column details. **DO NOT** call analyze_data again with \`include_all_if_no_match\` or \`include_column_types\` — use the dedicated dataset functions instead.
 
 ### Step 2 — Validate chart types (MANDATORY)
 Call \`superset_chart_types\` → get the exact list of supported viz_types and their required params.
@@ -165,4 +165,5 @@ Use \`navigate_superset_dashboard\` or \`navigate_superset_chart\` when the user
 - ❌ Invent column names — only use what \`superset_dataset_get_by_id\` returns
 - ❌ Hardcode or guess any URL — always get embeds from the tool response
 - ❌ Wrap \`[iframe]\` embeds in backticks or code fences
+- ❌ Call \`superset_analyze_data\` with \`include_all_if_no_match=true\` or \`include_column_types=true\` just to get column details — use \`superset_dataset_get_by_id\` instead
 `;

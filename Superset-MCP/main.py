@@ -5,6 +5,7 @@ from typing import (
     Dict,
     List,
     Optional,
+    Tuple,
     AsyncIterator,
     Callable,
     TypeVar,
@@ -1397,183 +1398,385 @@ def _classify_column(col: Dict[str, Any]) -> str:
     return "other"
 
 
+async def _generate_synonyms_with_llm(term: str) -> List[str]:
+    """Use LLM to generate up to 20 related words/synonyms for a search term."""
+    api_key = os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY")
+    api_url = os.getenv("LLM_API_URL") or "https://api.openai.com/v1"
+    model = os.getenv("LLM_MODEL") or "gpt-4o-mini"
+    
+    if not api_key:
+        logger.debug("No LLM API key configured, skipping synonym generation")
+        return []
+    
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.post(
+                f"{api_url}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": model,
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": "You are a helpful assistant that generates related words for database table searching. Respond with ONLY a JSON array of strings."
+                        },
+                        {
+                            "role": "user", 
+                            "content": f'Generate up to 20 words related to "{term}" that might appear in database table names. Include synonyms, related business terms, and alternative phrasings. Respond with ONLY a JSON array like ["word1", "word2", ...].'
+                        }
+                    ],
+                    "temperature": 0.3,
+                    "max_tokens": 200,
+                }
+            )
+            
+            if response.status_code != 200:
+                logger.debug(f"LLM API error: {response.status_code}")
+                return []
+            
+            data = response.json()
+            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            
+            # Extract JSON array from response
+            try:
+                # Try to find JSON array in the response
+                match = re.search(r'\[.*?\]', content, re.DOTALL)
+                if match:
+                    synonyms = json.loads(match.group(0))
+                    if isinstance(synonyms, list):
+                        # Filter to only string items and limit to 20
+                        return [str(s).lower().strip() for s in synonyms if isinstance(s, (str, int, float))][:20]
+            except Exception as e:
+                logger.debug(f"Failed to parse LLM synonym response: {e}")
+                return []
+                
+    except Exception as e:
+        logger.debug(f"Error calling LLM for synonyms: {e}")
+        return []
+    
+    return []
+
+
+async def _expand_with_llm_synonyms(terms: List[str]) -> List[str]:
+    """Expand search terms using LLM-generated synonyms."""
+    expanded = set(terms)  # Start with original terms
+    
+    # Generate synonyms for each term using LLM
+    for term in terms:
+        synonyms = await _generate_synonyms_with_llm(term)
+        expanded.update(synonyms)
+    
+    return list(expanded)
+
+
+def _extract_search_terms(question: str) -> List[str]:
+    """Extract meaningful search terms from a natural language question."""
+    # Common words to filter out
+    stopwords = {
+        'a', 'an', 'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by',
+        'from', 'as', 'is', 'was', 'are', 'were', 'be', 'been', 'being', 'have', 'has', 'had',
+        'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must',
+        'show', 'me', 'get', 'find', 'list', 'what', 'how', 'when', 'where', 'why', 'who',
+        'top', 'bottom', 'first', 'last', 'all', 'any', 'some', 'many', 'much', 'more', 'most',
+        'least', 'less', 'this', 'that', 'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they',
+        'my', 'your', 'his', 'her', 'its', 'our', 'their', 'data', 'information', 'details'
+    }
+    
+    # Clean and tokenize
+    cleaned = re.sub(r'[^\w\s]', ' ', question.lower())
+    words = cleaned.split()
+    
+    # Filter out stopwords and short words, keep meaningful terms
+    terms = [w for w in words if len(w) >= 2 and w not in stopwords]
+    
+    # Also extract multi-word patterns (camelCase, snake_case splits)
+    expanded = []
+    for term in terms:
+        # Split camelCase
+        camel_split = re.sub(r'([a-z])([A-Z])', r'\1 \2', term).lower().split()
+        expanded.extend(camel_split)
+        # Split snake_case
+        snake_split = term.replace('_', ' ').split()
+        expanded.extend(snake_split)
+    
+    # Remove duplicates while preserving order
+    seen = set()
+    return [t for t in expanded if not (t in seen or seen.add(t))]
+
+
+def _score_dataset_relevance(ds: Dict[str, Any], search_terms: List[str]) -> float:
+    """Score how relevant a dataset is to the search terms (0-1 scale)."""
+    if not search_terms:
+        return 0.5  # Neutral score if no search terms
+    
+    table_name = (ds.get("table_name") or "").lower()
+    schema = (ds.get("schema") or "").lower()
+    description = (ds.get("description") or "").lower()
+    
+    score = 0.0
+    matches = 0
+    
+    for term in search_terms:
+        term_lower = term.lower()
+        term_score = 0.0
+        
+        # Exact match in table name (highest weight)
+        if term_lower == table_name:
+            term_score = 1.0
+        # Table name contains term
+        elif term_lower in table_name:
+            term_score = 0.8
+        # Term contains table name (partial match)
+        elif table_name and table_name in term_lower:
+            term_score = 0.6
+        # Match in schema
+        elif term_lower in schema:
+            term_score = 0.5
+        # Match in description
+        elif term_lower in description:
+            term_score = 0.4
+        # Fuzzy match - term is a substring of table_name words
+        else:
+            table_words = re.split(r'[_\s\.]', table_name)
+            for word in table_words:
+                if len(term_lower) >= 3 and (term_lower in word or word in term_lower):
+                    term_score = max(term_score, 0.3)
+                    break
+        
+        score += term_score
+        if term_score > 0:
+            matches += 1
+    
+    # Normalize by number of terms and boost if multiple terms match
+    if len(search_terms) > 0:
+        score = score / len(search_terms)
+        # Boost score if multiple terms matched (more specific match)
+        match_ratio = matches / len(search_terms)
+        score = score * (0.7 + 0.3 * match_ratio)
+    
+    return min(score, 1.0)
+
+
 @mcp.tool()
 @handle_api_errors
 async def superset_analyze_data(
     ctx: Context,
     question: str,
-    max_datasets_per_db: int = 10,
+    max_datasets: int = 5,
     include_column_types: bool = False,
+    include_all_if_no_match: bool = False,
 ) -> Dict[str, Any]:
     """
-    RECOMMENDED FIRST STEP: Discover the schema catalog and return it structured for SQL generation.
-
-    This tool fetches databases and datasets, classifies columns by semantic
-    category (datetime / numeric / text / boolean / other), and returns a compact catalog
-    optimised for LLM consumption.
-
+    RECOMMENDED FIRST STEP: Discover relevant datasets by analyzing the question.
+    
+    This tool intelligently filters datasets based on how well their names match the question.
+    It extracts keywords from your question, expands them with AI-generated synonyms, scores 
+    each dataset for relevance, and returns basic column information for the most relevant datasets.
+    
     After calling this tool:
-    - Identify the relevant dataset(s) from the catalog
-    - Use the `sql_ref` field as the table name in your FROM clause
+    - Review the relevance scores to identify the best dataset(s)
+    - Use the `table` field as the table name in your FROM clause
     - Use the `database_id` when calling superset_sqllab_execute_query
+    - **If you need detailed column info for a specific dataset**, call `superset_dataset_get_by_id` 
+      or `superset_dataset_columns` instead of using `include_column_types` or `include_all_if_no_match`
 
     Args:
         question: The data question to answer (e.g., 'What are the top 10 customers by revenue?')
-        max_datasets_per_db: Maximum datasets to return per database (default 10). Increase if you need more.
-        include_column_types: Whether to include SQL types for each column (default False). Enable if you need type information.
+        max_datasets: Maximum number of most relevant datasets to return (default 5)
+        include_column_types: DEPRECATED - Use `superset_dataset_get_by_id` for column details instead
+        include_all_if_no_match: DEPRECATED - Use `superset_dataset_list` to browse all datasets instead
 
     Returns:
-        A structured catalog with instruction, summary, and schema_catalog (databases → datasets →
-        columns grouped by category: datetime, numeric, text, boolean, other)
+        A structured catalog with relevance scores, showing only the most relevant datasets with
+        their columns grouped by category: datetime, numeric, text, boolean, other
     """
-    # Step 1: Get databases
+    # Step 1: Extract search terms and expand with LLM-generated synonyms
+    base_terms = _extract_search_terms(question)
+    search_terms = await _expand_with_llm_synonyms(base_terms)
+    logger.info(f"Expanded search terms: {base_terms} -> {len(search_terms)} terms")
+    
+    # Step 2: Get databases
     db_response = await superset_request(ctx, "get", "/api/v1/database/")
     if "error" in db_response:
         return {"error": f"Failed to fetch databases: {db_response['error']}"}
-
     databases_raw = db_response.get("result", [])
-
-    # Step 2: Get datasets
+    
+    # Step 3: Get datasets (lightweight list without columns)
     ds_response = await superset_request(ctx, "get", "/api/v1/dataset/")
     if "error" in ds_response:
         return {"error": f"Failed to fetch datasets: {ds_response['error']}"}
-
     datasets_raw = ds_response.get("result", [])
-
-    # Step 3: Group datasets by database id
-    datasets_by_db: Dict[int, list] = {}
+    
+    if not datasets_raw:
+        return {
+            "question": question,
+            "instruction": "No datasets found in Superset.",
+            "summary": {"databases": len(databases_raw), "datasets": 0},
+            "schema_catalog": [],
+        }
+    
+    # Step 4: Score all datasets by relevance to the question
+    scored_datasets: List[Tuple[float, Dict[str, Any]]] = []
     for ds in datasets_raw:
+        score = _score_dataset_relevance(ds, search_terms)
+        scored_datasets.append((score, ds))
+    
+    # Step 5: Sort by relevance (highest first)
+    scored_datasets.sort(key=lambda x: x[0], reverse=True)
+    
+    # Step 6: Decide which datasets to include
+    # Include datasets with score > 0, or if no matches and include_all_if_no_match is True, include all
+    best_score = scored_datasets[0][0] if scored_datasets else 0
+    has_good_matches = best_score > 0.3  # Threshold for "good" match
+    
+    if has_good_matches:
+        # Take top N datasets with positive scores
+        datasets_to_fetch = [ds for score, ds in scored_datasets[:max_datasets] if score > 0]
+    elif include_all_if_no_match:
+        # No good matches, but user wants all datasets anyway
+        datasets_to_fetch = [ds for score, ds in scored_datasets]
+    else:
+        # Return top few even with low scores, with a warning
+        datasets_to_fetch = [ds for score, ds in scored_datasets[:3]]
+    
+    # Step 7: Fetch detailed column info only for relevant datasets
+    MAX_PER_CATEGORY: Dict[str, Optional[int]] = {
+        "datetime": 10,
+        "numeric":  12,
+        "text":     8,
+        "boolean":  5,
+        "other":    3,
+    }
+    
+    # Group by database for output structure
+    db_map: Dict[int, Dict[str, Any]] = {db.get("id"): db for db in databases_raw if db.get("id")}
+    datasets_by_db_out: Dict[int, List[Dict[str, Any]]] = {}
+    
+    for ds in datasets_to_fetch:
+        ds_id = ds.get("id")
         db_id = (
             ds.get("database", {}).get("id")
             if isinstance(ds.get("database"), dict)
             else ds.get("database_id")
         )
-        if db_id is not None:
-            datasets_by_db.setdefault(db_id, []).append(ds)
-
-    # Per-category column caps — aggressive limits to keep output compact for low-context models.
-    # datetime is most important for time filtering, numeric for aggregations.
-    MAX_PER_CATEGORY: Dict[str, Optional[int]] = {
-        "datetime": 10,   # time columns are critical but cap to avoid bloat
-        "numeric":  12,   # metrics/aggregations
-        "text":     8,    # dimensions/labels
-        "boolean":  5,    # flags
-        "other":    3,    # miscellaneous
-    }
-
-    # Step 4: Build structured catalog
-    databases_out: List[Dict[str, Any]] = []
-    total_datasets = 0
-    total_datasets_omitted = 0
-
-    for db in databases_raw:
-        db_id = db.get("id")
-        db_datasets_raw = datasets_by_db.get(db_id, [])
-        db_datasets: List[Dict[str, Any]] = []
+        if db_id is None:
+            continue
+            
+        table_name = ds.get("table_name", "unknown")
+        schema = ds.get("schema") or None
+        sql_ref = f"{schema}.{table_name}" if schema else table_name
         
-        # Limit datasets per database to keep output compact
-        datasets_to_process = db_datasets_raw[:max_datasets_per_db]
-        if len(db_datasets_raw) > max_datasets_per_db:
-            total_datasets_omitted += len(db_datasets_raw) - max_datasets_per_db
-
-        for ds in datasets_to_process:
-            ds_id = ds.get("id")
-            table_name = ds.get("table_name", "unknown")
-            schema = ds.get("schema") or None
-            # Ready-to-use table reference for SQL FROM clause
-            sql_ref = f"{schema}.{table_name}" if schema else table_name
-
-            # Fetch detailed dataset info including columns
-            ds_detail = await superset_request(ctx, "get", f"/api/v1/dataset/{ds_id}")
-            detail_result = (
-                ds_detail.get("result", ds_detail)
-                if not ds_detail.get("error")
-                else {}
-            )
-
-            # Classify columns into semantic categories
-            columns_by_category: Dict[str, List[Dict[str, str]]] = {
-                "datetime": [],
-                "numeric":  [],
-                "text":     [],
-                "boolean":  [],
-                "other":    [],
-            }
-            for col in detail_result.get("columns", []):
-                col_name = col.get("column_name", col.get("name", "unknown"))
-                col_type = col.get("type", "UNKNOWN")
-                # Compact format: just name by default, add type only if requested
-                if include_column_types:
-                    col_entry: Dict[str, str] = {"name": col_name, "type": col_type}
-                else:
-                    col_entry = {"name": col_name}
-                category = _classify_column({"name": col_name, "type": col_type, "is_dttm": col.get("is_dttm", False)})
-                columns_by_category[category].append(col_entry)
-
-            total_cols = sum(len(v) for v in columns_by_category.values())
-
-            # Apply per-category caps; omit empty categories from output
-            columns_out: Dict[str, Any] = {}
-            truncation_notes: List[str] = []
-            for cat, cols in columns_by_category.items():
-                if not cols:
-                    continue
-                cap = MAX_PER_CATEGORY.get(cat)
-                if cap is not None and len(cols) > cap:
-                    # For compact output without types, just return a list of names
-                    if include_column_types:
-                        columns_out[cat] = cols[:cap]
-                    else:
-                        columns_out[cat] = [c["name"] for c in cols[:cap]]
-                    truncation_notes.append(f"{cat}: {cap}/{len(cols)}")
-                else:
-                    if include_column_types:
-                        columns_out[cat] = cols
-                    else:
-                        columns_out[cat] = [c["name"] for c in cols]
-
-            dataset_entry: Dict[str, Any] = {
-                "id":         ds_id,
-                "table":      sql_ref,       # use this in your FROM clause
-                "cols":       total_cols,
-            }
-            if columns_out:
-                dataset_entry["by_cat"] = columns_out  # compact key name
-            if ds.get("description"):
-                dataset_entry["desc"] = ds["description"][:100]  # truncate long descriptions
-            if truncation_notes:
-                dataset_entry["trunc"] = truncation_notes
-
-            db_datasets.append(dataset_entry)
-
-        total_datasets += len(db_datasets)
-
-        db_entry: Dict[str, Any] = {
-            "id":   db_id,
-            "name": db.get("database_name", "Unknown"),
-            "be":   db.get("backend", "Unknown"),  # SQL dialect (postgresql, mysql, …)
-            "ds":   len(db_datasets),
+        # Get the relevance score for this dataset
+        relevance_score = next((s for s, d in scored_datasets if d.get("id") == ds_id), 0)
+        
+        # Fetch detailed column info
+        ds_detail = await superset_request(ctx, "get", f"/api/v1/dataset/{ds_id}")
+        detail_result = ds_detail.get("result", {}) if not ds_detail.get("error") else {}
+        
+        # Classify columns
+        columns_by_category: Dict[str, List[Dict[str, str]]] = {
+            "datetime": [], "numeric": [], "text": [], "boolean": [], "other": [],
         }
-        if db_datasets:
-            db_entry["datasets"] = db_datasets
-        if len(db_datasets_raw) > max_datasets_per_db:
-            db_entry["ds_omitted"] = len(db_datasets_raw) - max_datasets_per_db
-
+        for col in detail_result.get("columns", []):
+            col_name = col.get("column_name", col.get("name", "unknown"))
+            col_type = col.get("type", "UNKNOWN")
+            if include_column_types:
+                col_entry: Dict[str, str] = {"name": col_name, "type": col_type}
+            else:
+                col_entry = {"name": col_name}
+            category = _classify_column({"name": col_name, "type": col_type, "is_dttm": col.get("is_dttm", False)})
+            columns_by_category[category].append(col_entry)
+        
+        total_cols = sum(len(v) for v in columns_by_category.values())
+        
+        # Apply caps and format output
+        columns_out: Dict[str, Any] = {}
+        truncation_notes: List[str] = []
+        for cat, cols in columns_by_category.items():
+            if not cols:
+                continue
+            cap = MAX_PER_CATEGORY.get(cat)
+            if cap is not None and len(cols) > cap:
+                if include_column_types:
+                    columns_out[cat] = cols[:cap]
+                else:
+                    columns_out[cat] = [c["name"] for c in cols[:cap]]
+                truncation_notes.append(f"{cat}: {cap}/{len(cols)}")
+            else:
+                if include_column_types:
+                    columns_out[cat] = cols
+                else:
+                    columns_out[cat] = [c["name"] for c in cols]
+        
+        dataset_entry: Dict[str, Any] = {
+            "id": ds_id,
+            "table": sql_ref,
+            "score": round(relevance_score, 2),
+            "cols": total_cols,
+        }
+        if columns_out:
+            dataset_entry["by_cat"] = columns_out
+        if ds.get("description"):
+            dataset_entry["desc"] = ds["description"][:100]
+        if truncation_notes:
+            dataset_entry["trunc"] = truncation_notes
+            
+        datasets_by_db_out.setdefault(db_id, []).append(dataset_entry)
+    
+    # Step 8: Build final output structure
+    databases_out: List[Dict[str, Any]] = []
+    total_returned = 0
+    
+    for db_id, db_datasets in datasets_by_db_out.items():
+        db = db_map.get(db_id, {})
+        if not db_datasets:
+            continue
+            
+        db_entry: Dict[str, Any] = {
+            "id": db_id,
+            "name": db.get("database_name", "Unknown"),
+            "be": db.get("backend", "Unknown"),
+            "ds": len(db_datasets),
+            "datasets": db_datasets,
+        }
         databases_out.append(db_entry)
-
+        total_returned += len(db_datasets)
+    
+    # Sort databases by number of relevant datasets (most relevant first)
+    databases_out.sort(key=lambda x: x["ds"], reverse=True)
+    
+    # Build instruction based on match quality
+    if has_good_matches:
+        instruction = (
+            f"Found {total_returned} relevant dataset(s) matching your question (including synonyms). "
+            "Datasets are scored by relevance (1.0 = perfect match). "
+            "Use the `table` field in your FROM clause and `id` as database_id for SQL queries. "
+            "Columns grouped by: datetime (time filters), numeric (aggregations), text (dimensions)."
+        )
+    elif include_all_if_no_match:
+        instruction = (
+            "No strong matches found for your question (including synonyms). Returning all datasets. "
+            "Review the table names to find the most relevant one. "
+            "Use the `table` field in your FROM clause and `id` as database_id."
+        )
+    else:
+        instruction = (
+            "No strong matches found for your question (searched with synonyms). Showing top 3 datasets with low relevance scores. "
+            "You may want to: 1) Rephrase your question with different keywords, 2) Check available datasets with superset_dataset_list, "
+            "or 3) Set include_all_if_no_match=True to see all datasets."
+        )
+    
     return {
         "question": question,
-        "instruction": (
-            "Use the schema_catalog below to identify the most relevant dataset(s) for the question. "
-            "Each dataset has a `sql_ref` (use in FROM clause) and a `database_id` (pass to "
-            "superset_sqllab_execute_query). Columns are grouped by category: "
-            "datetime = time filters/GROUP BY, numeric = aggregations (SUM/AVG/COUNT), "
-            "text = labels/dimensions, boolean = flags/filters."
-        ),
+        "instruction": instruction,
         "summary": {
             "databases": len(databases_out),
-            "datasets":  total_datasets,
-            **({"datasets_omitted": total_datasets_omitted} if total_datasets_omitted else {}),
+            "datasets": total_returned,
+            "total_available": len(datasets_raw),
+            "best_match_score": round(best_score, 2),
         },
         "schema_catalog": databases_out,
     }
