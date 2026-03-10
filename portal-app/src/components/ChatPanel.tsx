@@ -1121,16 +1121,41 @@ function FollowupSuggestions({ suggestions, onSuggestionClick }: {
   );
 }
 
+// ── Error types ─────────────────────────────────────────────────────
+interface ErrorLog {
+  source: "api" | "network" | "llm" | "internal" | "stream";
+  message: string;
+  timestamp: string;
+  details?: string;
+}
+
+interface ChatErrorState {
+  error: string;
+  detail?: string;
+  logs: ErrorLog[];
+}
+
 // ── Error banner ─────────────────────────────────────────────────
-function ChatErrorBanner({ error, detail, isAdmin, onOpenSettings, onDismiss }: {
-  error: string; detail?: string; isAdmin: boolean;
+function ChatErrorBanner({ error, detail, logs, isAdmin, onOpenSettings, onDismiss }: {
+  error: string; detail?: string; logs: ErrorLog[]; isAdmin: boolean;
   onOpenSettings: () => void; onDismiss: () => void;
 }) {
   const [copied, setCopied] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
   const handleCopy = useCallback(() => {
-    const text = [error, detail ? `Detail: ${detail}` : ""].filter(Boolean).join("\n");
-    navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); });
-  }, [error, detail]);
+    const allLogs = [
+      `Error: ${error}`,
+      detail ? `Detail: ${detail}` : "",
+      logs.length > 0 ? "\n--- Debug Logs ---\n" + logs.map(log => 
+        `[${log.timestamp}] [${log.source.toUpperCase()}] ${log.message}${log.details ? `\n  Details: ${log.details}` : ""}`
+      ).join("\n") : ""
+    ].filter(Boolean).join("\n");
+    
+    navigator.clipboard.writeText(allLogs).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); });
+  }, [error, detail, logs]);
+
+  const hasLogs = logs.length > 0;
 
   return (
     <div style={{
@@ -1184,6 +1209,51 @@ function ChatErrorBanner({ error, detail, isAdmin, onOpenSettings, onDismiss }: 
           ×
         </button>
       </div>
+      {hasLogs && (
+        <div style={{ marginTop: 4 }}>
+          <button 
+            onClick={() => setExpanded(!expanded)}
+            style={{
+              background: "none",
+              border: "none",
+              color: "var(--md-on-surface)",
+              opacity: 0.6,
+              fontSize: 11,
+              cursor: "pointer",
+              padding: "4px 0",
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+            }}
+          >
+            <span style={{ transform: expanded ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>▶</span>
+            {expanded ? "Hide" : "Show"} debug logs ({logs.length})
+          </button>
+          {expanded && (
+            <div style={{
+              marginTop: 8,
+              padding: "8px 10px",
+              background: "rgba(0,0,0,0.15)",
+              borderRadius: "8px",
+              fontSize: 11,
+              fontFamily: "monospace",
+              maxHeight: "200px",
+              overflow: "auto",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+            }}>
+              {logs.map((log, i) => (
+                <div key={i} style={{ marginBottom: 6, opacity: 0.85 }}>
+                  <span style={{ color: "#ffa726", opacity: 0.7 }}>[{log.timestamp}]</span>{" "}
+                  <span style={{ color: log.source === "llm" ? "#ef5350" : log.source === "api" ? "#42a5f5" : "#bdbdbd" }}>[{log.source.toUpperCase()}]</span>{" "}
+                  {log.message}
+                  {log.details && <div style={{ marginLeft: 12, opacity: 0.7, fontSize: 10 }}>{log.details}</div>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       {isAdmin && (
         <button onClick={onOpenSettings} style={{
           alignSelf: "flex-start",
@@ -1259,7 +1329,7 @@ export function ChatPanel({
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [showAdminModal, setShowAdminModal] = useState(false);
-  const [chatError, setChatError] = useState<{ error: string; detail?: string } | null>(null);
+  const [chatError, setChatError] = useState<ChatErrorState | null>(null);
   const [mcpWarning, setMcpWarning] = useState<string | null>(null);
   const [hasSentMessage, setHasSentMessage] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -1269,12 +1339,20 @@ export function ChatPanel({
 
   // Probe endpoint on mount
   useEffect(() => {
+    const timestamp = new Date().toISOString();
     fetch("/api/chat").then(async (res) => {
       try {
         const body = await res.json();
-        if (!res.ok) setChatError({ error: body.error ?? "Chat API error", detail: body.detail });
+        if (!res.ok) setChatError({ 
+          error: body.error ?? "Chat API error", 
+          detail: body.detail,
+          logs: [{ source: "api", message: body.error ?? "Chat API error", timestamp, details: body.detail }]
+        });
         else if (body.mcpWarning) setMcpWarning(body.mcpWarning);
-      } catch { if (!res.ok) setChatError({ error: `Chat API returned HTTP ${res.status}` }); }
+      } catch { if (!res.ok) setChatError({ 
+        error: `Chat API returned HTTP ${res.status}`,
+        logs: [{ source: "network", message: `HTTP ${res.status}`, timestamp, details: "Failed to parse response" }]
+      }); }
     }).catch(() => {});
   }, []);
 
@@ -1340,10 +1418,16 @@ export function ChatPanel({
 
       if (!response.ok || !response.body) {
         const err = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+        const timestamp = new Date().toISOString();
         setMessages((prev) => prev.map((m) => m.id === assistantId
           ? { ...m, content: err.error ?? "Error", streaming: false }
           : m
         ));
+        setChatError({
+          error: err.error ?? "Error",
+          detail: err.detail,
+          logs: [{ source: "api", message: err.error ?? "Error", timestamp, details: err.detail ?? `HTTP ${response.status}` }]
+        });
         return;
       }
 
@@ -1412,6 +1496,27 @@ export function ChatPanel({
               return { ...m, toolCalls: calls };
             }));
             void currentToolCallIndex; // suppress unused warning
+            
+            // Refresh Superset iframe after dashboard operations to ensure charts load properly
+            const dashboardTools = ["superset_dashboard_create", "superset_dashboard_add_charts", "superset_dashboard_update"];
+            if (dashboardTools.includes(event.name as string)) {
+              // Small delay to allow the backend to fully process the changes
+              setTimeout(() => {
+                if (supersetIframeRef.current) {
+                  const currentSrc = supersetIframeRef.current.src;
+                  try {
+                    const url = new URL(currentSrc);
+                    // Add cache-busting timestamp to force reload
+                    url.searchParams.set("_refresh", Date.now().toString());
+                    supersetIframeRef.current.src = url.toString();
+                  } catch {
+                    // Fallback: append timestamp to the raw URL
+                    const separator = currentSrc.includes("?") ? "&" : "?";
+                    supersetIframeRef.current.src = `${currentSrc}${separator}_refresh=${Date.now()}`;
+                  }
+                }
+              }, 500);
+            }
           } else if (event.type === "done") {
             setMessages((prev) => prev.map((m) => m.id === assistantId
               ? { ...m, streaming: false }
@@ -1427,10 +1532,15 @@ export function ChatPanel({
               : m
             ));
           } else if (event.type === "error") {
+            const timestamp = new Date().toISOString();
             setMessages((prev) => prev.map((m) => m.id === assistantId
               ? { ...m, content: m.content || (event.message as string), streaming: false }
               : m
             ));
+            setChatError({
+              error: "Stream error",
+              logs: [{ source: "stream", message: event.message as string, timestamp }]
+            });
           }
         }
       }
@@ -1443,10 +1553,15 @@ export function ChatPanel({
         ));
       } else {
         const msg = err instanceof Error ? err.message : "Network error";
+        const timestamp = new Date().toISOString();
         setMessages((prev) => prev.map((m) => m.id === assistantId
           ? { ...m, content: msg, streaming: false }
           : m
         ));
+        setChatError({
+          error: "Network error",
+          logs: [{ source: "network", message: msg, timestamp }]
+        });
       }
     } finally {
       setLoading(false);
@@ -1525,10 +1640,16 @@ export function ChatPanel({
     .then(async (response) => {
       if (!response.ok || !response.body) {
         const err = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+        const timestamp = new Date().toISOString();
         setMessages((prev) => prev.map((m) => m.id === assistantId
           ? { ...m, content: err.error ?? "Error", streaming: false }
           : m
         ));
+        setChatError({
+          error: err.error ?? "Error",
+          detail: err.detail,
+          logs: [{ source: "api", message: err.error ?? "Error", timestamp, details: err.detail ?? `HTTP ${response.status}` }]
+        });
         return;
       }
 
@@ -1608,10 +1729,15 @@ export function ChatPanel({
               : m
             ));
           } else if (event.type === "error") {
+            const timestamp = new Date().toISOString();
             setMessages((prev) => prev.map((m) => m.id === assistantId
               ? { ...m, content: m.content || (event.message as string), streaming: false }
               : m
             ));
+            setChatError({
+              error: "Stream error",
+              logs: [{ source: "stream", message: event.message as string, timestamp }]
+            });
           }
         }
       }
@@ -1625,10 +1751,15 @@ export function ChatPanel({
         ));
       } else {
         const msg = err instanceof Error ? err.message : "Network error";
+        const timestamp = new Date().toISOString();
         setMessages((prev) => prev.map((m) => m.id === assistantId
           ? { ...m, content: msg, streaming: false }
           : m
         ));
+        setChatError({
+          error: "Network error",
+          logs: [{ source: "network", message: msg, timestamp }]
+        });
       }
     })
     .finally(() => {
@@ -1735,7 +1866,7 @@ export function ChatPanel({
       {/* Banners */}
       {chatError && (
         <ChatErrorBanner
-          error={chatError.error} detail={chatError.detail} isAdmin={isAdmin}
+          error={chatError.error} detail={chatError.detail} logs={chatError.logs} isAdmin={isAdmin}
           onOpenSettings={() => setShowAdminModal(true)}
           onDismiss={() => setChatError(null)}
         />
@@ -1812,6 +1943,37 @@ export function ChatPanel({
             onSupersetLinkClick={handleSupersetLinkClick}
           />
         ))}
+        {messages.length >= 20 && (
+          <div style={{
+            margin: "8px 16px",
+            padding: "8px 12px",
+            borderRadius: 10,
+            background: "var(--md-surface-cont-hi)",
+            border: "1px solid var(--md-outline-var)",
+            fontSize: 12,
+            color: "var(--md-on-surface-var)",
+            textAlign: "center",
+            lineHeight: 1.5,
+          }}>
+            This conversation is getting long and may slow down responses.{" "}
+            <button
+              onClick={handleClear}
+              style={{
+                background: "none",
+                border: "none",
+                padding: 0,
+                cursor: "pointer",
+                color: "var(--md-primary)",
+                fontSize: 12,
+                fontWeight: 600,
+                textDecoration: "underline",
+                fontFamily: "inherit",
+              }}
+            >
+              Reset conversation
+            </button>
+          </div>
+        )}
         <div ref={messagesEndRef} style={{ height: 8 }} />
       </div>
       </div>

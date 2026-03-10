@@ -12,11 +12,13 @@ from typing import (
     Awaitable,
 )
 import os
+import uuid
 import httpx
 import base64
 import hashlib
 import hmac as hmac_lib
 import time
+import sys
 import datetime
 import asyncio
 import re
@@ -789,6 +791,212 @@ async def superset_dashboard_update(
 
 @mcp.tool()
 @handle_api_errors
+async def superset_dashboard_add_charts(
+    ctx: Context,
+    dashboard_id: int,
+    chart_ids: List[int],
+) -> Dict[str, Any]:
+    """
+    Add charts to an existing dashboard by generating the correct position_json layout.
+    Arranges charts in a grid (up to 3 per row, width 4 each out of 12 columns).
+    Always call this after superset_dashboard_create to populate a new dashboard with charts.
+
+    Args:
+        dashboard_id: ID of the dashboard to update
+        chart_ids: List of chart IDs to add to the dashboard
+
+    Returns:
+        A dictionary with the updated dashboard information
+    """
+    if not chart_ids:
+        return {"error": "No chart IDs provided"}
+
+    # ── Validate that every chart ID actually exists ──────────────────────────
+    # If the LLM lost chart IDs from context and hallucinated IDs, Superset will
+    # silently store the layout but show "no chart definition" for each slot.
+    # Detecting this early returns an actionable error so the LLM can self-correct.
+    missing_ids: List[int] = []
+    for cid in chart_ids:
+        check = await superset_request(ctx, "get", f"/api/v1/chart/{cid}")
+        if check.get("error") or "result" not in check:
+            missing_ids.append(cid)
+
+    if missing_ids:
+        return {
+            "error": (
+                f"Charts not found in Superset: {missing_ids}. "
+                "These chart IDs do not exist — they may have been hallucinated "
+                "because chart_create results scrolled off the context window. "
+                "Call superset_chart_list (results are sorted newest-first) to "
+                "find the charts you just created by name, then retry "
+                "superset_dashboard_add_charts with the correct IDs."
+            ),
+            "missing_chart_ids": missing_ids,
+        }
+
+    # ── Fetch chart UUIDs for the position_json ──────────────────────────────
+    # Superset 6.0+ requires UUIDs for chart components
+    chart_uuids: Dict[int, str] = {}
+    for cid in chart_ids:
+        chart_resp = await superset_request(ctx, "get", f"/api/v1/chart/{cid}")
+        if not chart_resp.get("error") and "result" in chart_resp:
+            chart_uuid = chart_resp["result"].get("uuid")
+            if chart_uuid:
+                chart_uuids[cid] = str(chart_uuid)
+
+    # ── All IDs verified — proceed to build the layout ────────────────────────
+    # Superset 6.0+ uses UUID-based IDs and requires COLUMN wrapper
+
+    charts_per_row = 3
+    chart_width = 4   # Superset grid is 12 columns wide
+    chart_height = 50
+
+    position: Dict[str, Any] = {
+        "ROOT_ID": {
+            "id": "ROOT_ID",
+            "type": "ROOT",
+            "children": ["GRID_ID"],
+            "parents": [],
+        },
+        "GRID_ID": {
+            "id": "GRID_ID",
+            "type": "GRID",
+            "children": [],
+            "parents": ["ROOT_ID"],
+        },
+    }
+
+    row_ids: List[str] = []
+    for row_idx, row_start in enumerate(range(0, len(chart_ids), charts_per_row)):
+        row_chart_ids = chart_ids[row_start : row_start + charts_per_row]
+        # Use UUID-based IDs for Superset 6.0+ compatibility
+        row_id = f"ROW-{uuid.uuid4().hex[:8]}"
+        column_ids: List[str] = []
+
+        position[row_id] = {
+            "id": row_id,
+            "type": "ROW",
+            "children": [],
+            "parents": ["ROOT_ID", "GRID_ID"],
+            "meta": {"background": "BACKGROUND_TRANSPARENT"},
+        }
+        row_ids.append(row_id)
+
+        for cid in row_chart_ids:
+            # Each chart needs a COLUMN wrapper in Superset 6.0+
+            column_id = f"COLUMN-{uuid.uuid4().hex[:8]}"
+            column_ids.append(column_id)
+            chart_node_id = f"CHART-{cid}"
+
+            position[column_id] = {
+                "id": column_id,
+                "type": "COLUMN",
+                "children": [chart_node_id],
+                "parents": ["ROOT_ID", "GRID_ID", row_id],
+                "meta": {
+                    "background": "BACKGROUND_TRANSPARENT",
+                    "width": chart_width,
+                },
+            }
+
+            # Get the UUID for this chart, fallback to generated UUID
+            chart_uuid = chart_uuids.get(cid, f"chart-{cid}")
+
+            position[chart_node_id] = {
+                "id": chart_node_id,
+                "type": "CHART",
+                "children": [],
+                "parents": ["ROOT_ID", "GRID_ID", row_id, column_id],
+                "meta": {
+                    "chartId": cid,
+                    "height": chart_height,
+                    "width": chart_width,
+                    "uuid": chart_uuid,
+                },
+            }
+
+        # Update ROW children to include COLUMN IDs
+        position[row_id]["children"] = column_ids
+
+    position["GRID_ID"]["children"] = row_ids
+
+    # First get existing dashboard to preserve metadata
+    existing = await superset_request(ctx, "get", f"/api/v1/dashboard/{dashboard_id}")
+    existing_metadata = {}
+    if not existing.get("error") and "result" in existing:
+        existing_json = existing["result"].get("json_metadata")
+        if existing_json:
+            try:
+                existing_metadata = json.loads(existing_json) if isinstance(existing_json, str) else existing_json
+            except (json.JSONDecodeError, ValueError):
+                pass
+
+    # Update metadata to disable caching
+    existing_metadata["refresh_frequency"] = 0
+    
+    data = {
+        "position_json": json.dumps(position),
+        "json_metadata": json.dumps(existing_metadata),
+    }
+    result = await superset_request(
+        ctx, "put", f"/api/v1/dashboard/{dashboard_id}", data=data
+    )
+
+    # Log the chart properties to debug "on dashboard" issue
+    if not result.get("error"):
+        for cid in chart_ids:
+            chart_resp = await superset_request(ctx, "get", f"/api/v1/chart/{cid}")
+            if not chart_resp.get("error") and "result" in chart_resp:
+                chart_data = chart_resp["result"]
+                dashboards = chart_data.get("dashboards")
+                print(f"=== DEBUG: Chart {cid} properties ===")
+                print(f"dashboards field: {dashboards}")
+                print(f"full chart data keys: {list(chart_data.keys())}")
+                sys.stdout.flush()
+
+    # Trigger cache invalidation - force Superset to refresh the dashboard
+    if not result.get("error"):
+        try:
+            await superset_request(
+                ctx, "get", f"/api/v1/dashboard/{dashboard_id}/cache", 
+            )
+        except Exception:
+            pass
+
+    if not result.get("error"):
+        await _promote_ai_charts_to_permanent(ctx, set(chart_ids))
+
+    # Link charts to this dashboard - required for charts to display properly
+    # The GitHub issue #32966 shows that charts need their dashboards field updated
+    if not result.get("error"):
+        for cid in chart_ids:
+            try:
+                # Get current chart data
+                chart_resp = await superset_request(ctx, "get", f"/api/v1/chart/{cid}")
+                if chart_resp.get("error") or "result" not in chart_resp:
+                    continue
+                
+                chart_data = chart_resp["result"]
+                current_dashboards = chart_data.get("dashboards", [])
+                
+                # Check if dashboard is already in the list
+                dashboard_ids = [d.get("id") if isinstance(d, dict) else d for d in current_dashboards]
+                if dashboard_id not in dashboard_ids:
+                    # Add this dashboard to the chart's dashboards list
+                    new_dashboards = dashboard_ids + [dashboard_id]
+                    await superset_request(
+                        ctx, "put", f"/api/v1/chart/{cid}",
+                        data={"dashboards": new_dashboards}
+                    )
+            except Exception:
+                # Don't fail the whole operation if one chart update fails
+                pass
+
+    return result
+
+
+@mcp.tool()
+@handle_api_errors
 async def superset_dashboard_delete(ctx: Context, dashboard_id: int) -> Dict[str, Any]:
     """
     Delete a dashboard
@@ -815,11 +1023,15 @@ async def superset_dashboard_delete(ctx: Context, dashboard_id: int) -> Dict[str
 async def superset_chart_list(ctx: Context) -> Dict[str, Any]:
     """
     Get a list of charts from Superset (id, slice_name, viz_type, datasource_id only).
+    Results are sorted by id descending (newest charts first) so recently created
+    charts appear at the top — useful for recovering correct chart IDs after a
+    superset_dashboard_add_charts validation error.
 
     Returns:
         count and result list with id, slice_name, viz_type, datasource_id
     """
-    raw = await superset_request(ctx, "get", "/api/v1/chart/")
+    q = json.dumps({"order_column": "id", "order_direction": "desc", "page_size": 100})
+    raw = await superset_request(ctx, "get", "/api/v1/chart/", params={"q": q})
     if "error" in raw:
         return raw
     return _slim_charts(raw)
@@ -1053,7 +1265,21 @@ async def superset_chart_create(
         "description": full_description,
     }
 
-    return await superset_request(ctx, "post", "/api/v1/chart/", data=payload)
+    result = await superset_request(ctx, "post", "/api/v1/chart/", data=payload)
+
+    # Return a concise response so the LLM can reliably extract the chart_id
+    # even when the full Superset response is truncated by the context window.
+    # chart_id is the field the LLM must pass to superset_dashboard_add_charts.
+    if not result.get("error"):
+        chart_id = result.get("id")
+        return {
+            "chart_id": chart_id,
+            "id": chart_id,
+            "slice_name": slice_name,
+            "viz_type": viz_type,
+            "status": "created",
+        }
+    return result
 
 @mcp.tool()
 @handle_api_errors

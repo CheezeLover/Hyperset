@@ -904,7 +904,7 @@ const inputStyle: React.CSSProperties = {
 };
 
 const primaryBtnStyle: React.CSSProperties = {
-  background: "var(--md-primary)", color: "var(--md-on-primary-cont)", border: "none", borderRadius: 10,
+  background: "var(--md-primary)", color: "white", border: "none", borderRadius: 10,
   padding: "10px 24px", fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "all 0.2s ease",
 };
 

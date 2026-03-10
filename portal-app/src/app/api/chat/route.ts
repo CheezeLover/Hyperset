@@ -37,6 +37,37 @@ function checkRateLimit(email: string): boolean {
   return true;
 }
 
+// ── Message history normalisation ───────────────────────────────────────────
+// ChatPanel strips tool_calls when building the history it sends to the server,
+// leaving {role:"assistant", content:null} ghost messages that confuse the LLM.
+// It also maps role:"tool" → role:"user", so consecutive user messages can appear
+// when the last tool result from a prior turn is followed by a new user message.
+function normalizeMessageRoles(
+  msgs: OpenAI.Chat.ChatCompletionMessageParam[]
+): OpenAI.Chat.ChatCompletionMessageParam[] {
+  // 1. Remove empty assistant messages (no content, no tool_calls).
+  const filtered = msgs.filter((m) => {
+    if (m.role !== "assistant") return true;
+    const hasContent = m.content !== null && m.content !== "" && m.content !== undefined;
+    const tc = (m as { tool_calls?: unknown[] }).tool_calls;
+    return hasContent || (Array.isArray(tc) && tc.length > 0);
+  });
+
+  // 2. Merge consecutive role:"user" messages.
+  const result: OpenAI.Chat.ChatCompletionMessageParam[] = [];
+  for (const msg of filtered) {
+    const last = result[result.length - 1];
+    if (msg.role === "user" && last?.role === "user") {
+      const prev = typeof last.content === "string" ? last.content : JSON.stringify(last.content);
+      const curr = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
+      result[result.length - 1] = { role: "user" as const, content: prev + "\n\n" + curr };
+    } else {
+      result.push(msg);
+    }
+  }
+  return result;
+}
+
 // ── Allowed modelParams keys ────────────────────────────────────────────────
 // Prevents arbitrary LLM provider options from being injected via admin config.
 const ALLOWED_MODEL_PARAMS = new Set([
@@ -338,7 +369,6 @@ export const POST = async (req: NextRequest) => {
 
     // Chart creation flow
     if (/creat|build|make|new chart|generat|visuali/.test(msg)) {
-      include.add("superset_chart_types");
       include.add("superset_chart_create");
       include.add("superset_dataset_get_by_id");
     }
@@ -353,10 +383,21 @@ export const POST = async (req: NextRequest) => {
       include.add("superset_dashboard_get_by_id");
     }
 
-    // Dashboard creation
-    if (/new dashboard|creat.*dashboard|dashboard.*creat/.test(msg)) {
+    // Dashboard creation (also needs chart creation tools since charts are built first)
+    if (/new dashboard|creat.*dashboard|dashboard.*creat|make.*dashboard|build.*dashboard/.test(msg)) {
+      include.add("superset_chart_create");
+      include.add("superset_dataset_get_by_id");
       include.add("superset_dashboard_create");
       include.add("superset_dashboard_get_by_id");
+      include.add("superset_dashboard_update");
+      include.add("superset_dashboard_add_charts"); // populates position_json after creation
+      // ⛔ Remove per-chart embed tools during dashboard creation.
+      // The LLM calling superset_get_chart_embed after each chart adds ~12 extra
+      // messages for a 6-chart dashboard, pushing early chart_create results off
+      // the context window.  The LLM then halluccinates wrong IDs when calling
+      // superset_dashboard_add_charts.  Only the final dashboard embed is needed.
+      include.delete("superset_get_chart_embed");
+      include.delete("superset_get_chart_link");
     }
 
     // SQL / data queries
@@ -460,7 +501,7 @@ Administrators can upload documents through the Admin Settings > Knowledge Base 
 
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
     { role: "system" as const, content: fullSystemContent },
-    ...userMessages,
+    ...normalizeMessageRoles(userMessages),
   ];
 
   // Parse model parameters if provided — only allow keys in ALLOWED_MODEL_PARAMS
@@ -489,7 +530,9 @@ Administrators can upload documents through the Admin Settings > Knowledge Base 
   // chart_types → dataset_get_by_id → chart_create → get_chart_embed ≈ 4 turns/chart.
   const MAX_TURNS             = s?.maxTurns            ?? Number(process.env.LLM_MAX_TURNS             ?? 40);
   const MAX_TOOL_RESULT_CHARS = s?.maxToolResultChars  ?? Number(process.env.LLM_MAX_TOOL_RESULT_CHARS ?? 3000);
-  const MAX_HISTORY_MESSAGES  = s?.maxHistoryMessages  ?? Number(process.env.LLM_MAX_HISTORY_MESSAGES  ?? 20);
+  // 40 messages (~20 tool call pairs) is enough for a 6-chart dashboard without rolling
+  // off early chart IDs: analyze(2) + dataset(2) + 6×chart_create(12) + dashboard(2) + add_charts(2) = 20
+  const MAX_HISTORY_MESSAGES  = s?.maxHistoryMessages  ?? Number(process.env.LLM_MAX_HISTORY_MESSAGES  ?? 40);
 
   function windowedMessages(
     msgs: OpenAI.Chat.ChatCompletionMessageParam[]
@@ -502,6 +545,18 @@ Administrators can upload documents through the Admin Settings > Knowledge Base 
     // the API to error and kills the stream.  Advance to the first user message
     // so the window always starts at a clean conversation boundary.
     const firstUserIdx = sliced.findIndex((m) => m.role === "user");
+    if (firstUserIdx === -1) {
+      // The window contains no user message — the current user turn is outside
+      // the slice (happens when a long conversation + many in-flight tool calls
+      // exceeds MAX_HISTORY_MESSAGES). Fall back to the most recent user message
+      // in the full history so the API always receives a clean context.
+      const lastUserInRest = [...rest].reduceRight<number>(
+        (found, m, i) => (found === -1 && m.role === "user" ? i : found),
+        -1,
+      );
+      if (lastUserInRest !== -1) return [...system, ...rest.slice(lastUserInRest)];
+      return [...system, ...sliced];
+    }
     const trimmed = firstUserIdx > 0 ? sliced.slice(firstUserIdx) : sliced;
     return [...system, ...trimmed];
   }
