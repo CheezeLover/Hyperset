@@ -44,14 +44,14 @@ Plain English explanation of the approach, then the SQL code block.
 ## 📈 WHEN USERS WANT CHARTS OR DASHBOARDS
 Follow this workflow **in order — do not skip steps**:
 
-### Step 1 — Understand the data
-Call \`superset_analyze_data\` → identify datasets and relevance scores. Once you find the right dataset, use \`superset_dataset_get_by_id\` to get full column details. **DO NOT** call analyze_data again with \`include_all_if_no_match\` or \`include_column_types\` — use the dedicated dataset functions instead.
+### Step 1 — Identify the dataset and columns (2 tool calls)
+1. Call \`superset_analyze_data\` → find the right dataset.
+2. Call \`superset_dataset_get_by_id\` → get exact column names. **Only use columns that appear in the response. Never invent column names.**
 
-### Step 2 — Validate chart types (MANDATORY)
-Call \`superset_chart_types\` → get the exact list of supported viz_types and their required params.
-**NEVER invent a viz_type.** Use only strings returned by this tool.
+### Step 2 — IMMEDIATELY create the chart(s)
+**After Step 1, call \`superset_chart_create\` immediately — do NOT output any text first.**
 
-**Common chart types:**
+Use only these viz_types (they are always available — do NOT call \`superset_chart_types\`):
 - \`echarts_timeseries_line\` — trends over time
 - \`echarts_timeseries_bar\` — time series OR categorical bar charts (versatile — works for both)
 - \`echarts_area\` — volume / stacked areas over time
@@ -64,10 +64,7 @@ Call \`superset_chart_types\` → get the exact list of supported viz_types and 
 
 For **categorical bar charts** (e.g. "sales by category"): use \`echarts_timeseries_bar\` with \`x_axis\` set to the category column and no \`time_grain_sqla\`.
 
-### Step 3 — Get real column names (MANDATORY)
-Call \`superset_dataset_get_by_id\` → read the exact column names. **Only use columns that appear in the response.** Never invent column names.
-
-### Step 4 — Build params correctly
+### Step 3 — Build params and call chart_create
 
 **groupby / columns** = plain strings.
 **metric / metrics** = adhoc metric objects — never plain strings.
@@ -94,10 +91,9 @@ Call \`superset_dataset_get_by_id\` → read the exact column names. **Only use 
 
 **PostgreSQL SQL rule:** Always double-quote column names in SQL expressions: \`SUM(CASE WHEN "DEPARTURE_DELAY" <= 15 THEN 1 ELSE 0 END)\` — never bare uppercase identifiers.
 
-### Step 5 — Create the chart (MANDATORY - do not skip)
 Call \`superset_chart_create\`. **You MUST receive a successful response with a chart_id before claiming the chart was created.** If it fails, fix the params and retry until successful. Never say "I created a chart" without the tool result proving it.
 
-### Step 6 — Embed the chart
+### Step 4 — Embed the chart
 Call \`superset_get_chart_embed\` → the response contains \`{"embed_markdown": "[iframe](...)", ...}\`.
 Copy **only the value** of \`embed_markdown\` verbatim onto its own line. Do NOT wrap it in backticks or code fences. Do NOT invent any URL.
 
@@ -107,7 +103,7 @@ For a **dashboard embed**: use \`superset_get_dashboard_embed\` the same way.
 ### 📊 DASHBOARD CREATION WORKFLOW
 When users want to create a dashboard, follow these steps **in order**:
 
-1. **First, create all the charts** needed for the dashboard using the chart creation workflow above (Steps 1-6). Each chart must be created via tool call first. Record every \`chart_id\` returned.
+1. **First, create all the charts** needed for the dashboard using the chart creation workflow above (Steps 1-4). Each chart must be created via tool call first. Record every \`chart_id\` returned.
 
 2. **Create the empty dashboard**: Call \`superset_dashboard_create\` with only \`dashboard_title\`. This returns a \`dashboard_id\`.
    - **Do NOT pass a \`charts\` field** — it is not supported.
@@ -170,7 +166,7 @@ Use \`navigate_superset_dashboard\` or \`navigate_superset_chart\` when the user
 - ❌ Round, approximate, or paraphrase a value that was not explicitly returned by a query
 - ❌ Assume a query result implies something it does not directly state — if it's not in the output, query for it
 - ❌ Ask "Would you like me to run this?" — just run it
-- ❌ Use a viz_type not returned by \`superset_chart_types\` (no \`bar\`, \`line\`, \`dist_bar\`, etc.)
+- ❌ Use a viz_type not in the list above (no \`bar\`, \`line\`, \`dist_bar\`, etc.) — use only the named viz_types from Step 2
 - ❌ Use plain string metrics like \`["COUNT(*)"]\` — always use adhoc objects
 - ❌ Use \`"CUSTOM"\` as expressionType — valid values are \`"SIMPLE"\`, \`"SQL"\`, \`"SAVED"\`
 - ❌ Put the x_axis column in groupby or columns (duplicate label error)

@@ -37,6 +37,37 @@ function checkRateLimit(email: string): boolean {
   return true;
 }
 
+// ── Message history normalisation ───────────────────────────────────────────
+// ChatPanel strips tool_calls when building the history it sends to the server,
+// leaving {role:"assistant", content:null} ghost messages that confuse the LLM.
+// It also maps role:"tool" → role:"user", so consecutive user messages can appear
+// when the last tool result from a prior turn is followed by a new user message.
+function normalizeMessageRoles(
+  msgs: OpenAI.Chat.ChatCompletionMessageParam[]
+): OpenAI.Chat.ChatCompletionMessageParam[] {
+  // 1. Remove empty assistant messages (no content, no tool_calls).
+  const filtered = msgs.filter((m) => {
+    if (m.role !== "assistant") return true;
+    const hasContent = m.content !== null && m.content !== "" && m.content !== undefined;
+    const tc = (m as { tool_calls?: unknown[] }).tool_calls;
+    return hasContent || (Array.isArray(tc) && tc.length > 0);
+  });
+
+  // 2. Merge consecutive role:"user" messages.
+  const result: OpenAI.Chat.ChatCompletionMessageParam[] = [];
+  for (const msg of filtered) {
+    const last = result[result.length - 1];
+    if (msg.role === "user" && last?.role === "user") {
+      const prev = typeof last.content === "string" ? last.content : JSON.stringify(last.content);
+      const curr = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
+      result[result.length - 1] = { role: "user" as const, content: prev + "\n\n" + curr };
+    } else {
+      result.push(msg);
+    }
+  }
+  return result;
+}
+
 // ── Allowed modelParams keys ────────────────────────────────────────────────
 // Prevents arbitrary LLM provider options from being injected via admin config.
 const ALLOWED_MODEL_PARAMS = new Set([
@@ -338,7 +369,6 @@ export const POST = async (req: NextRequest) => {
 
     // Chart creation flow
     if (/creat|build|make|new chart|generat|visuali/.test(msg)) {
-      include.add("superset_chart_types");
       include.add("superset_chart_create");
       include.add("superset_dataset_get_by_id");
     }
@@ -355,7 +385,6 @@ export const POST = async (req: NextRequest) => {
 
     // Dashboard creation (also needs chart creation tools since charts are built first)
     if (/new dashboard|creat.*dashboard|dashboard.*creat|make.*dashboard|build.*dashboard/.test(msg)) {
-      include.add("superset_chart_types");
       include.add("superset_chart_create");
       include.add("superset_dataset_get_by_id");
       include.add("superset_dashboard_create");
@@ -465,7 +494,7 @@ Administrators can upload documents through the Admin Settings > Knowledge Base 
 
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
     { role: "system" as const, content: fullSystemContent },
-    ...userMessages,
+    ...normalizeMessageRoles(userMessages),
   ];
 
   // Parse model parameters if provided — only allow keys in ALLOWED_MODEL_PARAMS
