@@ -941,6 +941,14 @@ async def superset_dashboard_add_charts(
         ctx, "put", f"/api/v1/dashboard/{dashboard_id}", data=data
     )
 
+    # Log the chart properties to debug "on dashboard" issue
+    if not result.get("error"):
+        for cid in chart_ids:
+            chart_resp = await superset_request(ctx, "get", f"/api/v1/chart/{cid}")
+            if not chart_resp.get("error") and "result" in chart_resp:
+                chart_data = chart_resp["result"]
+                logger.info(f"Chart {cid} properties: dashboards={chart_data.get('dashboards')}, position={chart_data.get('position')}")
+
     # Trigger cache invalidation - force Superset to refresh the dashboard
     if not result.get("error"):
         try:
