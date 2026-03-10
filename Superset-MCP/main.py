@@ -919,10 +919,37 @@ async def superset_dashboard_add_charts(
 
     position["GRID_ID"]["children"] = row_ids
 
-    data = {"position_json": json.dumps(position)}
+    # First get existing dashboard to preserve metadata
+    existing = await superset_request(ctx, "get", f"/api/v1/dashboard/{dashboard_id}")
+    existing_metadata = {}
+    if not existing.get("error") and "result" in existing:
+        existing_json = existing["result"].get("json_metadata")
+        if existing_json:
+            try:
+                existing_metadata = json.loads(existing_json) if isinstance(existing_json, str) else existing_json
+            except (json.JSONDecodeError, ValueError):
+                pass
+
+    # Update metadata with chart IDs and disable caching
+    existing_metadata["chart_ids"] = chart_ids
+    existing_metadata["refresh_frequency"] = 0  # Disable caching
+    
+    data = {
+        "position_json": json.dumps(position),
+        "json_metadata": json.dumps(existing_metadata),
+    }
     result = await superset_request(
         ctx, "put", f"/api/v1/dashboard/{dashboard_id}", data=data
     )
+
+    # Trigger cache invalidation - force Superset to refresh the dashboard
+    if not result.get("error"):
+        try:
+            await superset_request(
+                ctx, "get", f"/api/v1/dashboard/{dashboard_id}/cache", 
+            )
+        except Exception:
+            pass
 
     if not result.get("error"):
         await _promote_ai_charts_to_permanent(ctx, set(chart_ids))
