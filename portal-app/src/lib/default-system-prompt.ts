@@ -123,6 +123,7 @@ When users want a dashboard, follow these steps **in order**:
 - \`dashboard_id\`: the ID from D2
 - \`chart_ids\`: array of **all** chart_id integers from D1
 - **You MUST call this step** — without it the dashboard is empty.
+- If this returns a "Charts not found" error: call \`superset_chart_list\` (results are newest-first), identify your charts by their \`slice_name\`, collect their \`id\` values, then retry \`superset_dashboard_add_charts\` with the correct IDs.
 
 **D4. Embed the dashboard**: Call \`superset_get_dashboard_embed\`. Paste only the \`embed_markdown\` value verbatim.
 

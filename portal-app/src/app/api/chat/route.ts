@@ -391,6 +391,13 @@ export const POST = async (req: NextRequest) => {
       include.add("superset_dashboard_get_by_id");
       include.add("superset_dashboard_update");
       include.add("superset_dashboard_add_charts"); // populates position_json after creation
+      // ⛔ Remove per-chart embed tools during dashboard creation.
+      // The LLM calling superset_get_chart_embed after each chart adds ~12 extra
+      // messages for a 6-chart dashboard, pushing early chart_create results off
+      // the context window.  The LLM then halluccinates wrong IDs when calling
+      // superset_dashboard_add_charts.  Only the final dashboard embed is needed.
+      include.delete("superset_get_chart_embed");
+      include.delete("superset_get_chart_link");
     }
 
     // SQL / data queries

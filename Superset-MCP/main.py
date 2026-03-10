@@ -809,6 +809,30 @@ async def superset_dashboard_add_charts(
     if not chart_ids:
         return {"error": "No chart IDs provided"}
 
+    # ── Validate that every chart ID actually exists ──────────────────────────
+    # If the LLM lost chart IDs from context and hallucinated IDs, Superset will
+    # silently store the layout but show "no chart definition" for each slot.
+    # Detecting this early returns an actionable error so the LLM can self-correct.
+    missing_ids: List[int] = []
+    for cid in chart_ids:
+        check = await superset_request(ctx, "get", f"/api/v1/chart/{cid}")
+        if check.get("error") or "result" not in check:
+            missing_ids.append(cid)
+
+    if missing_ids:
+        return {
+            "error": (
+                f"Charts not found in Superset: {missing_ids}. "
+                "These chart IDs do not exist — they may have been hallucinated "
+                "because chart_create results scrolled off the context window. "
+                "Call superset_chart_list (results are sorted newest-first) to "
+                "find the charts you just created by name, then retry "
+                "superset_dashboard_add_charts with the correct IDs."
+            ),
+            "missing_chart_ids": missing_ids,
+        }
+    # ── All IDs verified — proceed to build the layout ────────────────────────
+
     charts_per_row = 3
     chart_width = 4   # Superset grid is 12 columns wide
     chart_height = 50
@@ -898,11 +922,15 @@ async def superset_dashboard_delete(ctx: Context, dashboard_id: int) -> Dict[str
 async def superset_chart_list(ctx: Context) -> Dict[str, Any]:
     """
     Get a list of charts from Superset (id, slice_name, viz_type, datasource_id only).
+    Results are sorted by id descending (newest charts first) so recently created
+    charts appear at the top — useful for recovering correct chart IDs after a
+    superset_dashboard_add_charts validation error.
 
     Returns:
         count and result list with id, slice_name, viz_type, datasource_id
     """
-    raw = await superset_request(ctx, "get", "/api/v1/chart/")
+    q = json.dumps({"order_column": "id", "order_direction": "desc", "page_size": 100})
+    raw = await superset_request(ctx, "get", "/api/v1/chart/", params={"q": q})
     if "error" in raw:
         return raw
     return _slim_charts(raw)
