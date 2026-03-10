@@ -1812,6 +1812,37 @@ export function ChatPanel({
             onSupersetLinkClick={handleSupersetLinkClick}
           />
         ))}
+        {messages.length >= 20 && (
+          <div style={{
+            margin: "8px 16px",
+            padding: "8px 12px",
+            borderRadius: 10,
+            background: "var(--md-surface-cont-hi)",
+            border: "1px solid var(--md-outline-var)",
+            fontSize: 12,
+            color: "var(--md-on-surface-var)",
+            textAlign: "center",
+            lineHeight: 1.5,
+          }}>
+            This conversation is getting long and may slow down responses.{" "}
+            <button
+              onClick={handleClear}
+              style={{
+                background: "none",
+                border: "none",
+                padding: 0,
+                cursor: "pointer",
+                color: "var(--md-primary)",
+                fontSize: 12,
+                fontWeight: 600,
+                textDecoration: "underline",
+                fontFamily: "inherit",
+              }}
+            >
+              Reset conversation
+            </button>
+          </div>
+        )}
         <div ref={messagesEndRef} style={{ height: 8 }} />
       </div>
       </div>
