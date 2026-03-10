@@ -930,9 +930,8 @@ async def superset_dashboard_add_charts(
             except (json.JSONDecodeError, ValueError):
                 pass
 
-    # Update metadata with chart IDs and disable caching
-    existing_metadata["chart_ids"] = chart_ids
-    existing_metadata["refresh_frequency"] = 0  # Disable caching
+    # Update metadata to disable caching
+    existing_metadata["refresh_frequency"] = 0
     
     data = {
         "position_json": json.dumps(position),
