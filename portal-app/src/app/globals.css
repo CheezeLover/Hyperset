@@ -12,7 +12,7 @@
   --md-primary:         var(--theme-primary, #FF6B35);
   --md-primary-muted:   var(--theme-primary-light, #FF8A5C);
   --md-primary-cont:    #FFE5D9;
-  --md-on-primary-cont: #FFFFFF;
+  --md-on-primary-cont: #E85A2D;
   --md-icon-primary:    var(--theme-icon-primary, #D35400);
 
   /* Scrollbar */
