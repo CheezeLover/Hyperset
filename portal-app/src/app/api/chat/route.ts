@@ -465,7 +465,7 @@ Administrators can upload documents through the Admin Settings > Knowledge Base 
 
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
     { role: "system" as const, content: fullSystemContent },
-    ...normalizeMessageRoles(userMessages),
+    ...userMessages,
   ];
 
   // Parse model parameters if provided — only allow keys in ALLOWED_MODEL_PARAMS
@@ -495,27 +495,6 @@ Administrators can upload documents through the Admin Settings > Knowledge Base 
   const MAX_TURNS             = s?.maxTurns            ?? Number(process.env.LLM_MAX_TURNS             ?? 40);
   const MAX_TOOL_RESULT_CHARS = s?.maxToolResultChars  ?? Number(process.env.LLM_MAX_TOOL_RESULT_CHARS ?? 3000);
   const MAX_HISTORY_MESSAGES  = s?.maxHistoryMessages  ?? Number(process.env.LLM_MAX_HISTORY_MESSAGES  ?? 20);
-
-  // Merge consecutive same-role messages to avoid OpenAI API rejection.
-  // ChatPanel maps tool-result messages to role:"user", so when the last
-  // tool result and the next user message are both role:"user", consecutive
-  // user messages appear — which the API rejects.
-  function normalizeMessageRoles(
-    msgs: OpenAI.Chat.ChatCompletionMessageParam[]
-  ): OpenAI.Chat.ChatCompletionMessageParam[] {
-    const result: OpenAI.Chat.ChatCompletionMessageParam[] = [];
-    for (const msg of msgs) {
-      const last = result[result.length - 1];
-      if (msg.role === "user" && last?.role === "user") {
-        const prev = typeof last.content === "string" ? last.content : JSON.stringify(last.content);
-        const curr = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
-        result[result.length - 1] = { role: "user" as const, content: prev + "\n\n" + curr };
-      } else {
-        result.push(msg);
-      }
-    }
-    return result;
-  }
 
   function windowedMessages(
     msgs: OpenAI.Chat.ChatCompletionMessageParam[]
