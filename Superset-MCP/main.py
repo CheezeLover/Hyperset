@@ -12,6 +12,7 @@ from typing import (
     Awaitable,
 )
 import os
+import uuid
 import httpx
 import base64
 import hashlib
@@ -831,7 +832,19 @@ async def superset_dashboard_add_charts(
             ),
             "missing_chart_ids": missing_ids,
         }
+
+    # ── Fetch chart UUIDs for the position_json ──────────────────────────────
+    # Superset 6.0+ requires UUIDs for chart components
+    chart_uuids: Dict[int, str] = {}
+    for cid in chart_ids:
+        chart_resp = await superset_request(ctx, "get", f"/api/v1/chart/{cid}")
+        if not chart_resp.get("error") and "result" in chart_resp:
+            chart_uuid = chart_resp["result"].get("uuid")
+            if chart_uuid:
+                chart_uuids[cid] = str(chart_uuid)
+
     # ── All IDs verified — proceed to build the layout ────────────────────────
+    # Superset 6.0+ uses UUID-based IDs and requires COLUMN wrapper
 
     charts_per_row = 3
     chart_width = 4   # Superset grid is 12 columns wide
@@ -855,31 +868,54 @@ async def superset_dashboard_add_charts(
     row_ids: List[str] = []
     for row_idx, row_start in enumerate(range(0, len(chart_ids), charts_per_row)):
         row_chart_ids = chart_ids[row_start : row_start + charts_per_row]
-        row_id = f"ROW-{row_idx + 1}"
-        chart_node_ids = [f"CHART-{cid}" for cid in row_chart_ids]
+        # Use UUID-based IDs for Superset 6.0+ compatibility
+        row_id = f"ROW-{uuid.uuid4().hex[:8]}"
+        column_ids: List[str] = []
 
         position[row_id] = {
             "id": row_id,
             "type": "ROW",
-            "children": chart_node_ids,
+            "children": [],
             "parents": ["ROOT_ID", "GRID_ID"],
             "meta": {"background": "BACKGROUND_TRANSPARENT"},
         }
         row_ids.append(row_id)
 
         for cid in row_chart_ids:
-            node_id = f"CHART-{cid}"
-            position[node_id] = {
-                "id": node_id,
+            # Each chart needs a COLUMN wrapper in Superset 6.0+
+            column_id = f"COLUMN-{uuid.uuid4().hex[:8]}"
+            column_ids.append(column_id)
+            chart_node_id = f"CHART-{cid}"
+
+            position[column_id] = {
+                "id": column_id,
+                "type": "COLUMN",
+                "children": [chart_node_id],
+                "parents": ["ROOT_ID", "GRID_ID", row_id],
+                "meta": {
+                    "background": "BACKGROUND_TRANSPARENT",
+                    "width": chart_width,
+                },
+            }
+
+            # Get the UUID for this chart, fallback to generated UUID
+            chart_uuid = chart_uuids.get(cid, f"chart-{cid}")
+
+            position[chart_node_id] = {
+                "id": chart_node_id,
                 "type": "CHART",
                 "children": [],
-                "parents": ["ROOT_ID", "GRID_ID", row_id],
+                "parents": ["ROOT_ID", "GRID_ID", row_id, column_id],
                 "meta": {
                     "chartId": cid,
                     "height": chart_height,
                     "width": chart_width,
+                    "uuid": chart_uuid,
                 },
             }
+
+        # Update ROW children to include COLUMN IDs
+        position[row_id]["children"] = column_ids
 
     position["GRID_ID"]["children"] = row_ids
 
