@@ -1496,6 +1496,27 @@ export function ChatPanel({
               return { ...m, toolCalls: calls };
             }));
             void currentToolCallIndex; // suppress unused warning
+            
+            // Refresh Superset iframe after dashboard operations to ensure charts load properly
+            const dashboardTools = ["superset_dashboard_create", "superset_dashboard_add_charts", "superset_dashboard_update"];
+            if (dashboardTools.includes(event.name as string)) {
+              // Small delay to allow the backend to fully process the changes
+              setTimeout(() => {
+                if (supersetIframeRef.current) {
+                  const currentSrc = supersetIframeRef.current.src;
+                  try {
+                    const url = new URL(currentSrc);
+                    // Add cache-busting timestamp to force reload
+                    url.searchParams.set("_refresh", Date.now().toString());
+                    supersetIframeRef.current.src = url.toString();
+                  } catch {
+                    // Fallback: append timestamp to the raw URL
+                    const separator = currentSrc.includes("?") ? "&" : "?";
+                    supersetIframeRef.current.src = `${currentSrc}${separator}_refresh=${Date.now()}`;
+                  }
+                }
+              }, 500);
+            }
           } else if (event.type === "done") {
             setMessages((prev) => prev.map((m) => m.id === assistantId
               ? { ...m, streaming: false }

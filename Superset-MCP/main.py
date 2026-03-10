@@ -966,6 +966,32 @@ async def superset_dashboard_add_charts(
     if not result.get("error"):
         await _promote_ai_charts_to_permanent(ctx, set(chart_ids))
 
+    # Link charts to this dashboard - required for charts to display properly
+    # The GitHub issue #32966 shows that charts need their dashboards field updated
+    if not result.get("error"):
+        for cid in chart_ids:
+            try:
+                # Get current chart data
+                chart_resp = await superset_request(ctx, "get", f"/api/v1/chart/{cid}")
+                if chart_resp.get("error") or "result" not in chart_resp:
+                    continue
+                
+                chart_data = chart_resp["result"]
+                current_dashboards = chart_data.get("dashboards", [])
+                
+                # Check if dashboard is already in the list
+                dashboard_ids = [d.get("id") if isinstance(d, dict) else d for d in current_dashboards]
+                if dashboard_id not in dashboard_ids:
+                    # Add this dashboard to the chart's dashboards list
+                    new_dashboards = dashboard_ids + [dashboard_id]
+                    await superset_request(
+                        ctx, "put", f"/api/v1/chart/{cid}",
+                        data={"dashboards": new_dashboards}
+                    )
+            except Exception:
+                # Don't fail the whole operation if one chart update fails
+                pass
+
     return result
 
 
