@@ -789,6 +789,89 @@ async def superset_dashboard_update(
 
 @mcp.tool()
 @handle_api_errors
+async def superset_dashboard_add_charts(
+    ctx: Context,
+    dashboard_id: int,
+    chart_ids: List[int],
+) -> Dict[str, Any]:
+    """
+    Add charts to an existing dashboard by generating the correct position_json layout.
+    Arranges charts in a grid (up to 3 per row, width 4 each out of 12 columns).
+    Always call this after superset_dashboard_create to populate a new dashboard with charts.
+
+    Args:
+        dashboard_id: ID of the dashboard to update
+        chart_ids: List of chart IDs to add to the dashboard
+
+    Returns:
+        A dictionary with the updated dashboard information
+    """
+    if not chart_ids:
+        return {"error": "No chart IDs provided"}
+
+    charts_per_row = 3
+    chart_width = 4   # Superset grid is 12 columns wide
+    chart_height = 50
+
+    position: Dict[str, Any] = {
+        "ROOT_ID": {
+            "id": "ROOT_ID",
+            "type": "ROOT",
+            "children": ["GRID_ID"],
+            "parents": [],
+        },
+        "GRID_ID": {
+            "id": "GRID_ID",
+            "type": "GRID",
+            "children": [],
+            "parents": ["ROOT_ID"],
+        },
+    }
+
+    row_ids: List[str] = []
+    for row_idx, row_start in enumerate(range(0, len(chart_ids), charts_per_row)):
+        row_chart_ids = chart_ids[row_start : row_start + charts_per_row]
+        row_id = f"ROW-{row_idx + 1}"
+        chart_node_ids = [f"CHART-{cid}" for cid in row_chart_ids]
+
+        position[row_id] = {
+            "id": row_id,
+            "type": "ROW",
+            "children": chart_node_ids,
+            "parents": ["ROOT_ID", "GRID_ID"],
+            "meta": {"background": "BACKGROUND_TRANSPARENT"},
+        }
+        row_ids.append(row_id)
+
+        for cid in row_chart_ids:
+            node_id = f"CHART-{cid}"
+            position[node_id] = {
+                "id": node_id,
+                "type": "CHART",
+                "children": [],
+                "parents": ["ROOT_ID", "GRID_ID", row_id],
+                "meta": {
+                    "chartId": cid,
+                    "height": chart_height,
+                    "width": chart_width,
+                },
+            }
+
+    position["GRID_ID"]["children"] = row_ids
+
+    data = {"position_json": json.dumps(position)}
+    result = await superset_request(
+        ctx, "put", f"/api/v1/dashboard/{dashboard_id}", data=data
+    )
+
+    if not result.get("error"):
+        await _promote_ai_charts_to_permanent(ctx, set(chart_ids))
+
+    return result
+
+
+@mcp.tool()
+@handle_api_errors
 async def superset_dashboard_delete(ctx: Context, dashboard_id: int) -> Dict[str, Any]:
     """
     Delete a dashboard

@@ -353,11 +353,15 @@ export const POST = async (req: NextRequest) => {
       include.add("superset_dashboard_get_by_id");
     }
 
-    // Dashboard creation
+    // Dashboard creation (also needs chart creation tools since charts are built first)
     if (/new dashboard|creat.*dashboard|dashboard.*creat|make.*dashboard|build.*dashboard/.test(msg)) {
+      include.add("superset_chart_types");
+      include.add("superset_chart_create");
+      include.add("superset_dataset_get_by_id");
       include.add("superset_dashboard_create");
       include.add("superset_dashboard_get_by_id");
-      include.add("superset_dashboard_update"); // needed to add charts after creation
+      include.add("superset_dashboard_update");
+      include.add("superset_dashboard_add_charts"); // populates position_json after creation
     }
 
     // SQL / data queries

@@ -105,30 +105,30 @@ For a **clickable link only**: call \`superset_get_chart_link\` and paste the va
 For a **dashboard embed**: use \`superset_get_dashboard_embed\` the same way.
 
 ### 📊 DASHBOARD CREATION WORKFLOW
-When users want to create a dashboard:
+When users want to create a dashboard, follow these steps **in order**:
 
-1. **First, create all the charts** needed for the dashboard using the chart creation workflow above (Steps 1-6). Each chart must be created via tool call first.
+1. **First, create all the charts** needed for the dashboard using the chart creation workflow above (Steps 1-6). Each chart must be created via tool call first. Record every \`chart_id\` returned.
 
-2. **Get chart IDs**: After creating each chart, use the returned data to capture the \`chart_id\`.
+2. **Create the empty dashboard**: Call \`superset_dashboard_create\` with only \`dashboard_title\`. This returns a \`dashboard_id\`.
+   - **Do NOT pass a \`charts\` field** — it is not supported.
+   - **You MUST receive a successful response with a dashboard_id before proceeding.**
 
-3. **Create the dashboard (MANDATORY)**: Call \`superset_dashboard_create\` with:
-   - \`dashboard_title\`: A descriptive name for the dashboard
-   - \`charts\`: Array of objects with \`chart_id\` and optional \`position\`
-   - **You MUST receive a successful response with a dashboard_id before claiming the dashboard was created.**
-   - Never say "I created a dashboard" without the tool result proving it.
+3. **Add charts to the dashboard (MANDATORY)**: Call \`superset_dashboard_add_charts\` with:
+   - \`dashboard_id\`: The ID returned by step 2
+   - \`chart_ids\`: Array of all chart IDs created in step 1
+   - This tool generates the correct \`position_json\` layout automatically.
+   - **You MUST call this step** — without it the dashboard is empty.
 
-4. **Embed the dashboard**: After successful creation, call \`superset_get_dashboard_embed\` to get the embed code.
+4. **Embed the dashboard**: Call \`superset_get_dashboard_embed\` to get the embed code.
 
-**Example dashboard creation:**
-\`\`\`json
-{
-  "dashboard_title": "Sales Overview Dashboard",
-  "charts": [
-    { "chart_id": 15 },
-    { "chart_id": 16 },
-    { "chart_id": 17 }
-  ]
-}
+**Example workflow:**
+\`\`\`
+// Step 2: Create empty dashboard
+superset_dashboard_create({ dashboard_title: "Sales Overview Dashboard" })
+// → returns { id: 42, ... }
+
+// Step 3: Add charts
+superset_dashboard_add_charts({ dashboard_id: 42, chart_ids: [15, 16, 17] })
 \`\`\`
 
 5. **Dashboard management**: Use \`superset_dashboard_update\` to modify titles or metadata, \`superset_dashboard_delete\` to remove, and \`superset_dashboard_list\` to see all dashboards.
