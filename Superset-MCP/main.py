@@ -18,6 +18,7 @@ import base64
 import hashlib
 import hmac as hmac_lib
 import time
+import sys
 import datetime
 import asyncio
 import re
@@ -947,7 +948,11 @@ async def superset_dashboard_add_charts(
             chart_resp = await superset_request(ctx, "get", f"/api/v1/chart/{cid}")
             if not chart_resp.get("error") and "result" in chart_resp:
                 chart_data = chart_resp["result"]
-                logger.info(f"Chart {cid} properties: dashboards={chart_data.get('dashboards')}, position={chart_data.get('position')}")
+                dashboards = chart_data.get("dashboards")
+                print(f"=== DEBUG: Chart {cid} properties ===")
+                print(f"dashboards field: {dashboards}")
+                print(f"full chart data keys: {list(chart_data.keys())}")
+                sys.stdout.flush()
 
     # Trigger cache invalidation - force Superset to refresh the dashboard
     if not result.get("error"):
