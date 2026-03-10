@@ -354,9 +354,10 @@ export const POST = async (req: NextRequest) => {
     }
 
     // Dashboard creation
-    if (/new dashboard|creat.*dashboard|dashboard.*creat/.test(msg)) {
+    if (/new dashboard|creat.*dashboard|dashboard.*creat|make.*dashboard|build.*dashboard/.test(msg)) {
       include.add("superset_dashboard_create");
       include.add("superset_dashboard_get_by_id");
+      include.add("superset_dashboard_update"); // needed to add charts after creation
     }
 
     // SQL / data queries
@@ -502,6 +503,18 @@ Administrators can upload documents through the Admin Settings > Knowledge Base 
     // the API to error and kills the stream.  Advance to the first user message
     // so the window always starts at a clean conversation boundary.
     const firstUserIdx = sliced.findIndex((m) => m.role === "user");
+    if (firstUserIdx === -1) {
+      // The window contains no user message — the current user turn is outside
+      // the slice (happens when a long conversation + many in-flight tool calls
+      // exceeds MAX_HISTORY_MESSAGES). Fall back to the most recent user message
+      // in the full history so the API always receives a clean context.
+      const lastUserInRest = [...rest].reduceRight<number>(
+        (found, m, i) => (found === -1 && m.role === "user" ? i : found),
+        -1,
+      );
+      if (lastUserInRest !== -1) return [...system, ...rest.slice(lastUserInRest)];
+      return [...system, ...sliced];
+    }
     const trimmed = firstUserIdx > 0 ? sliced.slice(firstUserIdx) : sliced;
     return [...system, ...trimmed];
   }
