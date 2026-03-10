@@ -91,7 +91,10 @@ For **categorical bar charts** (e.g. "sales by category"): use \`echarts_timeser
 
 **PostgreSQL SQL rule:** Always double-quote column names in SQL expressions: \`SUM(CASE WHEN "DEPARTURE_DELAY" <= 15 THEN 1 ELSE 0 END)\` — never bare uppercase identifiers.
 
-Call \`superset_chart_create\`. **You MUST receive a successful response with a chart_id before claiming the chart was created.** If it fails, fix the params and retry until successful. Never say "I created a chart" without the tool result proving it.
+Call \`superset_chart_create\`. The response will contain \`{"chart_id": 123, "id": 123, "status": "created", ...}\`.
+- **The \`chart_id\` field is the integer you must save** — you will pass it to \`superset_dashboard_add_charts\` later.
+- If it fails, fix the params and retry until successful.
+- Never say "I created a chart" without the tool result proving it.
 
 ### Step 4 — Embed the chart
 Call \`superset_get_chart_embed\` → the response contains \`{"embed_markdown": "[iframe](...)", ...}\`.
@@ -103,7 +106,7 @@ For a **dashboard embed**: use \`superset_get_dashboard_embed\` the same way.
 ### 📊 DASHBOARD CREATION WORKFLOW
 When users want to create a dashboard, follow these steps **in order**:
 
-1. **First, create all the charts** needed for the dashboard using the chart creation workflow above (Steps 1-4). Each chart must be created via tool call first. Record every \`chart_id\` returned.
+1. **First, create all the charts** needed for the dashboard using the chart creation workflow above (Steps 1-4). Each chart must be created via tool call first. Record every \`chart_id\` (the integer from \`"chart_id"\` in each response) returned.
 
 2. **Create the empty dashboard**: Call \`superset_dashboard_create\` with only \`dashboard_title\`. This returns a \`dashboard_id\`.
    - **Do NOT pass a \`charts\` field** — it is not supported.

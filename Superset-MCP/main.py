@@ -1136,7 +1136,21 @@ async def superset_chart_create(
         "description": full_description,
     }
 
-    return await superset_request(ctx, "post", "/api/v1/chart/", data=payload)
+    result = await superset_request(ctx, "post", "/api/v1/chart/", data=payload)
+
+    # Return a concise response so the LLM can reliably extract the chart_id
+    # even when the full Superset response is truncated by the context window.
+    # chart_id is the field the LLM must pass to superset_dashboard_add_charts.
+    if not result.get("error"):
+        chart_id = result.get("id")
+        return {
+            "chart_id": chart_id,
+            "id": chart_id,
+            "slice_name": slice_name,
+            "viz_type": viz_type,
+            "status": "created",
+        }
+    return result
 
 @mcp.tool()
 @handle_api_errors
