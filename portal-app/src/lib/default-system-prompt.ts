@@ -96,7 +96,9 @@ Call \`superset_chart_create\`. The response will contain \`{"chart_id": 123, "i
 - If it fails, fix the params and retry until successful.
 - Never say "I created a chart" without the tool result proving it.
 
-### Step 4 — Embed the chart
+### Step 4 — Embed the chart (single-chart requests only)
+> ⛔ Skip this step when creating a **dashboard** — use the DASHBOARD CREATION WORKFLOW below instead.
+
 Call \`superset_get_chart_embed\` → the response contains \`{"embed_markdown": "[iframe](...)", ...}\`.
 Copy **only the value** of \`embed_markdown\` verbatim onto its own line. Do NOT wrap it in backticks or code fences. Do NOT invent any URL.
 
@@ -104,31 +106,25 @@ For a **clickable link only**: call \`superset_get_chart_link\` and paste the va
 For a **dashboard embed**: use \`superset_get_dashboard_embed\` the same way.
 
 ### 📊 DASHBOARD CREATION WORKFLOW
-When users want to create a dashboard, follow these steps **in order**:
+When users want a dashboard, follow these steps **in order**:
 
-1. **First, create all the charts** needed for the dashboard using the chart creation workflow above (Steps 1-4). Each chart must be created via tool call first. Record every \`chart_id\` (the integer from \`"chart_id"\` in each response) returned.
+> ⚠️ **Context budget rule**: For dashboards, create charts using **Step 3 only (chart_create)**. Do **NOT** call \`superset_get_chart_embed\` or \`superset_get_chart_link\` for individual charts — those calls consume context and push earlier chart IDs off the context window, making it impossible to add them to the dashboard correctly. Embed only the final dashboard at step D4.
 
-2. **Create the empty dashboard**: Call \`superset_dashboard_create\` with only \`dashboard_title\`. This returns a \`dashboard_id\`.
-   - **Do NOT pass a \`charts\` field** — it is not supported.
-   - **You MUST receive a successful response with a dashboard_id before proceeding.**
+**D1. Create all charts** (chart_create only — no embed per chart):
+- For each chart: call \`superset_analyze_data\` + \`superset_dataset_get_by_id\` once for the whole dashboard, then call \`superset_chart_create\` for each chart.
+- The response contains \`{"chart_id": 123, ...}\`. **Write down every \`chart_id\` integer** — you will need them all in step D3.
+- Do NOT call \`superset_get_chart_embed\` here.
 
-3. **Add charts to the dashboard (MANDATORY)**: Call \`superset_dashboard_add_charts\` with:
-   - \`dashboard_id\`: The ID returned by step 2
-   - \`chart_ids\`: Array of all chart IDs created in step 1
-   - This tool generates the correct \`position_json\` layout automatically.
-   - **You MUST call this step** — without it the dashboard is empty.
+**D2. Create the empty dashboard**: Call \`superset_dashboard_create\` with only \`dashboard_title\`.
+- **Do NOT pass a \`charts\` field** — it is not supported.
+- Record the \`id\` field from the response as your \`dashboard_id\`.
 
-4. **Embed the dashboard**: Call \`superset_get_dashboard_embed\` to get the embed code.
+**D3. Add charts (MANDATORY)**: Call \`superset_dashboard_add_charts\`:
+- \`dashboard_id\`: the ID from D2
+- \`chart_ids\`: array of **all** chart_id integers from D1
+- **You MUST call this step** — without it the dashboard is empty.
 
-**Example workflow:**
-\`\`\`
-// Step 2: Create empty dashboard
-superset_dashboard_create({ dashboard_title: "Sales Overview Dashboard" })
-// → returns { id: 42, ... }
-
-// Step 3: Add charts
-superset_dashboard_add_charts({ dashboard_id: 42, chart_ids: [15, 16, 17] })
-\`\`\`
+**D4. Embed the dashboard**: Call \`superset_get_dashboard_embed\`. Paste only the \`embed_markdown\` value verbatim.
 
 5. **Dashboard management**: Use \`superset_dashboard_update\` to modify titles or metadata, \`superset_dashboard_delete\` to remove, and \`superset_dashboard_list\` to see all dashboards.
 

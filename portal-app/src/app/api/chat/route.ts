@@ -523,7 +523,9 @@ Administrators can upload documents through the Admin Settings > Knowledge Base 
   // chart_types → dataset_get_by_id → chart_create → get_chart_embed ≈ 4 turns/chart.
   const MAX_TURNS             = s?.maxTurns            ?? Number(process.env.LLM_MAX_TURNS             ?? 40);
   const MAX_TOOL_RESULT_CHARS = s?.maxToolResultChars  ?? Number(process.env.LLM_MAX_TOOL_RESULT_CHARS ?? 3000);
-  const MAX_HISTORY_MESSAGES  = s?.maxHistoryMessages  ?? Number(process.env.LLM_MAX_HISTORY_MESSAGES  ?? 20);
+  // 40 messages (~20 tool call pairs) is enough for a 6-chart dashboard without rolling
+  // off early chart IDs: analyze(2) + dataset(2) + 6×chart_create(12) + dashboard(2) + add_charts(2) = 20
+  const MAX_HISTORY_MESSAGES  = s?.maxHistoryMessages  ?? Number(process.env.LLM_MAX_HISTORY_MESSAGES  ?? 40);
 
   function windowedMessages(
     msgs: OpenAI.Chat.ChatCompletionMessageParam[]
