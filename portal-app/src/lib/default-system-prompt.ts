@@ -107,7 +107,7 @@ For a **dashboard embed**: use \`superset_get_dashboard_embed\` the same way.
 ### 📊 DASHBOARD CREATION WORKFLOW
 When users want to create a dashboard, follow these steps **in order**.
 
-> ⛔ **DO NOT run SQL queries** (`superset_sqllab_execute_query`) during chart or dashboard creation. Charts aggregate data automatically — you only need dataset column names, not pre-queried results. Running SQL queries wastes context and will cause the task to fail.
+> ⛔ **DO NOT run SQL queries** (\`superset_sqllab_execute_query\`) during chart or dashboard creation. Charts aggregate data automatically — you only need dataset column names, not pre-queried results. Running SQL queries wastes context and will cause the task to fail.
 
 1. **First, create all the charts** needed for the dashboard using the chart creation workflow above (Steps 1-6). Each chart must be created via tool call first. Record every \`chart_id\` returned.
 
