@@ -495,6 +495,7 @@ function PagesTab() {
   const [editingPage, setEditingPage] = useState<string | null>(null);
   const [editGroups, setEditGroups] = useState("");
   const [deletingPage, setDeletingPage] = useState<string | null>(null);
+  const [showTemplates, setShowTemplates] = useState(false);
 
   const loadPages = useCallback(async () => {
     try {
@@ -609,20 +610,38 @@ function PagesTab() {
         <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--md-on-surface)", margin: 0 }}>
           Available Pages ({pages.length})
         </h3>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={() => {
-            const link = document.createElement("a");
-            link.href = "/page-templates/blank.html";
-            link.download = "blank.html";
-            link.click();
-          }}
-            style={{
-              background: "var(--md-surface-cont)", color: "var(--md-on-surface)",
-              border: "1px solid var(--md-outline)", borderRadius: 8,
-              padding: "8px 14px", fontSize: 12, fontWeight: 500, cursor: "pointer",
-            }}>
-            📄 Template
-          </button>
+        <div style={{ display: "flex", gap: 6 }}>
+          <div style={{ position: "relative" }}>
+            <button onClick={() => setShowTemplates(!showTemplates)}
+              style={{
+                background: "var(--md-surface-cont)", color: "var(--md-on-surface)",
+                border: "1px solid var(--md-outline)", borderRadius: 8,
+                padding: "8px 14px", fontSize: 12, fontWeight: 500, cursor: "pointer",
+              }}>
+              📄 Templates ▾
+            </button>
+            {showTemplates && (
+              <div style={{
+                position: "absolute", top: "100%", left: 0, marginTop: 4,
+                background: "var(--md-surface)", border: "1px solid var(--md-outline-var)",
+                borderRadius: 8, padding: 8, zIndex: 10, minWidth: 180,
+                boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+              }}>
+                <button onClick={() => { window.open("/page-templates/blank.html", "_blank"); setShowTemplates(false); }}
+                  style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", padding: "8px 10px", borderRadius: 6, cursor: "pointer", color: "var(--md-on-surface)", fontSize: 12 }}>
+                  📄 blank.html
+                </button>
+                <button onClick={() => { window.open("/page-templates/backend.py", "_blank"); setShowTemplates(false); }}
+                  style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", padding: "8px 10px", borderRadius: 6, cursor: "pointer", color: "var(--md-on-surface)", fontSize: 12 }}>
+                  🐍 backend.py
+                </button>
+                <button onClick={() => { window.open("/page-templates/preprompt.md", "_blank"); setShowTemplates(false); }}
+                  style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", padding: "8px 10px", borderRadius: 6, cursor: "pointer", color: "var(--md-on-surface)", fontSize: 12 }}>
+                  📖 preprompt.md
+                </button>
+              </div>
+            )}
+          </div>
           <button onClick={() => setShowUpload(!showUpload)}
             style={{
               background: "var(--md-primary)", color: "white", border: "none", borderRadius: 8,
