@@ -654,107 +654,9 @@ function PagesTab() {
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 40 }}>
         <div style={{ width: 24, height: 24, border: "3px solid var(--md-outline)", borderTopColor: "var(--md-primary)", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-      {editModalPage && (
-        <div style={{
-          position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1001,
-          display: "flex", alignItems: "center", justifyContent: "center",
-        }} onClick={(e) => { if (e.target === e.currentTarget) setEditModalPage(null); }}>
-          <div style={{
-            background: "var(--md-surface-cont)", borderRadius: 16, padding: 24,
-            minWidth: 400, maxWidth: 500, width: "90%",
-            boxShadow: "0 24px 48px rgba(0,0,0,0.3)",
-          }}>
-            <h3 style={{ fontSize: 16, fontWeight: 600, color: "var(--md-on-surface)", margin: "0 0 20px" }}>
-              Edit Page: {editModalPage.name}
-            </h3>
-            
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: "block", fontSize: 11, fontWeight: 500, opacity: 0.7, color: "var(--md-on-surface)", marginBottom: 4 }}>
-                    Icon (single character or emoji)
-                  </label>
-                  <input
-                    type="text"
-                    value={editIcon}
-                    onChange={(e) => setEditIcon(e.target.value.slice(0, 2))}
-                    placeholder={editModalPage.name.charAt(0).toUpperCase()}
-                    style={{ ...inputStyle, width: "100%", padding: "8px 12px" }}
-                  />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: "block", fontSize: 11, fontWeight: 500, opacity: 0.7, color: "var(--md-on-surface)", marginBottom: 4 }}>
-                    Icon Color (CSS)
-                  </label>
-                  <input
-                    type="text"
-                    value={editIconColor}
-                    onChange={(e) => setEditIconColor(e.target.value)}
-                    placeholder="#1a73e8"
-                    style={{ ...inputStyle, width: "100%", padding: "8px 12px" }}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label style={{ display: "block", fontSize: 11, fontWeight: 500, opacity: 0.7, color: "var(--md-on-surface)", marginBottom: 4 }}>
-                  New HTML File (leave empty to keep existing)
-                </label>
-                <input
-                  type="file"
-                  accept=".html"
-                  onChange={(e) => setEditHtmlFile(e.target.files?.[0] ?? null)}
-                  style={{ fontSize: 12, color: "var(--md-on-surface)" }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: "block", fontSize: 11, fontWeight: 500, opacity: 0.7, color: "var(--md-on-surface)", marginBottom: 4 }}>
-                  New Backend File (leave empty to keep existing)
-                </label>
-                <input
-                  type="file"
-                  accept=".py"
-                  onChange={(e) => setEditBackendFile(e.target.files?.[0] ?? null)}
-                  style={{ fontSize: 12, color: "var(--md-on-surface)" }}
-                />
-                {editModalPage.hasBackend && (
-                  <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, cursor: "pointer" }}>
-                    <input
-                      type="checkbox"
-                      checked={removeBackend}
-                      onChange={(e) => setRemoveBackend(e.target.checked)}
-                    />
-                    <span style={{ fontSize: 11, color: "#ef5350" }}>Remove existing backend</span>
-                  </label>
-                )}
-              </div>
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
-              <button onClick={() => setEditModalPage(null)}
-                style={{
-                  background: "var(--md-surface-cont)", color: "var(--md-on-surface)",
-                  border: "1px solid var(--md-outline)", borderRadius: 8,
-                  padding: "10px 20px", fontSize: 13, cursor: "pointer",
-                }}>
-                Cancel
-              </button>
-              <button onClick={handleUpdateFiles} disabled={updatingPage}
-                style={{
-                  ...primaryBtnStyle,
-                  opacity: updatingPage ? 0.6 : 1,
-                  padding: "10px 24px",
-                }}>
-                {updatingPage ? "Updating..." : "Save Changes"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -963,6 +865,105 @@ function PagesTab() {
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {editModalPage && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1001,
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }} onClick={(e) => { if (e.target === e.currentTarget) setEditModalPage(null); }}>
+          <div style={{
+            background: "var(--md-surface-cont)", borderRadius: 16, padding: 24,
+            minWidth: 400, maxWidth: 500, width: "90%",
+            boxShadow: "0 24px 48px rgba(0,0,0,0.3)",
+          }}>
+            <h3 style={{ fontSize: 16, fontWeight: 600, color: "var(--md-on-surface)", margin: "0 0 20px" }}>
+              Edit Page: {editModalPage.name}
+            </h3>
+            
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 500, opacity: 0.7, color: "var(--md-on-surface)", marginBottom: 4 }}>
+                    Icon (single character or emoji)
+                  </label>
+                  <input
+                    type="text"
+                    value={editIcon}
+                    onChange={(e) => setEditIcon(e.target.value.slice(0, 2))}
+                    placeholder={editModalPage.name.charAt(0).toUpperCase()}
+                    style={{ ...inputStyle, width: "100%", padding: "8px 12px" }}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 500, opacity: 0.7, color: "var(--md-on-surface)", marginBottom: 4 }}>
+                    Icon Color (CSS)
+                  </label>
+                  <input
+                    type="text"
+                    value={editIconColor}
+                    onChange={(e) => setEditIconColor(e.target.value)}
+                    placeholder="#1a73e8"
+                    style={{ ...inputStyle, width: "100%", padding: "8px 12px" }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 500, opacity: 0.7, color: "var(--md-on-surface)", marginBottom: 4 }}>
+                  New HTML File (leave empty to keep existing)
+                </label>
+                <input
+                  type="file"
+                  accept=".html"
+                  onChange={(e) => setEditHtmlFile(e.target.files?.[0] ?? null)}
+                  style={{ fontSize: 12, color: "var(--md-on-surface)" }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 500, opacity: 0.7, color: "var(--md-on-surface)", marginBottom: 4 }}>
+                  New Backend File (leave empty to keep existing)
+                </label>
+                <input
+                  type="file"
+                  accept=".py"
+                  onChange={(e) => setEditBackendFile(e.target.files?.[0] ?? null)}
+                  style={{ fontSize: 12, color: "var(--md-on-surface)" }}
+                />
+                {editModalPage.hasBackend && (
+                  <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={removeBackend}
+                      onChange={(e) => setRemoveBackend(e.target.checked)}
+                    />
+                    <span style={{ fontSize: 11, color: "#ef5350" }}>Remove existing backend</span>
+                  </label>
+                )}
+              </div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
+              <button onClick={() => setEditModalPage(null)}
+                style={{
+                  background: "var(--md-surface-cont)", color: "var(--md-on-surface)",
+                  border: "1px solid var(--md-outline)", borderRadius: 8,
+                  padding: "10px 20px", fontSize: 13, cursor: "pointer",
+                }}>
+                Cancel
+              </button>
+              <button onClick={handleUpdateFiles} disabled={updatingPage}
+                style={{
+                  ...primaryBtnStyle,
+                  opacity: updatingPage ? 0.6 : 1,
+                  padding: "10px 24px",
+                }}>
+                {updatingPage ? "Updating..." : "Save Changes"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
