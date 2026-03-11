@@ -73,6 +73,7 @@ services:
       # Use explicit vars from .env — compose doesn't expand nested ${} in values
       - SUPERSET_PUBLIC_URL=${SUPERSET_PUBLIC_URL}
       - PAGES_PUBLIC_URL=${PAGES_PUBLIC_URL}
+      - PAGES_DIR=/app/pages
       - SUPERSET_MCP_URL=http://hyperset-superset-mcp:8000/mcp
       # LLM API (any OpenAI-compatible endpoint; overridable at runtime via the settings UI)
       - LLM_API_URL=${LLM_API_URL:-https://api.openai.com/v1}
@@ -83,6 +84,7 @@ services:
       - NODE_ENV=production
     volumes:
       - ./theme.json:/app/theme.json:Z
+      - ./Pages:/app/pages:Z
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/config"]
       interval: 10s

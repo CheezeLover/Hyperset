@@ -17,6 +17,7 @@ export default async function Home() {
       pagesUrl={pagesUrl}
       isAdmin={user.isAdmin}
       userId={user.id}
+      userRoles={user.roles}
     />
   );
 }

@@ -14,6 +14,7 @@ interface HypersetLayoutProps {
   pagesUrl: string;
   isAdmin: boolean;
   userId: string;
+  userRoles: string[];
 }
 
 interface PanelState {
@@ -33,6 +34,7 @@ export function HypersetLayout({
   pagesUrl,
   isAdmin,
   userId,
+  userRoles,
 }: HypersetLayoutProps) {
   const [mainFlex, setMainFlex] = useState(100);
   const [panels, setPanels] = useState<PanelState[]>([]);
@@ -73,18 +75,33 @@ export function HypersetLayout({
         credentials: "include",
       });
       if (!res.ok) return;
-      const data = await res.json();
+      const data = await res.json() as { pages: { name: string; has_backend: boolean }[] };
+      
+      const pageMetaRes = await fetch("/api/admin/pages", { credentials: "include" });
+      const pageMeta = pageMetaRes.ok 
+        ? (await pageMetaRes.json() as { pages: { name: string; active: boolean; allowedGroups: string[] }[] }).pages 
+        : [];
+      const metaMap = new Map(pageMeta.map((p) => [p.name, p]));
+      
+      const filteredPages: Page[] = (data.pages as { name: string; has_backend: boolean }[])
+        .filter((p) => {
+          const meta = metaMap.get(p.name);
+          if (!meta) return true;
+          if (!meta.active) return false;
+          if (meta.allowedGroups.length === 0) return true;
+          return meta.allowedGroups.some((g) => userRoles.includes(g));
+        })
+        .map((p) => ({ name: p.name }));
+      
       setPages((prev) => {
         const existingNames = new Set(prev.map((p) => p.name));
-        const newPages: Page[] = (data.pages as Page[]).filter(
-          (p) => !existingNames.has(p.name)
-        );
+        const newPages = filteredPages.filter((p) => !existingNames.has(p.name));
         return newPages.length > 0 ? [...prev, ...newPages] : prev;
       });
     } catch {
       // Pages service unavailable — not a fatal error
     }
-  }, [pagesUrl]);
+  }, [pagesUrl, userRoles]);
 
   useEffect(() => {
     loadPages();
