@@ -81,6 +81,8 @@ export async function GET(request: NextRequest) {
     hasBackend: p.hasBackend,
     active: settings[p.name]?.active ?? true,
     allowedGroups: settings[p.name]?.allowedGroups ?? [],
+    icon: settings[p.name]?.icon,
+    iconColor: settings[p.name]?.iconColor,
   }));
 
   return NextResponse.json({ pages: pagesWithMeta });
