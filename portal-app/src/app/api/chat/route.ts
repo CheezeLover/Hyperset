@@ -5,11 +5,12 @@ import { getAdminSettings } from "@/lib/admin-settings";
 import { getUserFromRequest } from "@/lib/auth";
 import { DEFAULT_SYSTEM_PROMPT } from "@/lib/default-system-prompt";
 import { 
-  getKnowledgeBaseContext, 
+  getKnowledgeBaseRoutingContext, 
   getKnowledgeDocuments,
   getKnowledgeBaseStats,
   searchKnowledgeBase,
-  getKnowledgeBaseRoutingGuide
+  getKnowledgeBaseRoutingGuide,
+  getKnowledgeDocumentContent
 } from "@/lib/knowledge-base";
 
 // ── Helper functions ───────────────────────────────────────────────────────
@@ -332,6 +333,23 @@ export const POST = async (req: NextRequest) => {
         },
       },
     },
+    {
+      type: "function",
+      function: {
+        name: "knowledge_base_get",
+        description: "Get the full content of a specific document by its ID. Use this after finding the document ID from knowledge_base_search or knowledge_base_list.",
+        parameters: {
+          type: "object",
+          properties: {
+            id: { 
+              type: "string", 
+              description: "The document ID (e.g., '01abc123')" 
+            },
+          },
+          required: ["id"],
+        },
+      },
+    },
   ];
 
   const tools = [...navTools, ...mcpTools, ...knowledgeBaseTools];
@@ -355,6 +373,7 @@ export const POST = async (req: NextRequest) => {
       "navigate_superset_chart",
       "knowledge_base_list",
       "knowledge_base_search",
+      "knowledge_base_get",
       "superset_dashboard_list",
       "superset_chart_list",
       "superset_dataset_list",
@@ -430,12 +449,12 @@ export const POST = async (req: NextRequest) => {
   const isMistral = /ministral|mistral/i.test(model);
   const activeTools = filterToolsForContext(tools, userMessages);
 
-  // Load pre-computed knowledge base context (FAST - no CPU scoring)
-  const knowledgeBaseContent = getKnowledgeBaseContext();
+  // Load routing context only (LLM will use tools to fetch document content)
+  const routingContext = getKnowledgeBaseRoutingContext();
   const kbStats = getKnowledgeBaseStats();
   const routingGuide = getKnowledgeBaseRoutingGuide();
   
-  const knowledgeBaseSection = knowledgeBaseContent
+  const knowledgeBaseSection = routingContext || kbStats.documentCount > 0
     ? `
 ---
 ## 📚 COMPANY KNOWLEDGE BASE — YOUR PRIMARY SOURCE OF TRUTH
@@ -455,30 +474,26 @@ The following documents are your **BIBLE** — your absolute, definitive, and on
 
 5. **UNKNOWN = SAY SO**: If the knowledge base doesn't cover a topic, explicitly state: "This topic is not covered in the company knowledge base." Do NOT fill gaps with training data.
 
-### 🧭 ROUTING GUIDE — Which Document to Use When:${routingGuide ? "\n" + routingGuide : "\nNo routing guide configured. Use documents based on their names and descriptions."}
+### 📖 AVAILABLE DOCUMENTS:
+${routingContext || "No documents configured."}
 
-### 📖 When to Use Knowledge Base (ALWAYS for these):
-- Company procedures, policies, or standards
-- Industry terminology, jargon, or abbreviations
-- Operational metrics, KPIs, formulas, or benchmarks
-- Regulatory requirements or compliance rules
-- Safety protocols or best practices
-- Any fact where the knowledge base has a relevant document
+### 🧭 ROUTING GUIDE:${routingGuide ? "\n" + routingGuide : "\nUse documents based on their names and descriptions."}
 
-### ✅ How to Answer:
-1. **Scan the knowledge base first** before thinking
-2. **Quote directly** from relevant sections when possible
-3. **Lead with knowledge base content** — your own knowledge comes last (if at all)
-4. **Say "Per [document-name]..."** for every fact
-5. If KB is silent on a topic, admit it — don't improvise
+### 🔧 HOW TO USE KNOWLEDGE BASE (REQUIRED - Follow these exact steps):
+1. **Use knowledge_base_search** with relevant keywords to find documents (e.g., "safety", "metrics", "policy")
+2. **Use knowledge_base_list** to see all available documents if needed
+3. **Use knowledge_base_get with the document ID** to fetch the FULL content of relevant documents
+4. **READ the full document content** before answering - never answer from search results alone!
+5. **Cite sources** with document name for every fact (e.g., "Per employee-handbook.md...")
+6. If KB doesn't cover the topic, admit it — don't improvise
+
+⚠️ **IMPORTANT**: You MUST call knowledge_base_get after finding a relevant document. The search results only show titles/descriptions - the actual content is in the document file!
 
 ### 🚫 FORBIDDEN:
 - Using training data when KB has the answer
 - Guessing, estimating, or "probably" when KB covers the topic
 - Citing "industry standards" from memory when KB defines your standards
 - Filling gaps with general knowledge when KB doesn't cover it
-
-${knowledgeBaseContent}
 ---
 `
     : `
@@ -682,8 +697,8 @@ Administrators can upload documents through the Admin Settings > Knowledge Base 
                 if (docs.length === 0) {
                   result = `Knowledge Base Status: Empty (${stats.documentCount} documents, ${stats.totalSizeFormatted} / ${stats.maxSizeFormatted} used)\n\nNo company-specific documents have been uploaded yet. Administrators can add documents through Admin Settings > Knowledge Base.`;
                 } else {
-                  const docList = docs.map(d => `- **${d.name}** (${formatBytes(d.size)}): ${d.description || 'No description'}`).join('\n');
-                  result = `Knowledge Base Status: ${stats.documentCount} documents, ${stats.totalSizeFormatted} / ${stats.maxSizeFormatted} used (${stats.utilizationPercent}%)\n\nAvailable documents:\n${docList}\n\nTo search for specific content, use the knowledge_base_search tool with relevant keywords.`;
+                  const docList = docs.map(d => `- **${d.name}** (ID: ${d.id}, ${formatBytes(d.size)}): ${d.description || 'No description'}`).join('\n');
+                  result = `Knowledge Base Status: ${stats.documentCount} documents, ${stats.totalSizeFormatted} / ${stats.maxSizeFormatted} used (${stats.utilizationPercent}%)\n\nAvailable documents:\n${docList}\n\nTo get document content, use knowledge_base_get with the document ID.`;
                 }
               } catch (e) {
                 result = `Error accessing knowledge base: ${e instanceof Error ? e.message : String(e)}`;
@@ -699,8 +714,26 @@ Administrators can upload documents through the Admin Settings > Knowledge Base 
                   if (matches.length === 0) {
                     result = `No documents found matching "${searchQuery}".`;
                   } else {
-                    const docList = matches.map(m => `- ${m.doc.name}: ${m.doc.description || 'No description'}`).join('\n');
-                    result = `Found ${matches.length} document(s) matching "${searchQuery}":\n${docList}`;
+                    const docList = matches.map(m => `- ${m.doc.name} (ID: ${m.doc.id}): ${m.doc.description || 'No description'}`).join('\n');
+                    result = `Found ${matches.length} document(s) matching "${searchQuery}":\n${docList}\n\nUse knowledge_base_get with the document ID to fetch full content.`;
+                  }
+                }
+              } catch (e) {
+                result = `Error: ${e instanceof Error ? e.message : String(e)}`;
+              }
+            } else if (tc.name === "knowledge_base_get") {
+              // Get full document content by ID
+              try {
+                const docId = args.id as string;
+                if (!docId) {
+                  result = "Error: No document ID provided.";
+                } else {
+                  const content = getKnowledgeDocumentContent(docId);
+                  if (!content) {
+                    result = `Document not found: ${docId}`;
+                  } else {
+                    const doc = getKnowledgeDocuments().find(d => d.id === docId);
+                    result = `--- ${doc?.name || docId} ---\n\n${content}`;
                   }
                 }
               } catch (e) {

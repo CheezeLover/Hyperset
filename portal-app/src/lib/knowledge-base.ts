@@ -337,6 +337,25 @@ export function getKnowledgeBaseRoutingGuide(): string {
   return _metadata?.routingGuide ?? "";
 }
 
+/** Get routing context only (no full document content) - for tool-based retrieval */
+export function getKnowledgeBaseRoutingContext(): string {
+  ensureLoaded();
+  
+  if (!_metadata || _metadata.documents.length === 0) {
+    return "";
+  }
+
+  const docs = _metadata.documents.map(doc => {
+    return `## ${doc.name}\nDescription: ${doc.description}\nSize: ${formatBytes(doc.size)}`;
+  }).join("\n\n");
+
+  const routingGuide = _metadata.routingGuide 
+    ? `\n### Routing Guide:\n${_metadata.routingGuide}` 
+    : "";
+
+  return `${docs}${routingGuide}`;
+}
+
 /** Set/update routing guide (admin only) */
 export function setKnowledgeBaseRoutingGuide(guide: string): void {
   ensureLoaded();
