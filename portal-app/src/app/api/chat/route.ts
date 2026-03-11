@@ -5,7 +5,7 @@ import { getAdminSettings } from "@/lib/admin-settings";
 import { getUserFromRequest } from "@/lib/auth";
 import { DEFAULT_SYSTEM_PROMPT } from "@/lib/default-system-prompt";
 import { 
-  getKnowledgeBaseContext, 
+  getKnowledgeBaseRoutingContext, 
   getKnowledgeDocuments,
   getKnowledgeBaseStats,
   searchKnowledgeBase,
@@ -430,12 +430,12 @@ export const POST = async (req: NextRequest) => {
   const isMistral = /ministral|mistral/i.test(model);
   const activeTools = filterToolsForContext(tools, userMessages);
 
-  // Load pre-computed knowledge base context (FAST - no CPU scoring)
-  const knowledgeBaseContent = getKnowledgeBaseContext();
+  // Load routing context only (LLM will use tools to fetch document content)
+  const routingContext = getKnowledgeBaseRoutingContext();
   const kbStats = getKnowledgeBaseStats();
   const routingGuide = getKnowledgeBaseRoutingGuide();
   
-  const knowledgeBaseSection = knowledgeBaseContent
+  const knowledgeBaseSection = routingContext || kbStats.documentCount > 0
     ? `
 ---
 ## 📚 COMPANY KNOWLEDGE BASE — YOUR PRIMARY SOURCE OF TRUTH
@@ -455,30 +455,23 @@ The following documents are your **BIBLE** — your absolute, definitive, and on
 
 5. **UNKNOWN = SAY SO**: If the knowledge base doesn't cover a topic, explicitly state: "This topic is not covered in the company knowledge base." Do NOT fill gaps with training data.
 
-### 🧭 ROUTING GUIDE — Which Document to Use When:${routingGuide ? "\n" + routingGuide : "\nNo routing guide configured. Use documents based on their names and descriptions."}
+### 📖 AVAILABLE DOCUMENTS — Use knowledge_base_search Tool to Fetch Content:
+${routingContext || "No documents configured."}
 
-### 📖 When to Use Knowledge Base (ALWAYS for these):
-- Company procedures, policies, or standards
-- Industry terminology, jargon, or abbreviations
-- Operational metrics, KPIs, formulas, or benchmarks
-- Regulatory requirements or compliance rules
-- Safety protocols or best practices
-- Any fact where the knowledge base has a relevant document
+### 🧭 ROUTING GUIDE:${routingGuide ? "\n" + routingGuide : "\nUse documents based on their names and descriptions."}
 
-### ✅ How to Answer:
-1. **Scan the knowledge base first** before thinking
-2. **Quote directly** from relevant sections when possible
-3. **Lead with knowledge base content** — your own knowledge comes last (if at all)
-4. **Say "Per [document-name]..."** for every fact
-5. If KB is silent on a topic, admit it — don't improvise
+### 🔧 HOW TO USE KNOWLEDGE BASE (REQUIRED):
+1. **First, use knowledge_base_search** to find relevant documents by keywords
+2. **Then, use knowledge_base_list** to see all available documents if needed
+3. **Read the document content** returned by the tools before answering
+4. **Cite sources** with document name for every fact
+5. If KB doesn't cover the topic, admit it — don't improvise
 
 ### 🚫 FORBIDDEN:
 - Using training data when KB has the answer
 - Guessing, estimating, or "probably" when KB covers the topic
 - Citing "industry standards" from memory when KB defines your standards
 - Filling gaps with general knowledge when KB doesn't cover it
-
-${knowledgeBaseContent}
 ---
 `
     : `
