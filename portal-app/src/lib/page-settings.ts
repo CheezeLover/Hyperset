@@ -4,6 +4,8 @@ import path from "path";
 export interface PageSettings {
   active: boolean;
   allowedGroups: string[];
+  icon?: string;
+  iconColor?: string;
 }
 
 export interface PageMetadata extends PageSettings {

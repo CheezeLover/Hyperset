@@ -7,6 +7,8 @@ import { ServiceColumn } from "./ServiceColumn";
 
 interface Page {
   name: string;
+  icon?: string;
+  iconColor?: string;
 }
 
 interface HypersetLayoutProps {
@@ -79,7 +81,7 @@ export function HypersetLayout({
       
       const pageMetaRes = await fetch("/api/admin/pages", { credentials: "include" });
       const pageMeta = pageMetaRes.ok 
-        ? (await pageMetaRes.json() as { pages: { name: string; active: boolean; allowedGroups: string[] }[] }).pages 
+        ? (await pageMetaRes.json() as { pages: { name: string; active: boolean; allowedGroups: string[]; icon?: string; iconColor?: string }[] }).pages 
         : [];
       const metaMap = new Map(pageMeta.map((p) => [p.name, p]));
       
@@ -91,7 +93,14 @@ export function HypersetLayout({
           if (meta.allowedGroups.length === 0) return true;
           return meta.allowedGroups.some((g) => userRoles.includes(g));
         })
-        .map((p) => ({ name: p.name }));
+        .map((p) => {
+          const meta = metaMap.get(p.name);
+          return { 
+            name: p.name, 
+            icon: meta?.icon, 
+            iconColor: meta?.iconColor 
+          };
+        });
       
       setPages((prev) => {
         const existingNames = new Set(prev.map((p) => p.name));

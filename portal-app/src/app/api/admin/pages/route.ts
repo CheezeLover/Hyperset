@@ -153,6 +153,60 @@ export async function POST(request: NextRequest) {
   }
 }
 
+/** PUT /api/admin/pages — update page files */
+export async function PUT(request: NextRequest) {
+  const denied = requireAdmin(request);
+  if (denied) return denied;
+
+  const { email } = getUserFromRequest(request);
+  if (!checkRateLimit(_rateLimitMap, RATE_LIMIT, RATE_WINDOW, email)) {
+    return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
+  }
+
+  const contentType = request.headers.get("content-type") ?? "";
+  if (!contentType.includes("multipart/form-data")) {
+    return NextResponse.json({ error: "Content-Type must be multipart/form-data" }, { status: 400 });
+  }
+
+  try {
+    const formData = await request.formData();
+    const name = formData.get("name")?.toString().trim();
+    const htmlFile = formData.get("html") as File | null;
+    const backendFile = formData.get("backend") as File | null;
+
+    if (!name) {
+      return NextResponse.json({ error: "Page name is required" }, { status: 400 });
+    }
+
+    const pageDir = path.join(PAGES_DIR, name);
+    if (!fs.existsSync(path.join(pageDir, "index.html"))) {
+      return NextResponse.json({ error: `Page "${name}" not found` }, { status: 404 });
+    }
+
+    if (htmlFile && htmlFile.size > 0) {
+      const htmlBuffer = Buffer.from(await htmlFile.arrayBuffer());
+      fs.writeFileSync(path.join(pageDir, "index.html"), htmlBuffer);
+    }
+
+    if (backendFile && backendFile.size > 0) {
+      const backendBuffer = Buffer.from(await backendFile.arrayBuffer());
+      fs.writeFileSync(path.join(pageDir, "backend.py"), backendBuffer);
+    } else if (formData.get("removeBackend") === "true") {
+      const backendPath = path.join(pageDir, "backend.py");
+      if (fs.existsSync(backendPath)) {
+        fs.unlinkSync(backendPath);
+      }
+    }
+
+    const hasBackend = fs.existsSync(path.join(pageDir, "backend.py"));
+
+    return NextResponse.json({ ok: true, hasBackend });
+  } catch (e) {
+    console.error("[admin/pages] Failed to update page files:", e);
+    return NextResponse.json({ error: "Failed to update page files" }, { status: 500 });
+  }
+}
+
 /** PATCH /api/admin/pages — update page settings */
 export async function PATCH(request: NextRequest) {
   const denied = requireAdmin(request);
@@ -165,7 +219,13 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { name, active, allowedGroups } = body as { name: string; active?: boolean; allowedGroups?: string[] };
+    const { name, active, allowedGroups, icon, iconColor } = body as { 
+      name: string; 
+      active?: boolean; 
+      allowedGroups?: string[];
+      icon?: string;
+      iconColor?: string;
+    };
 
     if (!name) {
       return NextResponse.json({ error: "Page name is required" }, { status: 400 });
@@ -180,6 +240,8 @@ export async function PATCH(request: NextRequest) {
     const updated: PageSettings = {
       active: active !== undefined ? active : current.active,
       allowedGroups: allowedGroups !== undefined ? allowedGroups : current.allowedGroups,
+      icon: icon !== undefined ? icon : current.icon,
+      iconColor: iconColor !== undefined ? iconColor : current.iconColor,
     };
 
     setPageSettings(name, updated);
