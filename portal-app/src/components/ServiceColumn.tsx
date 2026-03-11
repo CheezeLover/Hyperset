@@ -21,13 +21,13 @@ interface ServiceColumnProps {
 function pageIcon(name: string, icon?: string, iconColor?: string) {
   const displayChar = icon || name.charAt(0).toUpperCase();
   return (
-    <svg viewBox="0 0 24 24" width={28} height={28}>
+    <svg viewBox="0 0 24 24" width={20} height={20}>
       <rect x="3" y="3" width="18" height="18" rx="4" fill={iconColor || "currentColor"} opacity={0.15} />
       <text
         x="12"
         y="16.5"
         textAnchor="middle"
-        fontSize="12"
+        fontSize="11"
         fontFamily="system-ui,sans-serif"
         fontWeight="600"
         fill={iconColor || "currentColor"}
