@@ -9,7 +9,8 @@ import {
   getKnowledgeDocuments,
   getKnowledgeBaseStats,
   searchKnowledgeBase,
-  getKnowledgeBaseRoutingGuide
+  getKnowledgeBaseRoutingGuide,
+  getKnowledgeDocumentContent
 } from "@/lib/knowledge-base";
 
 // ── Helper functions ───────────────────────────────────────────────────────
@@ -332,6 +333,23 @@ export const POST = async (req: NextRequest) => {
         },
       },
     },
+    {
+      type: "function",
+      function: {
+        name: "knowledge_base_get",
+        description: "Get the full content of a specific document by its ID. Use this after finding the document ID from knowledge_base_search or knowledge_base_list.",
+        parameters: {
+          type: "object",
+          properties: {
+            id: { 
+              type: "string", 
+              description: "The document ID (e.g., '01abc123')" 
+            },
+          },
+          required: ["id"],
+        },
+      },
+    },
   ];
 
   const tools = [...navTools, ...mcpTools, ...knowledgeBaseTools];
@@ -355,6 +373,7 @@ export const POST = async (req: NextRequest) => {
       "navigate_superset_chart",
       "knowledge_base_list",
       "knowledge_base_search",
+      "knowledge_base_get",
       "superset_dashboard_list",
       "superset_chart_list",
       "superset_dataset_list",
@@ -675,8 +694,8 @@ Administrators can upload documents through the Admin Settings > Knowledge Base 
                 if (docs.length === 0) {
                   result = `Knowledge Base Status: Empty (${stats.documentCount} documents, ${stats.totalSizeFormatted} / ${stats.maxSizeFormatted} used)\n\nNo company-specific documents have been uploaded yet. Administrators can add documents through Admin Settings > Knowledge Base.`;
                 } else {
-                  const docList = docs.map(d => `- **${d.name}** (${formatBytes(d.size)}): ${d.description || 'No description'}`).join('\n');
-                  result = `Knowledge Base Status: ${stats.documentCount} documents, ${stats.totalSizeFormatted} / ${stats.maxSizeFormatted} used (${stats.utilizationPercent}%)\n\nAvailable documents:\n${docList}\n\nTo search for specific content, use the knowledge_base_search tool with relevant keywords.`;
+                  const docList = docs.map(d => `- **${d.name}** (ID: ${d.id}, ${formatBytes(d.size)}): ${d.description || 'No description'}`).join('\n');
+                  result = `Knowledge Base Status: ${stats.documentCount} documents, ${stats.totalSizeFormatted} / ${stats.maxSizeFormatted} used (${stats.utilizationPercent}%)\n\nAvailable documents:\n${docList}\n\nTo get document content, use knowledge_base_get with the document ID.`;
                 }
               } catch (e) {
                 result = `Error accessing knowledge base: ${e instanceof Error ? e.message : String(e)}`;
@@ -692,8 +711,26 @@ Administrators can upload documents through the Admin Settings > Knowledge Base 
                   if (matches.length === 0) {
                     result = `No documents found matching "${searchQuery}".`;
                   } else {
-                    const docList = matches.map(m => `- ${m.doc.name}: ${m.doc.description || 'No description'}`).join('\n');
-                    result = `Found ${matches.length} document(s) matching "${searchQuery}":\n${docList}`;
+                    const docList = matches.map(m => `- ${m.doc.name} (ID: ${m.doc.id}): ${m.doc.description || 'No description'}`).join('\n');
+                    result = `Found ${matches.length} document(s) matching "${searchQuery}":\n${docList}\n\nUse knowledge_base_get with the document ID to fetch full content.`;
+                  }
+                }
+              } catch (e) {
+                result = `Error: ${e instanceof Error ? e.message : String(e)}`;
+              }
+            } else if (tc.name === "knowledge_base_get") {
+              // Get full document content by ID
+              try {
+                const docId = args.id as string;
+                if (!docId) {
+                  result = "Error: No document ID provided.";
+                } else {
+                  const content = getKnowledgeDocumentContent(docId);
+                  if (!content) {
+                    result = `Document not found: ${docId}`;
+                  } else {
+                    const doc = getKnowledgeDocuments().find(d => d.id === docId);
+                    result = `--- ${doc?.name || docId} ---\n\n${content}`;
                   }
                 }
               } catch (e) {
