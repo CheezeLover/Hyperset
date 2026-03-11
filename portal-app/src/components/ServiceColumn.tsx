@@ -4,6 +4,8 @@ import React from "react";
 
 interface Page {
   name: string;
+  icon?: string;
+  iconColor?: string;
 }
 
 interface ServiceColumnProps {
@@ -16,11 +18,11 @@ interface ServiceColumnProps {
   onDisconnect?: () => void;
 }
 
-function pageIcon(name: string) {
-  const letter = name.charAt(0).toUpperCase();
+function pageIcon(name: string, icon?: string, iconColor?: string) {
+  const displayChar = icon || name.charAt(0).toUpperCase();
   return (
     <svg viewBox="0 0 24 24" width={20} height={20}>
-      <rect x="3" y="3" width="18" height="18" rx="4" fill="currentColor" opacity={0.15} />
+      <rect x="3" y="3" width="18" height="18" rx="4" fill={iconColor || "currentColor"} opacity={0.15} />
       <text
         x="12"
         y="16.5"
@@ -28,10 +30,10 @@ function pageIcon(name: string) {
         fontSize="11"
         fontFamily="system-ui,sans-serif"
         fontWeight="600"
-        fill="currentColor"
+        fill={iconColor || "currentColor"}
         opacity={0.9}
       >
-        {letter}
+        {displayChar}
       </text>
     </svg>
   );
@@ -169,7 +171,7 @@ export function ServiceColumn({
           onClick={() => onTogglePage(page.name)}
           colorScheme="secondary"
         >
-          {pageIcon(page.name)}
+          {pageIcon(page.name, page.icon, page.iconColor)}
         </ServiceBtn>
       ))}
 
