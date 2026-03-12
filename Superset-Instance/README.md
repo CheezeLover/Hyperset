@@ -72,11 +72,11 @@ chmod +x standalone-setup.sh
 **Used by:** Integrated deployment (mounted in compose file)
 
 ### superset_config.py
-**Purpose:** Additional base configuration (optional). 
+**Purpose:** Additional base configuration (optional).
 
-**Used by:** Standalone deployment via `superset_test_setup.sh`
+**Used by:** Standalone deployment via `standalone-setup.sh`
 
-### superset_test_setup.sh
+### standalone-setup.sh
 **Purpose:** Standalone Superset deployment script.
 
 **What it does:**

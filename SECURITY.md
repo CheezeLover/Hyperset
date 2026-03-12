@@ -350,14 +350,6 @@ pip-audit -r Superset-MCP/requirements.txt
 
 ---
 
-## 📞 SECURITY CONTACTS
-
-- **Security Team**: security@yourcompany.com
-- **On-Call**: +1-xxx-xxx-xxxx
-- **Emergency**: pagerduty/on-call rotation
-
----
-
 ## 🔄 REGULAR MAINTENANCE
 
 **Weekly:**
@@ -380,5 +372,4 @@ pip-audit -r Superset-MCP/requirements.txt
 
 ---
 
-*Last Updated: March 2026*  
-*Security Contact: security@yourcompany.com*
+*Last Updated: March 2026*
