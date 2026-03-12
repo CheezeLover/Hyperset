@@ -16,7 +16,6 @@ services:
       - ./Caddy/Caddyfile:/etc/caddy/Caddyfile:Z
       - ./Caddy/users.json:/data/users.json:Z
       - ./Caddy/bridge.js:/Caddy/bridge.js:Z
-      - ./Caddy/chat.html:/Caddy/chat.html:Z
       - ./theme.json:/Caddy/theme.json:Z
       - ./logos:/Caddy/logos:Z
       - caddy_data:/data/caddy
