@@ -342,20 +342,25 @@ export function HypersetLayout({
       document.body.style.userSelect = "";
     };
 
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseup", handleMouseUp);
-    document.addEventListener("touchmove", (e) => {
+    const handleTouchMove = (e: TouchEvent) => {
       if (dragging.current) {
         e.preventDefault();
         handleMouseMove(e.touches[0] as unknown as MouseEvent);
       }
-    }, { passive: false });
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+    document.addEventListener("touchmove", handleTouchMove, { passive: false });
     document.addEventListener("touchend", handleMouseUp);
     document.addEventListener("touchcancel", handleMouseUp);
 
     return () => {
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
+      document.removeEventListener("touchmove", handleTouchMove);
+      document.removeEventListener("touchend", handleMouseUp);
+      document.removeEventListener("touchcancel", handleMouseUp);
     };
   }, []);
 
@@ -491,19 +496,32 @@ function Resizer({
 
   return (
     <div
-      onMouseDown={onMouseDown}
-      onTouchStart={onTouchStart}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
       style={{
+        position: "relative",
         width: isPortrait ? "100%" : 3,
         height: isPortrait ? 3 : "100%",
         background: backgroundColor,
-        cursor: isPortrait ? "row-resize" : "col-resize",
         flexShrink: 0,
         zIndex: 10,
         transition: "background 0.2s",
       }}
-    />
+    >
+      {/* Expanded hit area for touch without changing visual appearance */}
+      <div
+        onMouseDown={onMouseDown}
+        onTouchStart={onTouchStart}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        style={{
+          position: "absolute",
+          top: isPortrait ? -12 : 0,
+          bottom: isPortrait ? -12 : 0,
+          left: isPortrait ? 0 : -12,
+          right: isPortrait ? 0 : -12,
+          cursor: isPortrait ? "row-resize" : "col-resize",
+          touchAction: "none",
+        }}
+      />
+    </div>
   );
 }
