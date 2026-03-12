@@ -44,12 +44,14 @@ function ServiceBtn({
   tooltip,
   onClick,
   colorScheme,
+  isPortrait,
   children,
 }: {
   active: boolean;
   tooltip: string;
   onClick: () => void;
   colorScheme: "primary" | "secondary";
+  isPortrait: boolean;
   children: React.ReactNode;
 }) {
   const [hovered, setHovered] = React.useState(false);
@@ -97,8 +99,8 @@ function ServiceBtn({
       >
         {children}
       </button>
-      {/* Tooltip */}
-      {hovered && (
+      {/* Tooltip — desktop only */}
+      {hovered && !isPortrait && (
         <div
           style={{
             position: "absolute",
@@ -156,6 +158,7 @@ export function ServiceColumn({
         tooltip="Chat"
         onClick={onToggleChat}
         colorScheme="primary"
+        isPortrait={isPortraitMode}
       >
         <svg viewBox="0 0 24 24" width={20} height={20} fill="currentColor">
           <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z" />
@@ -170,6 +173,7 @@ export function ServiceColumn({
           tooltip={page.name.charAt(0).toUpperCase() + page.name.slice(1)}
           onClick={() => onTogglePage(page.name)}
           colorScheme="secondary"
+          isPortrait={isPortraitMode}
         >
           {pageIcon(page.name, page.icon, page.iconColor)}
         </ServiceBtn>
@@ -185,6 +189,7 @@ export function ServiceColumn({
           tooltip="Disconnect"
           onClick={onDisconnect}
           colorScheme="secondary"
+          isPortrait={isPortraitMode}
         >
           <svg viewBox="0 0 24 24" width={20} height={20} fill="currentColor">
             <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
