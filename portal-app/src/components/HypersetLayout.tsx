@@ -299,13 +299,12 @@ export function HypersetLayout({
   );
 
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
+    const handleMove = (clientX: number, clientY: number) => {
       if (!dragging.current) return;
-      e.preventDefault();
       const container = document.getElementById("hyperset-container");
       if (!container) return;
       const rect = container.getBoundingClientRect();
-      const pos = isPortraitModeRef.current ? e.clientY - rect.top : e.clientX - rect.left;
+      const pos = isPortraitModeRef.current ? clientY - rect.top : clientX - rect.left;
       const d = dragging.current;
       const delta = pos - d.startPos;
       const flexPerPx = d.totalFlex / d.containerSize;
@@ -321,6 +320,12 @@ export function HypersetLayout({
           p.key === d.key ? { ...p, flex: newPanel } : p
         )
       );
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!dragging.current) return;
+      e.preventDefault();
+      handleMove(e.clientX, e.clientY);
     };
 
     const handleMouseUp = () => {
@@ -343,10 +348,10 @@ export function HypersetLayout({
     };
 
     const handleTouchMove = (e: TouchEvent) => {
-      if (dragging.current) {
-        e.preventDefault();
-        handleMouseMove(e.touches[0] as unknown as MouseEvent);
-      }
+      if (!dragging.current) return;
+      e.preventDefault();
+      const touch = e.touches[0];
+      if (touch) handleMove(touch.clientX, touch.clientY);
     };
 
     document.addEventListener("mousemove", handleMouseMove);
