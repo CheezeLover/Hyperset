@@ -6,8 +6,7 @@ The Next.js frontend for Hyperset. Provides the main UI, the AI chat interface, 
 
 ## Stack
 
-- **Next.js 15** (App Router, TypeScript)
-- **Tailwind CSS**
+- **Next.js 16** (App Router, TypeScript)
 - **iron-session** for encrypted session cookies
 - **OpenAI SDK** for LLM streaming
 

@@ -173,21 +173,6 @@ Should return user info, not a 401 error.
      - Integrated mode: `http://hyperset-superset:8088`
      - External mode: Your external Superset URL
 
-## Diagnostic Script
-
-Run the `diagnose.sh` script:
-
-```bash
-chmod +x diagnose.sh
-./diagnose.sh
-```
-
-This will:
-1. Check all containers
-2. Verify networking
-3. Test SSO headers
-4. Show recommendations
-
 ## Nuclear Option: Full Reset
 
 If nothing works, do a complete reset:

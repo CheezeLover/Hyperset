@@ -355,7 +355,7 @@ podman-compose up --build -d superset-mcp
 **Superset:**
 ```bash
 cd Superset-Instance
-./superset_test_setup.sh  # Uses pinned version 6.0.0
+./standalone-setup.sh  # Uses pinned version 6.0.0
 ```
 
 ### Backup & Restore
