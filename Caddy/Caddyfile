@@ -33,7 +33,6 @@
             ui {
                 links {
                     "Portal" https://{$HYPERSET_DOMAIN}
-                    "Chat" https://chat.{$HYPERSET_DOMAIN}
                     "Superset" https://superset.{$HYPERSET_DOMAIN}
                     "Pages" https://pages.{$HYPERSET_DOMAIN}
                 }
@@ -123,47 +122,6 @@ pages.{$HYPERSET_DOMAIN} {
     header Strict-Transport-Security "max-age=31536000; includeSubDomains"
 }
 
-# ── Mobile chat interface ──────────────────────────────────────
-chat.{$HYPERSET_DOMAIN} {
-    tls internal {
-        on_demand
-    }
-    authorize with mypolicy
-
-    # Theme and branding assets
-    handle /theme.json {
-        root * /Caddy
-        file_server
-        header Content-Type "application/json"
-        header Cache-Control "no-cache"
-        header Access-Control-Allow-Origin "*"
-    }
-    
-    handle /logos/* {
-        root * /Caddy
-        file_server
-        header Cache-Control "public, max-age=86400"
-        header Access-Control-Allow-Origin "*"
-    }
-
-    handle /api/* {
-        reverse_proxy hyperset-portal:3000 {
-            header_up X-Token-User-Id    {http.request.header.X-Token-User-Id}
-            header_up X-Token-User-Email {http.request.header.X-Token-User-Email}
-            header_up X-Token-User-Roles {http.request.header.X-Token-User-Roles}
-            flush_interval -1
-        }
-    }
-
-    handle {
-        root * /Caddy
-        rewrite * /chat.html
-        file_server
-    }
-
-    header Strict-Transport-Security "max-age=31536000; includeSubDomains"
-}
-
 # ── Superset with bridge.js injection ─────────────────────────
 superset.{$HYPERSET_DOMAIN} {
     tls internal {
@@ -215,6 +173,6 @@ superset.{$HYPERSET_DOMAIN} {
         replace </BODY> "<script src=\"/bridge.js\"></script></BODY>"
     }
 
-    header Content-Security-Policy "default-src 'self'; frame-ancestors 'self' https://{$HYPERSET_DOMAIN} https://chat.{$HYPERSET_DOMAIN}; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://{$HYPERSET_DOMAIN} https://chat.{$HYPERSET_DOMAIN}; media-src 'self'; object-src 'none'; frame-src 'self' https://{$HYPERSET_DOMAIN} https://chat.{$HYPERSET_DOMAIN}; base-uri 'self'; form-action 'self';"
+    header Content-Security-Policy "default-src 'self'; frame-ancestors 'self' https://{$HYPERSET_DOMAIN}; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://{$HYPERSET_DOMAIN}; media-src 'self'; object-src 'none'; frame-src 'self' https://{$HYPERSET_DOMAIN}; base-uri 'self'; form-action 'self';"
     header Strict-Transport-Security "max-age=31536000; includeSubDomains"
 }
