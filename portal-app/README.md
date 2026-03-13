@@ -32,9 +32,9 @@ Copy the root `.env` and ensure these are available to the Next.js process. In p
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `HYPERSET_DOMAIN` | `hyperset.internal` | Base domain. Used to derive Superset and Pages URLs when the explicit URL vars are blank or unset. |
-| `SUPERSET_PUBLIC_URL` | `https://superset.{HYPERSET_DOMAIN}` | Browser-accessible Superset URL. Leave blank to derive it automatically. |
-| `PAGES_PUBLIC_URL` | `https://pages.{HYPERSET_DOMAIN}` | Browser-accessible Pages service URL. Leave blank to derive it automatically. |
+| `HYPERSET_DOMAIN` | `hyperset.internal` | Base domain. Used to derive Superset and Pages URLs when the explicit URL vars are not set. |
+| `SUPERSET_PUBLIC_URL` | `https://superset.{HYPERSET_DOMAIN}` | Browser-accessible Superset URL. Returned to the frontend for iframe embedding. |
+| `PAGES_PUBLIC_URL` | `https://pages.{HYPERSET_DOMAIN}` | Browser-accessible Pages service URL. |
 | `SESSION_SECRET` | _(required)_ | Min-32-char secret for iron-session encryption. |
 | `MCP_SERVICE_SECRET` | _(required)_ | Min-32-char HMAC secret shared with the MCP server for token signing. |
 | `SUPERSET_MCP_URL` | `http://hyperset-superset-mcp:8000/mcp` | Internal URL of the MCP server. Override in local dev: `http://localhost:8000/mcp`. |

@@ -78,15 +78,15 @@ All variables can be set in `Superset-MCP/.env` or passed as environment variabl
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SUPERSET_UPSTREAM` | `http://hyperset-superset:8088` | Internal URL of the Superset instance. Also accepted as `SUPERSET_BASE_URL` (legacy alias). Leave blank in the root `.env` to use the default podman network hostname. |
-| `SUPERSET_PUBLIC_URL` | `https://superset.{HYPERSET_DOMAIN}` | Browser-accessible Superset URL. Used to build iframe embed links and chart/dashboard links returned to the chat. Leave it blank to derive it automatically from `HYPERSET_DOMAIN`; if no domain is set, the MCP server falls back to `SUPERSET_UPSTREAM`. |
+| `SUPERSET_UPSTREAM` | `http://localhost:8088` | Internal URL of the Superset instance. Also accepted as `SUPERSET_BASE_URL` (legacy alias). |
+| `SUPERSET_PUBLIC_URL` | _(same as `SUPERSET_UPSTREAM`)_ | Browser-accessible Superset URL. Used to build iframe embed links and chart/dashboard links returned to the chat. Must be reachable by the end-user's browser — set this explicitly if `SUPERSET_UPSTREAM` is an internal hostname. |
 
 ### Portal Integration
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `HYPERSET_DOMAIN` | _(empty)_ | Base domain (e.g., `hyperset.internal`). Used to derive the Superset URL as `https://superset.{HYPERSET_DOMAIN}` and the portal URL as `https://{HYPERSET_DOMAIN}`. |
-| `HYPERSET_PORTAL_URL` | `https://{HYPERSET_DOMAIN}` | Full URL of the main portal. The cleanup job fetches the configured cleanup delay from `{HYPERSET_PORTAL_URL}/api/cleanup-config` on every cycle. Override in local dev (e.g., `http://localhost:3000`). If neither `HYPERSET_DOMAIN` nor `HYPERSET_PORTAL_URL` is set, the cleanup job falls back to `HYPERSET_CLEANUP_DELAY_MINUTES`. |
+| `HYPERSET_DOMAIN` | _(empty)_ | Base domain (e.g., `hyperset.internal`). Used to derive the portal URL as `https://pages.{HYPERSET_DOMAIN}`. |
+| `HYPERSET_PORTAL_URL` | `https://pages.{HYPERSET_DOMAIN}` | Full URL of the portal's Pages service. The cleanup job fetches the configured cleanup delay from `{HYPERSET_PORTAL_URL}/api/cleanup-config` on every cycle. Override in local dev (e.g., `http://localhost:3000`). If neither `HYPERSET_DOMAIN` nor `HYPERSET_PORTAL_URL` is set, the cleanup job falls back to `HYPERSET_CLEANUP_DELAY_MINUTES`. |
 
 ### AI Chart Cleanup
 
