@@ -176,8 +176,8 @@ All variables live in the root `.env` file and are shared across containers via 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `SUPERSET_SECRET_KEY` | ✅ | — | 42-byte base64 secret for Superset session encryption and security. Generate: `openssl rand -base64 42` |
-| `SUPERSET_UPSTREAM` | — | `http://hyperset-superset:8088` | Internal address of your Superset instance as seen by Caddy and the MCP server. Leave blank in `.env` to use the default podman network hostname. |
-| `SUPERSET_PUBLIC_URL` | — | `https://superset.{HYPERSET_DOMAIN}` | Browser-accessible Superset URL. Must be reachable by the end-user's browser. Leave blank in `.env` to derive it automatically from `HYPERSET_DOMAIN`. |
+| `SUPERSET_UPSTREAM` | ✅ | — | Internal address of your Superset instance as seen by Caddy and the MCP server. Use `http://hyperset-superset:8088` |
+| `SUPERSET_PUBLIC_URL` | ✅ | `https://superset.{HYPERSET_DOMAIN}` | Browser-accessible Superset URL. Must be reachable by the end-user's browser. Used for iframe embeds and links in chat. |
 | `SUPERSET_MCP_USER` | — | `admin` | Superset username the portal impersonates when making MCP calls on behalf of users. In `AUTH_REMOTE_USER` mode no password is needed. |
 | `SUPERSET_MCP_PASSWORD` | — | _(empty)_ | Superset password. Only required if Superset uses classic database authentication instead of `AUTH_REMOTE_USER`. |
 
@@ -199,7 +199,7 @@ All variables live in the root `.env` file and are shared across containers via 
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `PAGES_PUBLIC_URL` | — | `https://pages.{HYPERSET_DOMAIN}` | Browser-accessible URL of the Pages service. Leave blank in `.env` to derive it automatically from `HYPERSET_DOMAIN`. |
+| `PAGES_PUBLIC_URL` | — | `https://pages.{HYPERSET_DOMAIN}` | Browser-accessible URL of the Pages service. Used by the portal to load custom pages. |
 
 ### AI Chart Cleanup
 
@@ -223,7 +223,7 @@ These are only needed if you run the MCP server outside of podman-compose or nee
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `SUPERSET_MCP_URL` | — | `http://hyperset-superset-mcp:8000/mcp` | Full URL of the MCP server as seen by the portal. Override in local dev (e.g., `http://localhost:8000/mcp`). |
-| `HYPERSET_PORTAL_URL` | — | `https://{HYPERSET_DOMAIN}` | URL the MCP server uses to fetch runtime admin settings (cleanup delay). Leave blank in `.env` to target the main portal automatically. Override in local dev (e.g., `http://localhost:3000`). |
+| `HYPERSET_PORTAL_URL` | — | `https://pages.{HYPERSET_DOMAIN}` | URL the MCP server uses to fetch runtime admin settings (cleanup delay). Override in local dev (e.g., `http://localhost:3000`). |
 | `HYPERSET_CLEANUP_USER` | — | `admin@HYPERSET.local` | Superset username the cleanup job impersonates when deleting stale AI charts. Must be a valid Superset admin. |
 | `HYPERSET_CLEANUP_EMAIL` | — | `admin@HYPERSET.local` | Superset email for the cleanup job identity. |
 | `MCP_TRANSPORT` | — | `streamable-http` | MCP transport mode. Use `stdio` for Claude Desktop integration. |
