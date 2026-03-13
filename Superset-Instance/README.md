@@ -2,11 +2,9 @@
 
 This directory contains configuration files for Apache Superset integration with Hyperset.
 
-## Two Deployment Options
+## Integrated Deployment
 
-### Option 1: Integrated Deployment (Recommended for New Users)
-
-The easiest way to get started is using the integrated Superset deployment included in Hyperset's main `podman-compose.yml`.
+Hyperset deploys with an integrated Superset instance for a streamlined, secure setup.
 
 **Benefits:**
 - Everything runs with one command
@@ -18,7 +16,6 @@ The easiest way to get started is using the integrated Superset deployment inclu
 **Setup:**
 1. In your root `.env` file, set:
    ```env
-   DEPLOY_WITH_SUPERSET=true
    SUPERSET_SECRET_KEY=$(openssl rand -base64 42)
    ```
 2. Run `./setup_podman.sh`
@@ -31,29 +28,7 @@ The integrated stack will start:
 - `hyperset-superset-beat` (Celery scheduler)
 - `hyperset-superset-init` (one-time initialization)
 
-**Important:** When using integrated mode, Superset is NOT accessible on port 8088 directly. You must access it through Caddy at `https://superset.your-domain.com`. This ensures SSO headers are always present and users cannot bypass authentication.
-
-### Option 2: External/Standalone Superset
-
-Use this if you:
-- Already have a Superset instance
-- Want to run Superset on a different machine
-- Prefer to manage Superset separately
-- Are using a cloud-hosted Superset
-
-**Setup:**
-1. Keep `DEPLOY_WITH_SUPERSET=false` in your `.env`
-2. Set `SUPERSET_UPSTREAM` to your Superset URL
-3. Configure your Superset for header-based auth (see below)
-
-For standalone deployment, you can use the provided script:
-```bash
-cd Superset-Instance
-chmod +x standalone-setup.sh
-./standalone-setup.sh
-```
-
-**Note:** This script is for deploying Superset separately from Hyperset. If you're using the integrated deployment (`DEPLOY_WITH_SUPERSET=true`), you don't need to run this script.
+**Important:** Superset is NOT accessible on port 8088 directly. You must access it through Caddy at `https://superset.your-domain.com`. This ensures SSO headers are always present and users cannot bypass authentication.
 
 ## Configuration Files
 
@@ -122,12 +97,11 @@ Set these in your root `.env`:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `DEPLOY_WITH_SUPERSET` | Yes | Must be `true` |
 | `SUPERSET_SECRET_KEY` | Yes | Session encryption key |
 | `HYPERSET_DOMAIN` | Yes | Your Hyperset domain |
 | `SUPERSET_PUBLIC_URL` | Yes | Browser-accessible URL |
 
-### For Standalone/External Deployment
+### For External Superset (Optional)
 
 Configure these in your Superset's environment:
 

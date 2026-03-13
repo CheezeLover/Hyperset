@@ -8,23 +8,7 @@ It runs entirely in containers (Podman), requires no cloud services, and is desi
 
 ## 🚀 Quick Start
 
-### Choose Your Deployment Mode
-
-Hyperset supports two deployment modes:
-
-**Mode A: Integrated Superset (Easiest)** ⭐ Recommended for new users
-- Everything runs in one command
-- PostgreSQL, Redis, and Superset included
-- No external dependencies
-
-**Mode B: External Superset (Flexible)**
-- Connect to your existing Superset instance
-- Use managed cloud Superset or self-hosted
-- Full control over Superset configuration
-
----
-
-### Mode A: Integrated Superset (5-Minute Setup)
+Hyperset deploys with an integrated Superset instance for a streamlined, secure setup.
 
 **Prerequisites:**
 - Debian 12+ machine (physical, VM, or LXC)
@@ -46,16 +30,10 @@ cp .env .env.bak
 # 1. AUTH_CRYPTO_KEY - openssl rand -hex 32
 # 2. SESSION_SECRET - openssl rand -base64 32
 # 3. MCP_SERVICE_SECRET - openssl rand -hex 32
-# 4. SUPERSET_SECRET_KEY - openssl rand -base64 42  (for integrated mode)
+# 4. SUPERSET_SECRET_KEY - openssl rand -base64 42
 ```
 
-**3. Enable integrated Superset:**
-```bash
-# In your .env file, set:
-DEPLOY_WITH_SUPERSET=true
-```
-
-**4. Set up DNS / hosts file:**
+**3. Set up DNS / hosts file:**
 ```
 # Add to /etc/hosts or your DNS server
 <server-ip>  hyperset.internal
@@ -75,11 +53,11 @@ chmod +x setup_podman.sh
 - Visit `https://auth.hyperset.internal`
 - Register — the first user is automatically granted the `authp/admin` role
 
-**7. Open the portal:**
+**5. Open the portal:**
 - Go to `https://hyperset.internal`
 - Click **Chat** in the sidebar to talk to your data
 
-**8. Access Superset (integrated mode only):**
+**6. Access Superset:**
 - **Important:** Always use `https://superset.hyperset.internal`
 - **Do NOT** use `http://your-server:8088` - this bypasses authentication
 - When you access Superset through Caddy, you'll be automatically logged in via SSO
@@ -87,33 +65,7 @@ chmod +x setup_podman.sh
 
 ---
 
-### Mode B: External Superset
-
-If you already have a Superset instance, connect it instead of deploying the integrated one.
-
-**1. Keep or set:**
-```env
-DEPLOY_WITH_SUPERSET=false
-SUPERSET_UPSTREAM=https://superset.mycompany.com  # or http://localhost:8088
-```
-
-**2. Configure your external Superset for header-based SSO:**
-
-Your Superset needs these settings in `superset_config.py`:
-```python
-AUTH_TYPE = AUTH_REMOTE_USER
-REMOTE_USER_ENV_VAR = "HTTP_X_WEBAUTH_USER"
-AUTH_USER_REGISTRATION = True
-AUTH_USER_REGISTRATION_ROLE = "Gamma"
-```
-
-See the [Superset-Instance README](Superset-Instance/README.md) for configuration details and the standalone deployment option.
-
----
-
-## 📦 External Superset Deployment (Optional)
-
-If you're not using the integrated Superset deployment (`DEPLOY_WITH_SUPERSET=true`), you can deploy Superset separately using the standalone setup script.
+## 📦 Superset Standalone Setup (Optional)
 
 ### Using the standalone setup script
 
@@ -137,19 +89,9 @@ chmod +x standalone-setup.sh
 SUPERSET_PORT=8088 SUPERSET_SECRET_KEY=$(openssl rand -hex 32) ./standalone-setup.sh
 ```
 
-**Connect to Hyperset:**
-```env
-# In your Hyperset .env
-DEPLOY_WITH_SUPERSET=false
-SUPERSET_UPSTREAM=http://localhost:8088
-SUPERSET_PUBLIC_URL=https://superset.hyperset.internal
-```
-
 ---
 
 ## 🔧 Architecture
-
-### Mode A: Integrated Superset (DEPLOY_WITH_SUPERSET=true)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -177,31 +119,12 @@ SUPERSET_PUBLIC_URL=https://superset.hyperset.internal
 
 **Important:** Superset is NOT exposed on port 8088 externally. It can only be accessed through Caddy at `https://superset.your-domain.com` with SSO headers.
 
-### Mode B: External Superset (DEPLOY_WITH_SUPERSET=false)
-
-```
-┌─────────────────────────────────────┐         ┌──────────────────────────┐
-│        Hyperset Stack (Podman)      │         │    External Superset     │
-│                                     │         │  (Self-hosted or Cloud)  │
-│  Browser → Caddy (HTTPS, 80/443)   │         │                          │
-│                │                    │◄────────┤  https://superset...     │
-│                ├─► Portal (:3000)   │  Proxy  │                          │
-│                │   └─► MCP (:8000) │         └──────────────────────────┘
-│                │                    │
-│                ├─► Pages (:8001)    │
-│                │                    │
-│                └─► Auth Portal     │
-│                                     │
-│  Network: hyperset-net              │
-└─────────────────────────────────────┘
-```
-
 ### Key Architecture Principles
 
 - **Caddy is the ONLY container with host port bindings** (80, 443)
-- **Port 8088 is NOT exposed** when using integrated Superset - all access goes through Caddy
+- **Port 8088 is NOT exposed** - all access goes through Caddy
 - **All inter-service traffic stays on the internal network** (hyperset-net)
-- **Superset isolation:** In integrated mode, Superset and its dependencies (PostgreSQL, Redis) are isolated within the podman network. In external mode, only Caddy reaches the external Superset.
+- **Superset isolation:** Superset and its dependencies (PostgreSQL, Redis) are isolated within the podman network
 - **Security:** Header-based authentication with zero trust for direct Superset access
 
 ### Authentication Flow
@@ -252,9 +175,8 @@ All variables live in the root `.env` file and are shared across containers via 
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `DEPLOY_WITH_SUPERSET` | — | `false` | Deploy mode: `true` = include integrated Superset stack (PostgreSQL + Redis + Superset), `false` = use external Superset instance |
-| `SUPERSET_SECRET_KEY` | When `DEPLOY_WITH_SUPERSET=true` | — | 42-byte base64 secret for Superset session encryption and security. **Required** for integrated deployment. Generate: `openssl rand -base64 42` |
-| `SUPERSET_UPSTREAM` | ✅ | — | Internal address of your Superset instance as seen by Caddy and the MCP server. When `DEPLOY_WITH_SUPERSET=true`, use `http://hyperset-superset:8088`. When `false`, set your external Superset URL (e.g., `https://superset.mycompany.com`). |
+| `SUPERSET_SECRET_KEY` | ✅ | — | 42-byte base64 secret for Superset session encryption and security. Generate: `openssl rand -base64 42` |
+| `SUPERSET_UPSTREAM` | ✅ | — | Internal address of your Superset instance as seen by Caddy and the MCP server. Use `http://hyperset-superset:8088` |
 | `SUPERSET_PUBLIC_URL` | ✅ | `https://superset.{HYPERSET_DOMAIN}` | Browser-accessible Superset URL. Must be reachable by the end-user's browser. Used for iframe embeds and links in chat. |
 | `SUPERSET_MCP_USER` | — | `admin` | Superset username the portal impersonates when making MCP calls on behalf of users. In `AUTH_REMOTE_USER` mode no password is needed. |
 | `SUPERSET_MCP_PASSWORD` | — | _(empty)_ | Superset password. Only required if Superset uses classic database authentication instead of `AUTH_REMOTE_USER`. |
@@ -409,10 +331,10 @@ podman-compose restart caddy
 - Verify `auth.{HYPERSET_DOMAIN}` resolves correctly
 - Test Superset header auth: `curl -H "X-Webauth-User: admin@HYPERSET.local" http://localhost:8088/api/v1/me/`
 
-**🔴 Superset asking for login instead of using SSO (integrated mode)**
+**🔴 Superset asking for login instead of using SSO**
 - Ensure you're accessing Superset through Caddy: `https://superset.{HYPERSET_DOMAIN}`
 - **Do NOT access Superset directly** via `http://your-server:8088` - this bypasses authentication!
-- When `DEPLOY_WITH_SUPERSET=true`, port 8088 is intentionally NOT exposed
+- Port 8088 is intentionally NOT exposed
 - All Superset access must go through Caddy for SSO headers to be injected
 - Verify Caddy is forwarding headers in the Caddyfile:
   ```
