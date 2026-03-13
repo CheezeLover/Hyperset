@@ -114,18 +114,12 @@ SUPERSET_BASE_URL = (
 
 # Public URL used to build browser-accessible embed links.
 # Must be reachable by the end-user's browser (not an internal upstream address).
-# Derives from HYPERSET_DOMAIN if not explicitly set.
-_hyperset_domain = os.getenv("HYPERSET_DOMAIN", "")
-_superset_public_url_from_env = (os.getenv("SUPERSET_PUBLIC_URL") or "").strip()
-if _superset_public_url_from_env:
-    if not re.match(r"^https?://", _superset_public_url_from_env, flags=re.IGNORECASE):
-        SUPERSET_PUBLIC_URL = f"https://{_superset_public_url_from_env}".rstrip("/")
-    else:
-        SUPERSET_PUBLIC_URL = _superset_public_url_from_env.rstrip("/")
-elif _hyperset_domain:
-    SUPERSET_PUBLIC_URL = f"https://superset.{_hyperset_domain}"
-else:
-    SUPERSET_PUBLIC_URL = SUPERSET_BASE_URL
+# Falls back to SUPERSET_BASE_URL only as a last resort — set SUPERSET_PUBLIC_URL
+# explicitly in .env so embedded iframes resolve correctly.
+SUPERSET_PUBLIC_URL = (
+    os.getenv("SUPERSET_PUBLIC_URL")
+    or SUPERSET_BASE_URL
+)
 
 # ── AI chart cleanup identity ───────────────────────────────────────────────
 # Superset user that the auto-cleanup job impersonates when deleting stale charts.
@@ -139,6 +133,7 @@ CLEANUP_EMAIL = os.getenv("HYPERSET_CLEANUP_EMAIL", "admin@HYPERSET.local")
 # Override with HYPERSET_PORTAL_URL only if your portal runs on a non-standard
 # host (e.g. http://localhost:3000 in local dev without the domain setup).
 # If neither is set the cleanup job falls back to HYPERSET_CLEANUP_DELAY_MINUTES.
+_hyperset_domain = os.getenv("HYPERSET_DOMAIN", "")
 
 
 def _normalize_url_with_default_https(raw_url: str) -> str:
