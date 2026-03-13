@@ -52,6 +52,7 @@ Place your custom logos here and update `theme.json` to reference them:
 ### Superset Logo
 - **Size**: Should match original Superset logo dimensions
 - **Location**: Replace in Superset UI header
+- **Note**: Only used when `DEPLOY_WITH_SUPERSET=true`
 
 ## Creating Custom Logos
 

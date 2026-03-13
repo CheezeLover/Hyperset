@@ -138,7 +138,21 @@ Create your logo in any vector editor (Figma, Illustrator, Inkscape):
 </svg>
 ```
 
-## Theme Application
+## Conditional Theming
+
+### When `DEPLOY_WITH_SUPERSET=false`
+
+Only Portal theming is applied. Superset sections in `theme.json` are ignored:
+
+```json
+{
+  "superset": {
+    "enabled": false
+  }
+}
+```
+
+### When `DEPLOY_WITH_SUPERSET=true`
 
 Both Portal and Superset theming are applied automatically using the unified palette.
 
@@ -240,6 +254,7 @@ The system automatically uses `text.inverse.dark` for button text in dark mode, 
 ### Superset Logo Not Changing
 
 Verify:
+- `DEPLOY_WITH_SUPERSET=true` in `.env`
 - Logo file exists in `logos/` folder
 - Path matches in `theme.json`
 
