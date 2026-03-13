@@ -183,16 +183,11 @@ fi
 echo ""
 echo "10. Production Readiness..."
 if [ -f .env ]; then
-    DEPLOY_MODE=$(grep "^DEPLOY_WITH_SUPERSET=" .env 2>/dev/null | cut -d= -f2 | tr -d '"' || echo "false")
-    if [ "$DEPLOY_MODE" = "true" ]; then
-        check_passed "Integrated Superset deployment mode"
-        
-        # Check for database security
-        if grep -q "SUPERSET_SECRET_KEY=CHANGE_ME" .env 2>/dev/null; then
-            check_failed "Integrated Superset requires SUPERSET_SECRET_KEY to be set"
-        fi
-    else
-        check_passed "External Superset mode - verify SUPERSET_UPSTREAM is correct"
+    check_passed "Integrated Superset deployment mode"
+    
+    # Check for database security
+    if grep -q "SUPERSET_SECRET_KEY=CHANGE_ME" .env 2>/dev/null; then
+        check_failed "Integrated Superset requires SUPERSET_SECRET_KEY to be set"
     fi
 fi
 

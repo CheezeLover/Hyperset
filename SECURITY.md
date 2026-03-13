@@ -2,9 +2,7 @@
 
 ## Executive Summary
 
-This guide provides comprehensive security hardening for both deployment modes:
-- **Mode A**: `DEPLOY_WITH_SUPERSET=true` (Integrated Stack)
-- **Mode B**: `DEPLOY_WITH_SUPERSET=false` (External Superset)
+Hyperset deploys with an integrated Superset stack (PostgreSQL + Redis + Superset).
 
 **Critical Security Level**: ⚠️ HIGH - Analytics platforms handle sensitive business data
 
@@ -41,7 +39,7 @@ This guide provides comprehensive security hardening for both deployment modes:
 
 ---
 
-## 🔐 MODE A: Integrated Superset (`DEPLOY_WITH_SUPERSET=true`)
+## 🔐 Integrated Superset Deployment
 
 ### Additional Security Considerations
 
@@ -136,55 +134,6 @@ This guide provides comprehensive security hardening for both deployment modes:
    # Enable query cost estimation
    ENABLE_COST_ESTIMATE = True
    ```
-
----
-
-## 🔐 MODE B: External Superset (`DEPLOY_WITH_SUPERSET=false`)
-
-### Additional Security Considerations
-
-#### External Superset Security
-**Current Risk**: Communication with external Superset may be unencrypted
-**Impact**: HIGH - Man-in-the-middle attacks possible
-
-**Hardening Steps:**
-
-1. **Enforce HTTPS Only**
-   ```bash
-   # Verify SUPERSET_UPSTREAM uses HTTPS
-   if [[ "$SUPERSET_UPSTREAM" != https://* ]]; then
-       echo "⚠️ WARNING: External Superset should use HTTPS"
-   fi
-   ```
-
-2. **Certificate Pinning**
-   Add certificate fingerprint validation in `superset_config_docker.py`:
-   ```python
-   # Pin external Superset certificate
-   EXTERNAL_SUPERSET_CERT_PIN = os.getenv("EXTERNAL_SUPERSET_CERT_PIN", "")
-   if EXTERNAL_SUPERSET_CERT_PIN:
-       # Add certificate validation logic
-       pass
-   ```
-
-3. **API Rate Limiting**
-   Configure in external Superset:
-   ```python
-   RATELIMIT_STORAGE_URI = "redis://redis:6379/0"
-   AUTH_RATE_LIMITED = True
-   AUTH_RATE_LIMIT = "5 per minute"
-   ```
-
-#### Communication Security
-
-1. **Mutual TLS (mTLS)**
-   If both Hyperset and external Superset are under your control:
-   - Enable client certificate authentication
-   - Verify both server and client certificates
-
-2. **API Key Rotation**
-   - Rotate SUPerset MCP credentials every 90 days
-   - Use service account with minimal permissions
 
 ---
 
