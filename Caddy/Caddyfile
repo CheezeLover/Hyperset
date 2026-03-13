@@ -173,6 +173,6 @@ superset.{$HYPERSET_DOMAIN} {
         replace </BODY> "<script src=\"/bridge.js\"></script></BODY>"
     }
 
-    header Content-Security-Policy "default-src 'self'; frame-ancestors 'self' https://{$HYPERSET_DOMAIN}; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://{$HYPERSET_DOMAIN}; media-src 'self'; object-src 'none'; frame-src 'self' https://{$HYPERSET_DOMAIN}; base-uri 'self'; form-action 'self';"
+    header Content-Security-Policy "default-src 'self'; frame-ancestors 'self' https://{$HYPERSET_DOMAIN} https://pages.{$HYPERSET_DOMAIN}; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://{$HYPERSET_DOMAIN}; media-src 'self'; object-src 'none'; frame-src 'self' https://{$HYPERSET_DOMAIN} https://pages.{$HYPERSET_DOMAIN}; base-uri 'self'; form-action 'self';"
     header Strict-Transport-Security "max-age=31536000; includeSubDomains"
 }
