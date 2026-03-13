@@ -26,9 +26,11 @@ generate_secrets() {
   update_secret() {
     local key="$1"
     local value="$2"
+    local old_value="$3"
     if grep -q "^${key}=" "$env_file"; then
-      if grep -q "^${key}=CHANGE_ME" "$env_file" || grep -q "^${key}=$3" "$env_file"; then
-        sed -i "s/^${key}=.*/${key}=${value}/" "$env_file"
+      if grep -q "^${key}=CHANGE_ME" "$env_file" || grep -q "^${key}=${old_value}" "$env_file"; then
+        # Use different delimiter to avoid issues with / in base64
+        sed -i "s|^${key}=.*|${key}=${value}|" "$env_file"
         secrets_changed=true
       fi
     else
