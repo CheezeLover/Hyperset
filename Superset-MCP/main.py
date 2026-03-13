@@ -106,10 +106,37 @@ except Exception as _e:
     logger.warning("Could not load chart_type.json: %s", _e)
 
 # Constants
-SUPERSET_BASE_URL = (
-    os.getenv("SUPERSET_UPSTREAM")
-    or os.getenv("SUPERSET_BASE_URL")
-    or "http://localhost:8088"
+def _read_env(name: str) -> str:
+    return (os.getenv(name, "") or "").strip()
+
+
+def _normalize_service_url(raw_url: str, default_scheme: str = "https") -> str:
+    """Normalize service URLs from env vars and add a default scheme if missing."""
+    url = (raw_url or "").strip()
+    if not url:
+        return ""
+    if not re.match(r"^https?://", url, flags=re.IGNORECASE):
+        url = f"{default_scheme}://{url}"
+    return url.rstrip("/")
+
+
+_hyperset_domain = _read_env("HYPERSET_DOMAIN")
+
+
+def _derived_public_url(env_name: str, subdomain: str, fallback: str = "") -> str:
+    explicit = _normalize_service_url(_read_env(env_name))
+    if explicit:
+        return explicit
+    if _hyperset_domain:
+        return f"https://{subdomain}.{_hyperset_domain}"
+    return _normalize_service_url(fallback)
+
+
+SUPERSET_BASE_URL = _normalize_service_url(
+    _read_env("SUPERSET_UPSTREAM")
+    or _read_env("SUPERSET_BASE_URL")
+    or "http://hyperset-superset:8088",
+    default_scheme="http",
 )
 
 # Public URL used to build browser-accessible embed links.
@@ -117,8 +144,7 @@ SUPERSET_BASE_URL = (
 # Falls back to SUPERSET_BASE_URL only as a last resort — set SUPERSET_PUBLIC_URL
 # explicitly in .env so embedded iframes resolve correctly.
 SUPERSET_PUBLIC_URL = (
-    os.getenv("SUPERSET_PUBLIC_URL")
-    or SUPERSET_BASE_URL
+    _derived_public_url("SUPERSET_PUBLIC_URL", "superset", SUPERSET_BASE_URL)
 )
 
 # ── AI chart cleanup identity ───────────────────────────────────────────────
@@ -133,24 +159,10 @@ CLEANUP_EMAIL = os.getenv("HYPERSET_CLEANUP_EMAIL", "admin@HYPERSET.local")
 # Override with HYPERSET_PORTAL_URL only if your portal runs on a non-standard
 # host (e.g. http://localhost:3000 in local dev without the domain setup).
 # If neither is set the cleanup job falls back to HYPERSET_CLEANUP_DELAY_MINUTES.
-_hyperset_domain = os.getenv("HYPERSET_DOMAIN", "")
 
 
-def _normalize_url_with_default_https(raw_url: str) -> str:
-    """
-    Normalize service URLs from env vars.
-    If protocol is missing, default to https://.
-    """
-    url = (raw_url or "").strip()
-    if not url:
-        return ""
-    if not re.match(r"^https?://", url, flags=re.IGNORECASE):
-        url = f"https://{url}"
-    return url.rstrip("/")
-
-
-PORTAL_URL = _normalize_url_with_default_https(
-    os.getenv("HYPERSET_PORTAL_URL")
+PORTAL_URL = _normalize_service_url(
+    _read_env("HYPERSET_PORTAL_URL")
     or (f"https://{_hyperset_domain}" if _hyperset_domain else "")
 )
 
@@ -159,12 +171,12 @@ def _portal_url_candidates() -> list[str]:
     """Return portal base URLs to try, in priority order."""
     candidates: list[str] = []
 
-    explicit = _normalize_url_with_default_https(os.getenv("HYPERSET_PORTAL_URL", ""))
+    explicit = _normalize_service_url(_read_env("HYPERSET_PORTAL_URL"))
     if explicit:
         candidates.append(explicit)
 
     if _hyperset_domain:
-        candidates.append(_normalize_url_with_default_https(f"https://{_hyperset_domain}"))
+        candidates.append(_normalize_service_url(f"https://{_hyperset_domain}"))
 
     # In-container fallbacks on the podman network
     candidates.append("http://hyperset-portal:3000")
