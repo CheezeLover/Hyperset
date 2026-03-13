@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/auth";
+import { getPagesPublicUrl, getSupersetPublicUrl } from "@/lib/public-urls";
 
 export async function GET(request: NextRequest) {
   const user = getUserFromRequest(request);
-  const supersetUrl =
-    process.env.SUPERSET_PUBLIC_URL ??
-    `https://superset.${process.env.HYPERSET_DOMAIN ?? "hyperset.internal"}`;
-  const pagesUrl =
-    process.env.PAGES_PUBLIC_URL ??
-    `https://pages.${process.env.HYPERSET_DOMAIN ?? "hyperset.internal"}`;
+  const supersetUrl = getSupersetPublicUrl();
+  const pagesUrl = getPagesPublicUrl();
 
   return NextResponse.json({
     supersetUrl,
