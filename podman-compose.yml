@@ -9,7 +9,7 @@ services:
     environment:
       - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
       - AUTH_CRYPTO_KEY=${AUTH_CRYPTO_KEY}
-      - SUPERSET_UPSTREAM=${SUPERSET_UPSTREAM:-http://hyperset-superset:8088}
+      - SUPERSET_UPSTREAM=${SUPERSET_UPSTREAM}
     env_file:
       - ./.env
     volumes:
@@ -43,9 +43,9 @@ services:
     environment:
       - MCP_SERVICE_SECRET=${MCP_SERVICE_SECRET}
       - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
-      - HYPERSET_PORTAL_URL=${HYPERSET_PORTAL_URL:-https://pages.${HYPERSET_DOMAIN}}
-      - SUPERSET_UPSTREAM=${SUPERSET_UPSTREAM:-http://hyperset-superset:8088}
-      - SUPERSET_PUBLIC_URL=${SUPERSET_PUBLIC_URL:-https://superset.${HYPERSET_DOMAIN}}
+      - HYPERSET_PORTAL_URL=${HYPERSET_PORTAL_URL}
+      - SUPERSET_UPSTREAM=${SUPERSET_UPSTREAM}
+      - SUPERSET_PUBLIC_URL=${SUPERSET_PUBLIC_URL}
       - SUPERSET_MCP_USER=${SUPERSET_MCP_USER}
       - SUPERSET_MCP_PASSWORD=${SUPERSET_MCP_PASSWORD}
     env_file:
@@ -64,8 +64,8 @@ services:
     environment:
       - MCP_SERVICE_SECRET=${MCP_SERVICE_SECRET}
       - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
-      - SUPERSET_PUBLIC_URL=${SUPERSET_PUBLIC_URL:-https://superset.${HYPERSET_DOMAIN}}
-      - PAGES_PUBLIC_URL=${PAGES_PUBLIC_URL:-https://pages.${HYPERSET_DOMAIN}}
+      - SUPERSET_PUBLIC_URL=${SUPERSET_PUBLIC_URL}
+      - PAGES_PUBLIC_URL=${PAGES_PUBLIC_URL}
       - PAGES_DIR=/app/pages
       - SUPERSET_MCP_URL=http://hyperset-superset-mcp:8000/mcp
       - LLM_API_URL=${LLM_API_URL:-https://api.openai.com/v1}
