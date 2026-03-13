@@ -182,7 +182,7 @@ services:
       dockerfile: Dockerfile
     image: localhost/hyperset-superset:latest
     container_name: hyperset-superset-worker
-    command: ["celery", "worker", "--app=superset.tasks.celery_app:app", "-l", "INFO"]
+    command: ["celery", "-A", "superset.tasks.celery_app:app", "worker", "-l", "INFO"]
     environment:
       - DATABASE_DIALECT=postgresql
       - DATABASE_USER=superset
@@ -219,7 +219,7 @@ services:
       superset-redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "celery inspect ping --app=superset.tasks.celery_app:app -d celery@$$HOSTNAME"]
+      test: ["CMD-SHELL", "celery -A superset.tasks.celery_app:app inspect ping -d celery@$$HOSTNAME"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -232,7 +232,7 @@ services:
       dockerfile: Dockerfile
     image: localhost/hyperset-superset:latest
     container_name: hyperset-superset-beat
-    command: ["celery", "beat", "--app=superset.tasks.celery_app:app", "-l", "INFO"]
+    command: ["celery", "-A", "superset.tasks.celery_app:app", "beat", "-l", "INFO"]
     environment:
       - DATABASE_DIALECT=postgresql
       - DATABASE_USER=superset
