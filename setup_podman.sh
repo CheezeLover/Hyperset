@@ -3,83 +3,105 @@
 # Run this once on a fresh Debian 12+ machine after cloning the repo.
 set -euo pipefail
 
+# Check if .env exists
+if [ ! -f .env ]; then
+    echo "❌ ERROR: .env file not found!"
+    echo "   Copy .env.example to .env first: cp .env.example .env"
+    exit 1
+fi
+
 # Load environment variables from .env
 if [ -f .env ]; then
   export $(grep -v '^#' .env | xargs)
 fi
 
 # ============================================================================
-# Generate secure random passwords on first run (idempotent)
+# Generate secure random secrets on first run (idempotent)
 # ============================================================================
-generate_passwords() {
+generate_secrets() {
   local env_file=".env"
-  local password_changed=false
+  local secrets_changed=false
   
-  # Generate SuperSET_ADMIN_PASSWORD if not set or is placeholder
+  # Helper function to update or add a secret in .env
+  update_secret() {
+    local key="$1"
+    local value="$2"
+    local old_value="$3"
+    if grep -q "^${key}=" "$env_file"; then
+      if grep -q "^${key}=CHANGE_ME" "$env_file" || grep -q "^${key}=${old_value}" "$env_file"; then
+        # Use different delimiter to avoid issues with / in base64
+        sed -i "s|^${key}=.*|${key}=${value}|" "$env_file"
+        secrets_changed=true
+      fi
+    else
+      echo "" >> "$env_file"
+      echo "# Auto-generated on first run - do not change manually" >> "$env_file"
+      echo "${key}=${value}" >> "$env_file"
+      secrets_changed=true
+    fi
+  }
+
+  # Generate AUTH_CRYPTO_KEY (32-byte hex) if not set or is placeholder
+  if [ -z "${AUTH_CRYPTO_KEY:-}" ] || [ "$AUTH_CRYPTO_KEY" = "CHANGE_ME_run_openssl_rand_hex_32_and_paste_result_here_min_32_chars" ]; then
+    local new_key
+    new_key=$(openssl rand -hex 32)
+    update_secret "AUTH_CRYPTO_KEY" "$new_key" "CHANGE_ME_run_openssl_rand_hex_32_and_paste_result_here_min_32_chars"
+    echo "==> Generated AUTH_CRYPTO_KEY"
+  fi
+
+  # Generate SESSION_SECRET (base64) if not set or is placeholder
+  if [ -z "${SESSION_SECRET:-}" ] || [ "$SESSION_SECRET" = "change-me-to-a-very-long-random-secret-key-min-32-chars" ]; then
+    local new_secret
+    new_secret=$(openssl rand -base64 32)
+    update_secret "SESSION_SECRET" "$new_secret" "change-me-to-a-very-long-random-secret-key-min-32-chars"
+    echo "==> Generated SESSION_SECRET"
+  fi
+
+  # Generate MCP_SERVICE_SECRET (32-byte hex) if not set or is placeholder
+  if [ -z "${MCP_SERVICE_SECRET:-}" ] || [ "$MCP_SERVICE_SECRET" = "CHANGE_ME_run_openssl_rand_hex_32_and_paste_result_here_min_32_chars" ]; then
+    local new_secret
+    new_secret=$(openssl rand -hex 32)
+    update_secret "MCP_SERVICE_SECRET" "$new_secret" "CHANGE_ME_run_openssl_rand_hex_32_and_paste_result_here_min_32_chars"
+    echo "==> Generated MCP_SERVICE_SECRET"
+  fi
+
+  # Generate SUPERSET_SECRET_KEY (42-byte base64) if not set or is placeholder
+  if [ -z "${SUPERSET_SECRET_KEY:-}" ] || [ "$SUPERSET_SECRET_KEY" = "CHANGE_ME_RUN_openssl_rand_base64_42" ]; then
+    local new_key
+    new_key=$(openssl rand -base64 42)
+    update_secret "SUPERSET_SECRET_KEY" "$new_key" "CHANGE_ME_RUN_openssl_rand_base64_42"
+    echo "==> Generated SUPERSET_SECRET_KEY"
+  fi
+
+  # Generate SUPERSET_ADMIN_PASSWORD (24-byte base64) if not set or is placeholder
   if [ -z "${SUPERSET_ADMIN_PASSWORD:-}" ] || [ "$SUPERSET_ADMIN_PASSWORD" = "CHANGE_ME_RUN_openssl_rand_base64_24" ]; then
-    local new_admin_pass
-    new_admin_pass=$(openssl rand -base64 24)
-    
-    if [ -f "$env_file" ]; then
-      # Check if already exists in file (not just environment)
-      if grep -q "^SUPERSET_ADMIN_PASSWORD=" "$env_file" && ! grep -q "^SUPERSET_ADMIN_PASSWORD=CHANGE_ME" "$env_file"; then
-        echo "==> Using existing SUPERSET_ADMIN_PASSWORD from $env_file"
-      else
-        # Update or add the password
-        if grep -q "^SUPERSET_ADMIN_PASSWORD=" "$env_file"; then
-          sed -i "s/^SUPERSET_ADMIN_PASSWORD=.*/SUPERSET_ADMIN_PASSWORD=$new_admin_pass/" "$env_file"
-        else
-          echo "" >> "$env_file"
-          echo "# Auto-generated on first run - do not change manually" >> "$env_file"
-          echo "SUPERSET_ADMIN_PASSWORD=$new_admin_pass" >> "$env_file"
-        fi
-        echo "==> Generated new SUPERSET_ADMIN_PASSWORD (saved to $env_file)"
-        password_changed=true
-      fi
-    else
-      echo "⚠️  Warning: .env file not found. Cannot save generated password."
-    fi
+    local new_pass
+    new_pass=$(openssl rand -base64 24)
+    update_secret "SUPERSET_ADMIN_PASSWORD" "$new_pass" "CHANGE_ME_RUN_openssl_rand_base64_24"
+    echo "==> Generated SUPERSET_ADMIN_PASSWORD"
   fi
-  
-  # Generate DATABASE_PASSWORD if not set or is weak default
+
+  # Generate DATABASE_PASSWORD (32-byte base64) if not set or is weak default
   if [ -z "${DATABASE_PASSWORD:-}" ] || [ "$DATABASE_PASSWORD" = "superset" ]; then
-    local new_db_pass
-    new_db_pass=$(openssl rand -base64 32)
-    
-    if [ -f "$env_file" ]; then
-      # Check if already exists in file with non-default value
-      if grep -q "^DATABASE_PASSWORD=" "$env_file" && ! grep -q "^DATABASE_PASSWORD=superset" "$env_file"; then
-        echo "==> Using existing DATABASE_PASSWORD from $env_file"
-      else
-        # Update or add the password
-        if grep -q "^DATABASE_PASSWORD=" "$env_file"; then
-          sed -i "s/^DATABASE_PASSWORD=.*/DATABASE_PASSWORD=$new_db_pass/" "$env_file"
-        else
-          echo "" >> "$env_file"
-          echo "# Auto-generated database password on first run - do not change manually" >> "$env_file"
-          echo "DATABASE_PASSWORD=$new_db_pass" >> "$env_file"
-        fi
-        echo "==> Generated new DATABASE_PASSWORD (saved to $env_file)"
-        password_changed=true
-      fi
-    else
-      echo "⚠️  Warning: .env file not found. Cannot save generated database password."
-    fi
+    local new_pass
+    new_pass=$(openssl rand -base64 32)
+    update_secret "DATABASE_PASSWORD" "$new_pass" "superset"
+    echo "==> Generated DATABASE_PASSWORD"
   fi
   
-  # Reload environment if passwords were changed
-  if [ "$password_changed" = true ]; then
+  # Reload environment if secrets were changed
+  if [ "$secrets_changed" = true ]; then
     export $(grep -v '^#' "$env_file" | xargs)
-    echo "==> Passwords generated and saved. They will persist across restarts."
+    echo "==> All secrets generated and saved to .env"
     echo ""
     echo "   IMPORTANT: Make a backup of your .env file!"
-    echo "   If you lose these passwords, you'll need to reset the admin user manually."
+    echo "   If you lose these secrets, you'll need to reset them manually."
     echo ""
   fi
 }
 
-# Run password generation
-generate_passwords
+# Run secret generation
+generate_secrets
 
 echo "==> Installing Podman and podman-compose..."
 sudo apt-get update -qq
@@ -92,34 +114,16 @@ podman-compose --version
 echo "==> Creating internal network (hyperset-net)..."
 podman network exists hyperset-net || podman network create hyperset-net
 
-# Determine which compose files to use
+# Always deploy with integrated Superset stack
 COMPOSE_FILES="-f podman-compose.yml"
-DEPLOY_WITH_SUPERSET=${DEPLOY_WITH_SUPERSET:-false}
-if [ "$DEPLOY_WITH_SUPERSET" = "true" ]; then
-  echo "==> DEPLOY_WITH_SUPERSET=true: Including integrated Superset stack"
-  COMPOSE_FILES="$COMPOSE_FILES -f podman-compose.superset.yml"
-  
-  # Check for SUPERSET_SECRET_KEY
-  if [ -z "${SUPERSET_SECRET_KEY:-}" ] || [ "$SUPERSET_SECRET_KEY" = "CHANGE_ME_RUN_openssl_rand_base64_42" ]; then
-    echo ""
-    echo "⚠️  WARNING: SUPERSET_SECRET_KEY is not set or is using the default placeholder!"
-    echo "   Please set a secure secret key in your .env file:"
-    echo "   SUPERSET_SECRET_KEY=$(openssl rand -base64 42)"
-    echo ""
-    echo "   Continuing with setup, but Superset may fail to start..."
-    echo ""
-    sleep 3
-  fi
-  
-  # Build custom Superset image with PostgreSQL support
-  echo "==> Building custom Superset image..."
-  cd Superset-Instance
-  podman build -t localhost/hyperset-superset:latest -f Dockerfile .
-  cd ..
-else
-  echo "==> DEPLOY_WITH_SUPERSET=false: Using external Superset instance"
-  echo "   Ensure SUPERSET_UPSTREAM in .env points to your Superset instance"
-fi
+
+echo "==> Deploying integrated Superset stack"
+
+# Build custom Superset image with PostgreSQL support
+echo "==> Building custom Superset image..."
+cd Superset-Instance
+podman build -t localhost/hyperset-superset:latest -f Dockerfile .
+cd ..
 
 echo "==> Building images and starting all services..."
 cd "$(dirname "$0")"
@@ -143,16 +147,10 @@ echo "       <this-server-ip>  auth.\${HYPERSET_DOMAIN:-hyperset.internal}"
 echo "       <this-server-ip>  superset.\${HYPERSET_DOMAIN:-hyperset.internal}"
 echo "       <this-server-ip>  pages.\${HYPERSET_DOMAIN:-hyperset.internal}"
 
-if [ "$DEPLOY_WITH_SUPERSET" = "true" ]; then
-  echo ""
-  echo "  2. Superset is being initialized (this may take 1-2 minutes)..."
+echo "  2. Superset is being initialized (this may take 1-2 minutes)..."
   echo "     You can monitor with: podman logs -f hyperset-superset-init"
   echo ""
   echo "  3. Once initialization completes, register your first account at:"
-else
-  echo ""
-  echo "  2. Register your first account at:"
-fi
 echo "       https://auth.\${HYPERSET_DOMAIN:-hyperset.internal}"
 echo ""
 echo "  3. Open the portal at:"

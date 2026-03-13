@@ -15,7 +15,7 @@ docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 You should see:
 - `hyperset-caddy` - Running
 - `hyperset-portal` - Running (healthy)
-- `hyperset-superset` - Running (only if DEPLOY_WITH_SUPERSET=true)
+- `hyperset-superset` - Running
 - `hyperset-superset-mcp` - Running
 - `hyperset-pages` - Running
 
@@ -193,7 +193,6 @@ podman rmi -f $(podman images -q)
 # 5. Rebuild from scratch
 export $(grep -v '^#' .env | xargs)
 COMPOSE_FILES="-f podman-compose.yml"
-[ "$DEPLOY_WITH_SUPERSET" = "true" ] && COMPOSE_FILES="$COMPOSE_FILES -f podman-compose.superset.yml"
 podman-compose $COMPOSE_FILES build --no-cache
 podman-compose $COMPOSE_FILES up -d
 
