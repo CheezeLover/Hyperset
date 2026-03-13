@@ -232,7 +232,7 @@ services:
       dockerfile: Dockerfile
     image: localhost/hyperset-superset:latest
     container_name: hyperset-superset-beat
-    command: ["celery", "beat", "--app=superset.tasks.celery_app:app", "-l", "INFO"]
+    command: ["celery", "--app", "superset.tasks.celery_app:app", "beat", "-l", "INFO"]
     environment:
       - DATABASE_DIALECT=postgresql
       - DATABASE_USER=superset
