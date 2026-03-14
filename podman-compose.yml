@@ -43,6 +43,7 @@ services:
     environment:
       - MCP_SERVICE_SECRET=${MCP_SERVICE_SECRET}
       - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
+      - SUPERSET_UPSTREAM=http://hyperset-superset:8088
       - SUPERSET_MCP_USER=${SUPERSET_MCP_USER}
       - SUPERSET_MCP_PASSWORD=${SUPERSET_MCP_PASSWORD}
     env_file:
