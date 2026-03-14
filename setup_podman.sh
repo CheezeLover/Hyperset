@@ -15,6 +15,90 @@ generate_passwords() {
   local env_file=".env"
   local password_changed=false
   
+  # Generate AUTH_CRYPTO_KEY if not set or is placeholder
+  if [ -z "${AUTH_CRYPTO_KEY:-}" ] || [ "$AUTH_CRYPTO_KEY" = "CHANGE_ME" ]; then
+    local new_auth_key
+    new_auth_key=$(openssl rand -hex 32)
+    
+    if [ -f "$env_file" ]; then
+      if grep -q "^AUTH_CRYPTO_KEY=" "$env_file" && ! grep -q "^AUTH_CRYPTO_KEY=CHANGE_ME" "$env_file"; then
+        echo "==> Using existing AUTH_CRYPTO_KEY from $env_file"
+      else
+        if grep -q "^AUTH_CRYPTO_KEY=" "$env_file"; then
+          sed -i "s|^AUTH_CRYPTO_KEY=.*|AUTH_CRYPTO_KEY=$new_auth_key|" "$env_file"
+        else
+          echo "" >> "$env_file"
+          echo "AUTH_CRYPTO_KEY=$new_auth_key" >> "$env_file"
+        fi
+        echo "==> Generated new AUTH_CRYPTO_KEY (saved to $env_file)"
+        password_changed=true
+      fi
+    fi
+  fi
+  
+  # Generate SESSION_SECRET if not set or is placeholder
+  if [ -z "${SESSION_SECRET:-}" ] || [ "$SESSION_SECRET" = "change-me" ]; then
+    local new_session_secret
+    new_session_secret=$(openssl rand -base64 32)
+    
+    if [ -f "$env_file" ]; then
+      if grep -q "^SESSION_SECRET=" "$env_file" && ! grep -q "^SESSION_SECRET=change-me" "$env_file"; then
+        echo "==> Using existing SESSION_SECRET from $env_file"
+      else
+        if grep -q "^SESSION_SECRET=" "$env_file"; then
+          sed -i "s|^SESSION_SECRET=.*|SESSION_SECRET=$new_session_secret|" "$env_file"
+        else
+          echo "" >> "$env_file"
+          echo "SESSION_SECRET=$new_session_secret" >> "$env_file"
+        fi
+        echo "==> Generated new SESSION_SECRET (saved to $env_file)"
+        password_changed=true
+      fi
+    fi
+  fi
+  
+  # Generate MCP_SERVICE_SECRET if not set or is placeholder
+  if [ -z "${MCP_SERVICE_SECRET:-}" ] || [ "$MCP_SERVICE_SECRET" = "CHANGE_ME" ]; then
+    local new_mcp_secret
+    new_mcp_secret=$(openssl rand -hex 32)
+    
+    if [ -f "$env_file" ]; then
+      if grep -q "^MCP_SERVICE_SECRET=" "$env_file" && ! grep -q "^MCP_SERVICE_SECRET=CHANGE_ME" "$env_file"; then
+        echo "==> Using existing MCP_SERVICE_SECRET from $env_file"
+      else
+        if grep -q "^MCP_SERVICE_SECRET=" "$env_file"; then
+          sed -i "s|^MCP_SERVICE_SECRET=.*|MCP_SERVICE_SECRET=$new_mcp_secret|" "$env_file"
+        else
+          echo "" >> "$env_file"
+          echo "MCP_SERVICE_SECRET=$new_mcp_secret" >> "$env_file"
+        fi
+        echo "==> Generated new MCP_SERVICE_SECRET (saved to $env_file)"
+        password_changed=true
+      fi
+    fi
+  fi
+  
+  # Generate SUPERSET_SECRET_KEY if not set or is placeholder
+  if [ -z "${SUPERSET_SECRET_KEY:-}" ] || [ "$SUPERSET_SECRET_KEY" = "CHANGE_ME_RUN_openssl_rand_base64_42" ]; then
+    local new_superset_key
+    new_superset_key=$(openssl rand -base64 42)
+    
+    if [ -f "$env_file" ]; then
+      if grep -q "^SUPERSET_SECRET_KEY=" "$env_file" && ! grep -q "^SUPERSET_SECRET_KEY=CHANGE_ME" "$env_file"; then
+        echo "==> Using existing SUPERSET_SECRET_KEY from $env_file"
+      else
+        if grep -q "^SUPERSET_SECRET_KEY=" "$env_file"; then
+          sed -i "s|^SUPERSET_SECRET_KEY=.*|SUPERSET_SECRET_KEY=$new_superset_key|" "$env_file"
+        else
+          echo "" >> "$env_file"
+          echo "SUPERSET_SECRET_KEY=$new_superset_key" >> "$env_file"
+        fi
+        echo "==> Generated new SUPERSET_SECRET_KEY (saved to $env_file)"
+        password_changed=true
+      fi
+    fi
+  fi
+  
   # Generate SuperSET_ADMIN_PASSWORD if not set or is placeholder
   if [ -z "${SUPERSET_ADMIN_PASSWORD:-}" ] || [ "$SUPERSET_ADMIN_PASSWORD" = "CHANGE_ME_RUN_openssl_rand_hex_24" ]; then
     local new_admin_pass
@@ -96,18 +180,6 @@ podman network exists hyperset-net || podman network create hyperset-net
 COMPOSE_FILES="-f podman-compose.yml -f podman-compose.superset.yml"
 
 echo "==> Deploying with integrated Superset stack"
-
-# Check for SUPERSET_SECRET_KEY
-if [ -z "${SUPERSET_SECRET_KEY:-}" ] || [ "$SUPERSET_SECRET_KEY" = "CHANGE_ME_RUN_openssl_rand_base64_42" ]; then
-  echo ""
-  echo "⚠️  WARNING: SUPERSET_SECRET_KEY is not set or is using the default placeholder!"
-  echo "   Please set a secure secret key in your .env file:"
-  echo "   SUPERSET_SECRET_KEY=$(openssl rand -base64 42)"
-  echo ""
-  echo "   Continuing with setup, but Superset may fail to start..."
-  echo ""
-  sleep 3
-fi
 
 # Build custom Superset image with PostgreSQL support
 echo "==> Building custom Superset image..."
