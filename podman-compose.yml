@@ -55,6 +55,8 @@ services:
     build:
       context: .
       dockerfile: ./portal-app/Dockerfile
+      args:
+        - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
       # Next.js webpack compilation is memory-hungry; shm_size gives it enough
       # shared memory and the NODE_OPTIONS env is set in the Dockerfile.
       shm_size: "256m"
@@ -63,8 +65,6 @@ services:
     environment:
       - MCP_SERVICE_SECRET=${MCP_SERVICE_SECRET}
       - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
-      - SUPERSET_PUBLIC_URL=${SUPERSET_PUBLIC_URL:-}
-      - PAGES_PUBLIC_URL=${PAGES_PUBLIC_URL:-}
       - PAGES_DIR=/app/pages
       - SUPERSET_MCP_URL=http://hyperset-superset-mcp:8000/mcp
       # LLM API (any OpenAI-compatible endpoint; overridable at runtime via the settings UI)

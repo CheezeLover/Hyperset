@@ -12,6 +12,10 @@ COPY portal-app/ ./
 # Copy theme.json from project root (build context is repository root)
 COPY theme.json ./theme.json
 
+# Build args for environment variables (can be passed during docker build)
+ARG HYPERSET_DOMAIN=hyperset.internal
+ENV HYPERSET_DOMAIN=$HYPERSET_DOMAIN
+
 # Limit Node heap during build to avoid OOM SIGKILL
 ENV NODE_OPTIONS="--max-old-space-size=1536"
 RUN npm run build
