@@ -8,26 +8,6 @@ if [ -f .env ]; then
   export $(grep -v '^#' .env | xargs)
 fi
 
-# Derive URLs from HYPERSET_DOMAIN if not explicitly set
-derive_urls() {
-  if [ -n "${HYPERSET_DOMAIN:-}" ]; then
-    export SUPERSET_UPSTREAM="${SUPERSET_UPSTREAM:-http://hyperset-superset:8088}"
-    export SUPERSET_PUBLIC_URL="${SUPERSET_PUBLIC_URL:-https://superset.${HYPERSET_DOMAIN}}"
-    export PAGES_PUBLIC_URL="${PAGES_PUBLIC_URL:-https://pages.${HYPERSET_DOMAIN}}"
-    export HYPERSET_PORTAL_URL="${HYPERSET_PORTAL_URL:-https://${HYPERSET_DOMAIN}}"
-    
-    # Also write derived URLs to .env file if not present
-    local env_file=".env"
-    if [ -f "$env_file" ]; then
-      grep -q "^SUPERSET_UPSTREAM=" "$env_file" || echo "SUPERSET_UPSTREAM=$SUPERSET_UPSTREAM" >> "$env_file"
-      grep -q "^SUPERSET_PUBLIC_URL=" "$env_file" || echo "SUPERSET_PUBLIC_URL=$SUPERSET_PUBLIC_URL" >> "$env_file"
-      grep -q "^PAGES_PUBLIC_URL=" "$env_file" || echo "PAGES_PUBLIC_URL=$PAGES_PUBLIC_URL" >> "$env_file"
-      grep -q "^HYPERSET_PORTAL_URL=" "$env_file" || echo "HYPERSET_PORTAL_URL=$HYPERSET_PORTAL_URL" >> "$env_file"
-    fi
-  fi
-}
-derive_urls
-
 # ============================================================================
 # Generate secure random passwords on first run (idempotent)
 # ============================================================================
