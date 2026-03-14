@@ -114,12 +114,18 @@ SUPERSET_BASE_URL = (
 
 # Public URL used to build browser-accessible embed links.
 # Must be reachable by the end-user's browser (not an internal upstream address).
-# Falls back to SUPERSET_BASE_URL only as a last resort — set SUPERSET_PUBLIC_URL
-# explicitly in .env so embedded iframes resolve correctly.
-SUPERSET_PUBLIC_URL = (
-    os.getenv("SUPERSET_PUBLIC_URL")
-    or SUPERSET_BASE_URL
-)
+# Derived automatically from HYPERSET_DOMAIN if not explicitly set.
+_superset_public_url_env = os.getenv("SUPERSET_PUBLIC_URL", "")
+_hyperset_domain = os.getenv("HYPERSET_DOMAIN", "")
+if _superset_public_url_env:
+    _superset_public = _superset_public_url_env.strip()
+    if not re.match(r"^https?://", _superset_public, flags=re.IGNORECASE):
+        _superset_public = f"https://{_superset_public}"
+    SUPERSET_PUBLIC_URL = _superset_public.rstrip("/")
+elif _hyperset_domain:
+    SUPERSET_PUBLIC_URL = f"https://superset.{_hyperset_domain}"
+else:
+    SUPERSET_PUBLIC_URL = SUPERSET_BASE_URL
 
 # ── AI chart cleanup identity ───────────────────────────────────────────────
 # Superset user that the auto-cleanup job impersonates when deleting stale charts.

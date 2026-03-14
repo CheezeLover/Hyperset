@@ -1,6 +1,6 @@
 # podman-compose.superset.yml
 # Extended Hyperset stack with integrated Superset instance
-# This file is conditionally included when DEPLOY_WITH_SUPERSET=true
+# This file is always included in deployment
 
 services:
   # PostgreSQL database for Superset

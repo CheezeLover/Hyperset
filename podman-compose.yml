@@ -9,7 +9,7 @@ services:
     environment:
       - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
       - AUTH_CRYPTO_KEY=${AUTH_CRYPTO_KEY}
-      - SUPERSET_UPSTREAM=${SUPERSET_UPSTREAM}
+      - SUPERSET_UPSTREAM=http://hyperset-superset:8088
     env_file:
       - ./.env
     volumes:
@@ -43,12 +43,6 @@ services:
     environment:
       - MCP_SERVICE_SECRET=${MCP_SERVICE_SECRET}
       - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
-      - HYPERSET_PORTAL_URL=${HYPERSET_PORTAL_URL}
-      # Internal address of the Superset instance (used for API calls)
-      - SUPERSET_UPSTREAM=${SUPERSET_UPSTREAM}
-      # Public URL used to build browser-accessible iframe embed links
-      - SUPERSET_PUBLIC_URL=${SUPERSET_PUBLIC_URL}
-      # Service-account credentials for Superset DB auth
       - SUPERSET_MCP_USER=${SUPERSET_MCP_USER}
       - SUPERSET_MCP_PASSWORD=${SUPERSET_MCP_PASSWORD}
     env_file:
@@ -61,6 +55,8 @@ services:
     build:
       context: .
       dockerfile: ./portal-app/Dockerfile
+      args:
+        - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
       # Next.js webpack compilation is memory-hungry; shm_size gives it enough
       # shared memory and the NODE_OPTIONS env is set in the Dockerfile.
       shm_size: "256m"
@@ -69,9 +65,6 @@ services:
     environment:
       - MCP_SERVICE_SECRET=${MCP_SERVICE_SECRET}
       - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
-      # Use explicit vars from .env — compose doesn't expand nested ${} in values
-      - SUPERSET_PUBLIC_URL=${SUPERSET_PUBLIC_URL}
-      - PAGES_PUBLIC_URL=${PAGES_PUBLIC_URL}
       - PAGES_DIR=/app/pages
       - SUPERSET_MCP_URL=http://hyperset-superset-mcp:8000/mcp
       # LLM API (any OpenAI-compatible endpoint; overridable at runtime via the settings UI)
