@@ -9,7 +9,7 @@ services:
     environment:
       - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
       - AUTH_CRYPTO_KEY=${AUTH_CRYPTO_KEY}
-      - SUPERSET_UPSTREAM=${SUPERSET_UPSTREAM}
+      - SUPERSET_UPSTREAM=http://hyperset-superset:8088
     env_file:
       - ./.env
     volumes:
@@ -43,13 +43,9 @@ services:
     environment:
       - MCP_SERVICE_SECRET=${MCP_SERVICE_SECRET}
       - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
-      # Internal address of the Superset instance (used for API calls)
-      - SUPERSET_UPSTREAM=${SUPERSET_UPSTREAM:-http://hyperset-superset:8088}
-      # Public URL derived from HYPERSET_DOMAIN if not set
+      - SUPERSET_UPSTREAM=http://hyperset-superset:8088
       - SUPERSET_PUBLIC_URL=${SUPERSET_PUBLIC_URL}
-      # Portal URL derived from HYPERSET_DOMAIN if not set  
       - HYPERSET_PORTAL_URL=${HYPERSET_PORTAL_URL}
-      # Service-account credentials for Superset DB auth
       - SUPERSET_MCP_USER=${SUPERSET_MCP_USER}
       - SUPERSET_MCP_PASSWORD=${SUPERSET_MCP_PASSWORD}
     env_file:
@@ -70,7 +66,6 @@ services:
     environment:
       - MCP_SERVICE_SECRET=${MCP_SERVICE_SECRET}
       - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
-      # Public URLs derived from HYPERSET_DOMAIN if not set in .env
       - SUPERSET_PUBLIC_URL=${SUPERSET_PUBLIC_URL}
       - PAGES_PUBLIC_URL=${PAGES_PUBLIC_URL}
       - PAGES_DIR=/app/pages
