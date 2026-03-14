@@ -8,76 +8,66 @@ It runs entirely in containers (Podman), requires no cloud services, and is desi
 
 ## 🚀 Quick Start
 
-### Choose Your Deployment Mode
-
-Hyperset supports two deployment modes:
-
-**Mode A: Integrated Superset (Easiest)** ⭐ Recommended for new users
-- Everything runs in one command
-- PostgreSQL, Redis, and Superset included
-- No external dependencies
-
-**Mode B: External Superset (Flexible)**
-- Connect to your existing Superset instance
-- Use managed cloud Superset or self-hosted
-- Full control over Superset configuration
-
----
-
-### Mode A: Integrated Superset (5-Minute Setup)
-
-**Prerequisites:**
+### Prerequisites:
 - Debian 12+ machine (physical, VM, or LXC)
-- Ports 80, 443, and 8088 open
+- Ports 80 and 443 open
 - Domain name or local hostname (e.g., `hyperset.internal`)
 - OpenAI-compatible LLM API endpoint and key
 
-**1. Clone and configure:**
+### 1. Clone and configure:
 ```bash
 git clone https://github.com/CheezeLover/Hyperset.git
 cd Hyperset
-cp .env .env.bak
-# Edit .env with your settings
+cp .env.example .env
 ```
 
-**2. Generate required secrets:**
+### 2. Edit `.env` - only change these required values:
 ```bash
-# Edit .env and replace all placeholder secrets:
-# 1. AUTH_CRYPTO_KEY - openssl rand -hex 32
-# 2. SESSION_SECRET - openssl rand -base64 32
-# 3. MCP_SERVICE_SECRET - openssl rand -hex 32
-# 4. SUPERSET_SECRET_KEY - openssl rand -base64 42  (for integrated mode)
+# Required: Your domain
+HYPERSET_DOMAIN=your-domain.internal
+
+# Required: Generate these with:
+#   openssl rand -hex 32  (for keys)
+#   openssl rand -base64 42  (for SUPERSET_SECRET_KEY)
+AUTH_CRYPTO_KEY=your-32-char-hex-key
+SESSION_SECRET=your-32-char-secret
+MCP_SERVICE_SECRET=your-32-char-hex-key
+SUPERSET_SECRET_KEY=your-42-char-base64-key
 ```
 
-**3. Set up DNS / hosts file:**
+All other URLs are automatically derived from `HYPERSET_DOMAIN`:
+- `https://superset.{HYPERSET_DOMAIN}` - Superset UI
+- `https://pages.{HYPERSET_DOMAIN}` - Custom pages
+- `https://auth.{HYPERSET_DOMAIN}` - Authentication
+
+### 3. Set up DNS / hosts file:
 ```
 # Add to /etc/hosts or your DNS server
-<server-ip>  hyperset.internal
-<server-ip>  auth.hyperset.internal
-<server-ip>  superset.hyperset.internal
-<server-ip>  pages.hyperset.internal
+<server-ip>  your-domain.internal
+<server-ip>  auth.your-domain.internal
+<server-ip>  superset.your-domain.internal
+<server-ip>  pages.your-domain.internal
 ```
 
-**5. Deploy:**
+### 4. Deploy:
 ```bash
 chmod +x setup_podman.sh
 ./setup_podman.sh
 ```
 
-**6. Create your admin user:**
+### 5. Create your admin user:
 - Wait for initialization to complete (check `podman logs -f hyperset-superset-init`)
-- Visit `https://auth.hyperset.internal`
+- Visit `https://auth.your-domain.internal`
 - Register — the first user is automatically granted the `authp/admin` role
 
-**7. Open the portal:**
-- Go to `https://hyperset.internal`
+### 6. Open the portal:
+- Go to `https://your-domain.internal`
 - Click **Chat** in the sidebar to talk to your data
 
-**8. Access Superset (integrated mode only):**
-- **Important:** Always use `https://superset.hyperset.internal`
-- **Do NOT** use `http://your-server:8088` - this bypasses authentication
-- When you access Superset through Caddy, you'll be automatically logged in via SSO
-- No separate Superset login required!
+### 7. Access Superset:
+- Always use `https://superset.your-domain.internal`
+- Access through Caddy for automatic SSO login
+- **Do NOT** use direct port access - it bypasses authentication
 
 **6. Create your admin user:**
 
@@ -163,12 +153,11 @@ All variables live in the root `.env` file and are shared across containers via 
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `SUPERSET_SECRET_KEY` | ✅ | — | 42-byte base64 secret for Superset session encryption and security. Generate: `openssl rand -base64 42` |
-| `SUPERSET_UPSTREAM` | ✅ | `http://hyperset-superset:8088` | Internal address of your Superset instance as seen by Caddy and the MCP server. |
-| `SUPERSET_PUBLIC_URL` | ✅ | `https://superset.{HYPERSET_DOMAIN}` | Browser-accessible Superset URL. Must be reachable by the end-user's browser. Used for iframe embeds and links in chat. |
-| `SUPERSET_PUBLIC_URL` | ✅ | `https://superset.{HYPERSET_DOMAIN}` | Browser-accessible Superset URL. Must be reachable by the end-user's browser. Used for iframe embeds and links in chat. |
-| `SUPERSET_MCP_USER` | — | `admin` | Superset username the portal impersonates when making MCP calls on behalf of users. In `AUTH_REMOTE_USER` mode no password is needed. |
-| `SUPERSET_MCP_PASSWORD` | — | _(empty)_ | Superset password. Only required if Superset uses classic database authentication instead of `AUTH_REMOTE_USER`. |
+| `SUPERSET_SECRET_KEY` | ✅ | — | 42-byte base64 secret for Superset session encryption. Generate: `openssl rand -base64 42` |
+| `SUPERSET_UPSTREAM` | — | `http://hyperset-superset:8088` | Internal address (auto-configured) |
+| `SUPERSET_PUBLIC_URL` | — | `https://superset.{HYPERSET_DOMAIN}` | Browser URL (auto-derived) |
+| `SUPERSET_MCP_USER` | — | `admin` | Superset username for MCP calls. In `AUTH_REMOTE_USER` mode no password is needed. |
+| `SUPERSET_MCP_PASSWORD` | — | _(empty)_ | Superset password. Only required for classic DB auth. |
 
 ### LLM / Chat
 
@@ -188,7 +177,8 @@ All variables live in the root `.env` file and are shared across containers via 
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `PAGES_PUBLIC_URL` | — | `https://pages.{HYPERSET_DOMAIN}` | Browser-accessible URL of the Pages service. Used by the portal to load custom pages. |
+| `PAGES_PUBLIC_URL` | — | `https://pages.{HYPERSET_DOMAIN}` | Browser URL (auto-derived from HYPERSET_DOMAIN) |
+| `HYPERSET_PORTAL_URL` | — | `https://{HYPERSET_DOMAIN}` | Portal URL (auto-derived) |
 
 ### AI Chart Cleanup
 
