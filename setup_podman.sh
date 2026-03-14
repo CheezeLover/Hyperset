@@ -8,6 +8,26 @@ if [ -f .env ]; then
   export $(grep -v '^#' .env | xargs)
 fi
 
+# Derive URLs from HYPERSET_DOMAIN if not explicitly set
+derive_urls() {
+  if [ -n "${HYPERSET_DOMAIN:-}" ]; then
+    export SUPERSET_UPSTREAM="${SUPERSET_UPSTREAM:-http://hyperset-superset:8088}"
+    export SUPERSET_PUBLIC_URL="${SUPERSET_PUBLIC_URL:-https://superset.${HYPERSET_DOMAIN}}"
+    export PAGES_PUBLIC_URL="${PAGES_PUBLIC_URL:-https://pages.${HYPERSET_DOMAIN}}"
+    export HYPERSET_PORTAL_URL="${HYPERSET_PORTAL_URL:-https://${HYPERSET_DOMAIN}}"
+    
+    # Also write derived URLs to .env file if not present
+    local env_file=".env"
+    if [ -f "$env_file" ]; then
+      grep -q "^SUPERSET_UPSTREAM=" "$env_file" || echo "SUPERSET_UPSTREAM=$SUPERSET_UPSTREAM" >> "$env_file"
+      grep -q "^SUPERSET_PUBLIC_URL=" "$env_file" || echo "SUPERSET_PUBLIC_URL=$SUPERSET_PUBLIC_URL" >> "$env_file"
+      grep -q "^PAGES_PUBLIC_URL=" "$env_file" || echo "PAGES_PUBLIC_URL=$PAGES_PUBLIC_URL" >> "$env_file"
+      grep -q "^HYPERSET_PORTAL_URL=" "$env_file" || echo "HYPERSET_PORTAL_URL=$HYPERSET_PORTAL_URL" >> "$env_file"
+    fi
+  fi
+}
+derive_urls
+
 # ============================================================================
 # Generate secure random passwords on first run (idempotent)
 # ============================================================================
@@ -16,9 +36,9 @@ generate_passwords() {
   local password_changed=false
   
   # Generate SuperSET_ADMIN_PASSWORD if not set or is placeholder
-  if [ -z "${SUPERSET_ADMIN_PASSWORD:-}" ] || [ "$SUPERSET_ADMIN_PASSWORD" = "CHANGE_ME_RUN_openssl_rand_base64_24" ]; then
+  if [ -z "${SUPERSET_ADMIN_PASSWORD:-}" ] || [ "$SUPERSET_ADMIN_PASSWORD" = "CHANGE_ME_RUN_openssl_rand_hex_24" ]; then
     local new_admin_pass
-    new_admin_pass=$(openssl rand -base64 24)
+    new_admin_pass=$(openssl rand -hex 24)
     
     if [ -f "$env_file" ]; then
       # Check if already exists in file (not just environment)
@@ -27,7 +47,7 @@ generate_passwords() {
       else
         # Update or add the password
         if grep -q "^SUPERSET_ADMIN_PASSWORD=" "$env_file"; then
-          sed -i "s/^SUPERSET_ADMIN_PASSWORD=.*/SUPERSET_ADMIN_PASSWORD=$new_admin_pass/" "$env_file"
+          sed -i "s|^SUPERSET_ADMIN_PASSWORD=.*|SUPERSET_ADMIN_PASSWORD=$new_admin_pass|" "$env_file"
         else
           echo "" >> "$env_file"
           echo "# Auto-generated on first run - do not change manually" >> "$env_file"
@@ -44,7 +64,7 @@ generate_passwords() {
   # Generate DATABASE_PASSWORD if not set or is weak default
   if [ -z "${DATABASE_PASSWORD:-}" ] || [ "$DATABASE_PASSWORD" = "superset" ]; then
     local new_db_pass
-    new_db_pass=$(openssl rand -base64 32)
+    new_db_pass=$(openssl rand -hex 32)
     
     if [ -f "$env_file" ]; then
       # Check if already exists in file with non-default value
@@ -53,7 +73,7 @@ generate_passwords() {
       else
         # Update or add the password
         if grep -q "^DATABASE_PASSWORD=" "$env_file"; then
-          sed -i "s/^DATABASE_PASSWORD=.*/DATABASE_PASSWORD=$new_db_pass/" "$env_file"
+          sed -i "s|^DATABASE_PASSWORD=.*|DATABASE_PASSWORD=$new_db_pass|" "$env_file"
         else
           echo "" >> "$env_file"
           echo "# Auto-generated database password on first run - do not change manually" >> "$env_file"
