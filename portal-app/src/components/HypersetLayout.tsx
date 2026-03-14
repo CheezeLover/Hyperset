@@ -73,16 +73,20 @@ export function HypersetLayout({
   // ── Dynamic pages discovery ──────────────────────────────────
   const loadPages = useCallback(async () => {
     try {
+      console.log("DEBUG: Loading pages from:", pagesUrl);
       const res = await fetch(`${pagesUrl}/__pages__`, {
         credentials: "include",
       });
+      console.log("DEBUG: Pages response status:", res.status);
       if (!res.ok) return;
       const data = await res.json() as { pages: { name: string; has_backend: boolean }[] };
+      console.log("DEBUG: Raw pages from service:", data.pages);
       
       const pageMetaRes = await fetch("/api/admin/pages", { credentials: "include" });
       const pageMeta = pageMetaRes.ok 
         ? (await pageMetaRes.json() as { pages: { name: string; active: boolean; allowedGroups: string[]; icon?: string; iconColor?: string }[] }).pages 
         : [];
+      console.log("DEBUG: Page metadata:", pageMeta);
       const metaMap = new Map(pageMeta.map((p) => [p.name, p]));
       
       const filteredPages: Page[] = (data.pages as { name: string; has_backend: boolean }[])
@@ -102,12 +106,16 @@ export function HypersetLayout({
           };
         });
       
+      console.log("DEBUG: Filtered pages:", filteredPages, "userRoles:", userRoles);
+      
       setPages((prev) => {
         const existingNames = new Set(prev.map((p) => p.name));
         const newPages = filteredPages.filter((p) => !existingNames.has(p.name));
+        console.log("DEBUG: Adding pages:", newPages);
         return newPages.length > 0 ? [...prev, ...newPages] : prev;
       });
-    } catch {
+    } catch (e) {
+      console.error("DEBUG: Pages load error:", e);
       // Pages service unavailable — not a fatal error
     }
   }, [pagesUrl, userRoles]);
