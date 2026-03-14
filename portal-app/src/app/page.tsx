@@ -11,8 +11,6 @@ export default async function Home() {
   const supersetUrl = explicitSupersetUrl || `https://superset.${domain}`;
   const pagesUrl = explicitPagesUrl || `https://pages.${domain}`;
 
-  console.log("DEBUG: domain:", domain, "pagesUrl:", pagesUrl);
-
   return (
     <HypersetLayout
       supersetUrl={supersetUrl}
