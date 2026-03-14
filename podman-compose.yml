@@ -9,7 +9,7 @@ services:
     environment:
       - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
       - AUTH_CRYPTO_KEY=${AUTH_CRYPTO_KEY}
-      - SUPERSET_UPSTREAM=${SUPERSET_UPSTREAM}
+      - SUPERSET_UPSTREAM=${SUPERSET_UPSTREAM:-http://hyperset-superset:8088}
     env_file:
       - ./.env
     volumes:
@@ -71,8 +71,8 @@ services:
       - MCP_SERVICE_SECRET=${MCP_SERVICE_SECRET}
       - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
       # Public URLs derived from HYPERSET_DOMAIN if not set in .env
-      - SUPERSET_PUBLIC_URL=${SUPERSET_PUBLIC_URL}
-      - PAGES_PUBLIC_URL=${PAGES_PUBLIC_URL}
+      - SUPERSET_PUBLIC_URL=${SUPERSET_PUBLIC_URL:-}
+      - PAGES_PUBLIC_URL=${PAGES_PUBLIC_URL:-}
       - PAGES_DIR=/app/pages
       - SUPERSET_MCP_URL=http://hyperset-superset-mcp:8000/mcp
       # LLM API (any OpenAI-compatible endpoint; overridable at runtime via the settings UI)
