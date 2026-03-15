@@ -115,6 +115,11 @@ if _PALETTE:
         "colorWarning": _warning,
         "colorError": _error,
         "colorInfo": _info,
+        # Explicit primary bg tokens for light mode — prevents Ant Design from auto-deriving
+        # orange backgrounds for buttons (Favorite/Mine/All tabs) to align with neutral theme
+        "colorPrimaryBg": "#F5F5F5",
+        "colorPrimaryBgHover": "#E5E5E5",
+        "colorPrimaryBorder": "#D4D4D4",
         "colorBgBase": _surface_light,
         "colorBgContainer": _surface_light,
         "colorBgElevated": _bg_light,
