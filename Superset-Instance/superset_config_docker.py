@@ -91,8 +91,6 @@ if _LIGHT_THEME:
         "colorLink": _primary_hover,
         "colorLinkHover": _primary,
         "colorLinkActive": _primary_hover,
-        "colorIcon": _primary,  # Type icons (grid/list view toggle) - orange like dashboard icons
-        "colorIconHover": _primary_hover,
         "colorSuccess": _primary,  # Use primary orange for success icons (checkmarks in Published badges)
         # Explicit success tokens — give Published badge a clearly filled warm
         # background so it's visually distinct from Draft's outline-only style
