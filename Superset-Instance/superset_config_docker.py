@@ -102,6 +102,10 @@ if _LIGHT_THEME:
         "colorWarning": _warning,
         "colorError": _error,
         "colorInfo": _info,
+        # Alert/Message warning colors — ensure dark text on light backgrounds for readability
+        "colorWarningText": _text,  # Dark text for warning alerts/messages
+        "colorWarningBg": "#FEF3C7",  # Light yellow background
+        "colorWarningBorder": "#FCD34D",
         # Explicit primary bg tokens for light mode — prevents Ant Design from auto-deriving
         # orange backgrounds for buttons (Favorite/Mine/All tabs) to align with neutral theme
         "colorPrimaryBg": "#F5F5F5",
@@ -182,6 +186,10 @@ if _LIGHT_THEME:
         "colorWarning": _warning_dark,
         "colorError": _error_dark,
         "colorInfo": _info_dark,
+        # Alert/Message warning colors — ensure light text on dark backgrounds for readability
+        "colorWarningText": _text_dark,  # Light text for warning alerts/messages
+        "colorWarningBg": "#78350F",  # Dark amber background
+        "colorWarningBorder": "#92400E",
         "colorBgBase": _bg_dark,
         "colorBgContainer": _surface_dark,
         "colorBgElevated": _surface_higher_dark,
