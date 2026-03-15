@@ -99,20 +99,9 @@ if _LIGHT_THEME:
         "colorSuccessBorder": "#F5A070",
         "colorSuccessText": _primary,  
         "colorSuccessTextHover": _primary_hover,
-        "colorWarning": _text_secondary,  # Draft badges use warning - make text neutral
-        "colorWarningBg": _surface_light,  # Draft badge background matches surface
-        "colorWarningBgHover": _bg_light,
-        "colorWarningBorder": _border_light,
-        "colorWarningText": _text_secondary,  # Draft badge text - neutral
-        "colorWarningTextHover": _text,
+        "colorWarning": _warning,
         "colorError": _error,
         "colorInfo": _info,
-        # Explicit info tokens — makes Physical badges match Published badge styling
-        "colorInfoBg": "#FFF7ED",
-        "colorInfoBgHover": "#FFE8D0",
-        "colorInfoBorder": "#F5A070",
-        "colorInfoText": _primary,
-        "colorInfoTextHover": _primary_hover,
         # Explicit primary bg tokens for light mode — prevents Ant Design from auto-deriving
         # orange backgrounds for buttons (Favorite/Mine/All tabs) to align with neutral theme
         "colorPrimaryBg": "#F5F5F5",
@@ -190,20 +179,9 @@ if _LIGHT_THEME:
         "colorFillQuaternary": "#181818",
         "colorFillContent": "#242424",
         "colorFillAlter": "#1A1A1A",
-        "colorWarning": _text_secondary_dark,  # Draft badges use warning - make text neutral
-        "colorWarningBg": "#1E1E1E",  # Draft badge background matches default Tag
-        "colorWarningBgHover": "#262626",
-        "colorWarningBorder": "#404040",
-        "colorWarningText": _text_secondary_dark,  # Draft badge text - neutral
-        "colorWarningTextHover": _text_dark,
+        "colorWarning": _warning_dark,
         "colorError": _error_dark,
         "colorInfo": _info_dark,
-        # Explicit info tokens — makes Physical badges match Published badge styling
-        "colorInfoBg": "#2D1608",
-        "colorInfoBgHover": "#3D2010",
-        "colorInfoBorder": "#5A2D10",
-        "colorInfoText": _primary_dark_mode,
-        "colorInfoTextHover": _primary_dark_hover,
         "colorBgBase": _bg_dark,
         "colorBgContainer": _surface_dark,
         "colorBgElevated": _surface_higher_dark,
