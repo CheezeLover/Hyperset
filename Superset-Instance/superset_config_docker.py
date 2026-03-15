@@ -97,7 +97,7 @@ if _LIGHT_THEME:
         "colorSuccessBg": "#FFF7ED",  # Light warm background for success badges
         "colorSuccessBgHover": "#FFE8D0",
         "colorSuccessBorder": "#F5A070",
-        "colorSuccessText": _success,
+        "colorSuccessText": _primary,  
         "colorSuccessTextHover": _primary_hover,
         "colorWarning": _warning,
         "colorError": _error,
@@ -164,8 +164,8 @@ if _LIGHT_THEME:
         "colorSuccessBg": "#2D1608",  # Dark warm background for success badges
         "colorSuccessBgHover": "#3D2010",
         "colorSuccessBorder": "#5A2D10",
-        "colorSuccessText": _success_dark,
-        "colorSuccessTextHover": _primary_dark_mode,
+        "colorSuccessText": _primary_dark_mode,  
+        "colorSuccessTextHover": _primary_dark_hover,
         # Explicit primary bg tokens — prevents Ant Design from auto-deriving
         # near-white from colorPrimary=#FF8A5C (Physical badge, All tab, buttons)
         "colorPrimaryBg": "#241205",
