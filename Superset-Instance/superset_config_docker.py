@@ -91,7 +91,7 @@ if _LIGHT_THEME:
         "colorLink": _primary_hover,
         "colorLinkHover": _primary,
         "colorLinkActive": _primary_hover,
-        "colorSuccess": _success,
+        "colorSuccess": _primary,  # Use primary orange for success icons (checkmarks in Published badges)
         # Explicit success tokens — give Published badge a clearly filled warm
         # background so it's visually distinct from Draft's outline-only style
         "colorSuccessBg": "#FFF7ED",  # Light warm background for success badges
@@ -158,7 +158,7 @@ if _LIGHT_THEME:
         "colorLink": _primary_dark_mode,
         "colorLinkHover": _primary_dark_hover,
         "colorLinkActive": _primary_dark_hover,
-        "colorSuccess": _success_dark,
+        "colorSuccess": _primary_dark_mode,  # Use primary orange for success icons (checkmarks in Published badges)
         # Explicit success badge tokens — prevents Ant Design from auto-generating
         # a blinding light background in dark mode (Published tag, etc.)
         "colorSuccessBg": "#2D1608",  # Dark warm background for success badges
