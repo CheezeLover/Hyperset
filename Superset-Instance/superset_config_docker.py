@@ -48,73 +48,65 @@ try:
 except Exception as e:
     logging.error(f"[Theme] Error loading theme: {e}")
 
-# Extract theme configuration from simplified palette structure
-_PALETTE = _THEME_CONFIG.get("palette", {})
-
-# Helper function to safely get color from palette with fallback
-def _get_color(path, default="", palette=None):
-    """Get a color value from the palette using dot notation (e.g., 'primary.base', 'text.primary.light')"""
-    if palette is None:
-        palette = _PALETTE
-    keys = path.split(".")
-    value = palette
-    for key in keys:
-        if isinstance(value, dict) and key in value:
-            value = value[key]
-        else:
-            return default
-    return value if isinstance(value, str) else default
+# Extract theme configuration from simplified light/dark structure
+_LIGHT_THEME = _THEME_CONFIG.get("light", {})
+_DARK_THEME = _THEME_CONFIG.get("dark", {})
 
 print(f"[Theme] ===== THEME CONFIG LOADING =====", flush=True)
 print(f"[Theme] Loaded theme.json: {_THEME_CONFIG.get('name', 'Unknown')}", flush=True)
-print(f"[Theme] Palette loaded: {bool(_PALETTE)}", flush=True)
+print(f"[Theme] Light theme fields: {list(_LIGHT_THEME.keys()) if _LIGHT_THEME else 'None'}", flush=True)
 sys.stdout.flush()
 
-# Build THEME_DEFAULT with Ant Design v5 tokens using simplified palette
-if _PALETTE:
-    logging.info("[Theme] Building themes from simplified palette structure")
+# Build THEME_DEFAULT with Ant Design v5 tokens using simplified light/dark structure
+if _LIGHT_THEME:
+    logging.info("[Theme] Building themes from simplified light/dark structure")
     
-    # Light mode colors from palette
-    _primary = _get_color("primary.base", "#D35400")
-    _primary_dark = _get_color("primary.dark", "#A04000")
-    _text = _get_color("text.primary.light", "#1F2937")
-    _text_secondary = _get_color("text.secondary.light", "#4B5563")
-    _text_muted = _get_color("text.muted.light", "#6B7280")
-    _text_placeholder = _get_color("text.placeholder.light", "#9CA3AF")
-    _bg_light = _get_color("background.light", "#F8F9FA")
-    _surface_light = _get_color("surface.light", "#FFFFFF")
-    _border_light = _get_color("border.light", "#DEE2E6")
-    _border_secondary_light = _get_color("border.secondaryLight", "#E5E7EB")
+    # Light mode colors - directly from theme.json "light" section
+    _primary = _LIGHT_THEME.get("primary", "#D35400")
+    _primary_hover = _LIGHT_THEME.get("primaryHover", "#A04000")
+    _text = _LIGHT_THEME.get("textPrimary", "#1F2937")
+    _text_secondary = _LIGHT_THEME.get("textSecondary", "#4B5563")
+    _text_muted = _LIGHT_THEME.get("textMuted", "#6B7280")
+    _text_placeholder = _LIGHT_THEME.get("textMuted", "#9CA3AF")  # Use textMuted for placeholders
+    _bg_light = _LIGHT_THEME.get("background", "#F8F9FA")
+    _surface_light = _LIGHT_THEME.get("surface", "#FFFFFF")
+    _border_light = _LIGHT_THEME.get("border", "#DEE2E6")
+    _border_secondary_light = _LIGHT_THEME.get("border", "#E5E7EB")  # Slightly lighter variant
     
-    # State colors (use light variants for light mode)
-    _success = _get_color("state.success.base", "#059669")
-    _warning = _get_color("state.warning.base", "#D97706")
-    _error = _get_color("state.error.base", "#DC2626")
-    _info = _get_color("state.info.base", "#D35400")
+    # State colors from light theme
+    _success = _LIGHT_THEME.get("success", "#059669")
+    _warning = _LIGHT_THEME.get("warning", "#D97706")
+    _error = _LIGHT_THEME.get("error", "#DC2626")
+    _info = _LIGHT_THEME.get("primary", "#D35400")  # Use primary for info
     
     logging.info(f"[Theme] Light mode - primary: {_primary}, text: {_text}")
     
     # Build light theme tokens
     THEME_DEFAULT_TOKENS = {
         "colorPrimary": _primary,
-        "colorPrimaryHover": _primary_dark,
-        "colorPrimaryActive": _primary_dark,
+        "colorPrimaryHover": _primary_hover,
+        "colorPrimaryActive": _primary_hover,
         "colorPrimaryText": _text,
         "colorPrimaryTextHover": _primary,
-        "colorLink": _primary_dark,
+        "colorLink": _primary_hover,
         "colorLinkHover": _primary,
-        "colorLinkActive": _primary_dark,
-        "colorSuccess": _success,
+        "colorLinkActive": _primary_hover,
+        "colorSuccess": _primary,  # Use primary orange for success icons (checkmarks in Published badges)
         # Explicit success tokens — give Published badge a clearly filled warm
         # background so it's visually distinct from Draft's outline-only style
-        "colorSuccessBg": _get_color("state.success.background", "#FFF7ED"),
+        "colorSuccessBg": "#FFF7ED",  # Light warm background for success badges
         "colorSuccessBgHover": "#FFE8D0",
         "colorSuccessBorder": "#F5A070",
-        "colorSuccessText": _success,
-        "colorSuccessTextHover": _get_color("primary.dark", "#A04000"),
+        "colorSuccessText": _primary,  
+        "colorSuccessTextHover": _primary_hover,
         "colorWarning": _warning,
         "colorError": _error,
         "colorInfo": _info,
+        # Explicit primary bg tokens for light mode — prevents Ant Design from auto-deriving
+        # orange backgrounds for buttons (Favorite/Mine/All tabs) to align with neutral theme
+        "colorPrimaryBg": "#F5F5F5",
+        "colorPrimaryBgHover": "#E5E5E5",
+        "colorPrimaryBorder": "#D4D4D4",
         "colorBgBase": _surface_light,
         "colorBgContainer": _surface_light,
         "colorBgElevated": _bg_light,
@@ -135,45 +127,45 @@ if _PALETTE:
     
     THEME_DEFAULT = {"token": THEME_DEFAULT_TOKENS}
     
-    # Dark mode colors from palette
-    _primary_dark_mode = _get_color("primary.muted", "#FF8A5C")
-    _primary_darker = _get_color("primary.dark", "#FF6B35")
-    _text_dark = _get_color("text.primary.dark", "#FAFAFA")
-    _text_secondary_dark = _get_color("text.secondary.dark", "#E5E5E5")
-    _text_muted_dark = _get_color("text.muted.dark", "#A3A3A3")
-    _text_placeholder_dark = _get_color("text.placeholder.dark", "#737373")
-    _text_inverse_dark = _get_color("text.inverse.dark", "#0A0A0A")
-    _bg_dark = _get_color("background.dark", "#0A0A0A")
-    _surface_dark = _get_color("surface.dark", "#141414")
-    _surface_higher_dark = _get_color("surface.higher", "#1C1C1C")
-    _border_dark = _get_color("border.dark", "#404040")
-    _border_secondary_dark = _get_color("border.secondaryDark", "#525252")
+    # Dark mode colors - directly from theme.json "dark" section
+    _primary_dark_mode = _DARK_THEME.get("primary", "#FF8A5C")
+    _primary_dark_hover = _DARK_THEME.get("primaryHover", "#FF6B35")
+    _text_dark = _DARK_THEME.get("textPrimary", "#FAFAFA")
+    _text_secondary_dark = _DARK_THEME.get("textSecondary", "#E5E5E5")
+    _text_muted_dark = _DARK_THEME.get("textMuted", "#A3A3A3")
+    _text_placeholder_dark = _DARK_THEME.get("textMuted", "#737373")  # Use textMuted for placeholders
+    _text_inverse_dark = "#0A0A0A"  # Dark text for light backgrounds
+    _bg_dark = _DARK_THEME.get("background", "#0A0A0A")
+    _surface_dark = _DARK_THEME.get("surface", "#141414")
+    _surface_higher_dark = "#1C1C1C"  # Slightly lighter surface for elevation
+    _border_dark = _DARK_THEME.get("border", "#404040")
+    _border_secondary_dark = "#525252"  # Slightly lighter border
     
-    # State colors for dark mode
-    _success_dark = _get_color("state.success.light", "#34D399")
-    _warning_dark = _get_color("state.warning.light", "#FBBF24")
-    _error_dark = _get_color("state.error.light", "#F87171")
-    _info_dark = _get_color("primary.muted", "#FF8A5C")
+    # State colors from dark theme
+    _success_dark = _DARK_THEME.get("success", "#34D399")
+    _warning_dark = _DARK_THEME.get("warning", "#FBBF24")
+    _error_dark = _DARK_THEME.get("error", "#F87171")
+    _info_dark = _DARK_THEME.get("primary", "#FF8A5C")  # Use primary for info
     
     logging.info(f"[Theme] Dark mode - primary: {_primary_dark_mode}, bg: {_bg_dark}, text: {_text_dark}")
     
     THEME_DARK_TOKENS = {
         "colorPrimary": _primary_dark_mode,
-        "colorPrimaryHover": _primary_darker,
-        "colorPrimaryActive": _primary_darker,
+        "colorPrimaryHover": _primary_dark_hover,
+        "colorPrimaryActive": _primary_dark_hover,
         "colorPrimaryText": _primary_dark_mode,
-        "colorPrimaryTextHover": _primary_darker,
+        "colorPrimaryTextHover": _primary_dark_hover,
         "colorLink": _primary_dark_mode,
-        "colorLinkHover": _primary_darker,
-        "colorLinkActive": _primary_darker,
-        "colorSuccess": _success_dark,
+        "colorLinkHover": _primary_dark_hover,
+        "colorLinkActive": _primary_dark_hover,
+        "colorSuccess": _primary_dark_mode,  # Use primary orange for success icons (checkmarks in Published badges)
         # Explicit success badge tokens — prevents Ant Design from auto-generating
         # a blinding light background in dark mode (Published tag, etc.)
-        "colorSuccessBg": _get_color("state.success.backgroundDark", "#2D1608"),
+        "colorSuccessBg": "#2D1608",  # Dark warm background for success badges
         "colorSuccessBgHover": "#3D2010",
         "colorSuccessBorder": "#5A2D10",
-        "colorSuccessText": _success_dark,
-        "colorSuccessTextHover": _get_color("primary.muted", "#FF8A5C"),
+        "colorSuccessText": _primary_dark_mode,  
+        "colorSuccessTextHover": _primary_dark_hover,
         # Explicit primary bg tokens — prevents Ant Design from auto-deriving
         # near-white from colorPrimary=#FF8A5C (Physical badge, All tab, buttons)
         "colorPrimaryBg": "#241205",
@@ -731,8 +723,9 @@ logger.info(f"ENABLE_CORS: {ENABLE_CORS}")
 logger.info(f"CORS origins: {_portal_origin}")
 
 # Theme logging
-if _PALETTE:
-    logger.info(f"[Theme] Custom theming enabled with primary color: {_get_color('primary.base', 'N/A')}")
+if _LIGHT_THEME and _DARK_THEME:
+    logger.info(f"[Theme] Custom theming enabled")
+    logger.info(f"[Theme] Light primary: {_LIGHT_THEME.get('primary', 'N/A')}, Dark primary: {_DARK_THEME.get('primary', 'N/A')}")
     if 'THEME_DEFAULT' in globals() and THEME_DEFAULT:
         logger.info(f"[Theme] THEME_DEFAULT configured with {len(THEME_DEFAULT.get('token', {}))} tokens")
     if 'THEME_DARK' in globals() and THEME_DARK:
