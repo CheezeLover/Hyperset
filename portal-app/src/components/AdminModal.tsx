@@ -1180,7 +1180,7 @@ export function AdminModal({ onClose }: AdminModalProps) {
               <input type="password" value={settings.apiKey}
                 onChange={(e) => setSettings((s) => ({ ...s, apiKey: e.target.value }))}
                 placeholder={settings.isCustom ? "••••• (currently set)" : "Enter API key..."}
-                style={inputStyle} disabled={saving} />
+                style={inputStyle} disabled={saving} autoComplete="off" />
             </label>
 
             <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
