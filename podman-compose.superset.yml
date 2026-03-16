@@ -1,42 +1,13 @@
 # podman-compose.superset.yml
-# Extended Hyperset stack with integrated Superset instance
-# This file is always included in deployment
+# Superset application services.
+# The stateful backends (superset-db, superset-redis) live in podman-compose.data.yml.
+# Always start all three compose files together so depends_on resolves correctly:
+#
+#   podman-compose -f podman-compose.data.yml \
+#                  -f podman-compose.superset.yml \
+#                  -f podman-compose.yml up -d
 
 services:
-  # PostgreSQL database for Superset
-  superset-db:
-    image: docker.io/library/postgres:15-alpine
-    container_name: hyperset-superset-db
-    environment:
-      - POSTGRES_USER=superset
-      - POSTGRES_PASSWORD=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
-      - POSTGRES_DB=superset
-    volumes:
-      - superset_db_data:/var/lib/postgresql/data
-    networks:
-      - hyperset-net
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U superset -d superset"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
-  # Redis for caching and Celery
-  superset-redis:
-    image: docker.io/library/redis:7-alpine
-    container_name: hyperset-superset-redis
-    volumes:
-      - superset_redis_data:/data
-    networks:
-      - hyperset-net
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-    restart: unless-stopped
-
   # Superset application server
   superset-app:
     build:
@@ -279,6 +250,4 @@ services:
     restart: "no"
 
 volumes:
-  superset_db_data:
-  superset_redis_data:
   superset_home:

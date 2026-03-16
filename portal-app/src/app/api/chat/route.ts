@@ -79,7 +79,7 @@ const ALLOWED_MODEL_PARAMS = new Set([
 
 // ── GET: health / config check ───────────────────────────────────
 export const GET = async (req: NextRequest) => {
-  const s = getAdminSettings();
+  const s = await getAdminSettings();
   const apiKey = s?.apiKey ?? process.env.LLM_API_KEY ?? "";
 
   if (!apiKey) {
@@ -204,7 +204,7 @@ export const POST = async (req: NextRequest) => {
     return NextResponse.json({ error: "Rate limit exceeded. Please wait before sending more messages." }, { status: 429 });
   }
 
-  const s = getAdminSettings();
+  const s = await getAdminSettings();
   const apiUrl      = s?.apiUrl       ?? process.env.LLM_API_URL       ?? "https://api.openai.com/v1";
   const apiKey      = s?.apiKey       ?? process.env.LLM_API_KEY       ?? "";
   const model       = s?.model        ?? process.env.LLM_MODEL        ?? "gpt-4o";
@@ -215,7 +215,7 @@ export const POST = async (req: NextRequest) => {
   }
 
   // Parse incoming messages from the client
-  let body: { messages?: OpenAI.Chat.ChatCompletionMessageParam[] };
+  let body: { messages?: OpenAI.Chat.ChatCompletionMessageParam[]; currentSupersetUrl?: string };
   try {
     body = await req.json();
   } catch {
@@ -223,6 +223,7 @@ export const POST = async (req: NextRequest) => {
   }
 
   const userMessages: OpenAI.Chat.ChatCompletionMessageParam[] = body.messages ?? [];
+  const currentSupersetUrl = typeof body.currentSupersetUrl === "string" ? body.currentSupersetUrl : undefined;
 
   // Input size validation — reject oversized payloads early
   if (userMessages.length > 100) {
@@ -450,9 +451,9 @@ export const POST = async (req: NextRequest) => {
   const activeTools = filterToolsForContext(tools, userMessages);
 
   // Load routing context only (LLM will use tools to fetch document content)
-  const routingContext = getKnowledgeBaseRoutingContext();
-  const kbStats = getKnowledgeBaseStats();
-  const routingGuide = getKnowledgeBaseRoutingGuide();
+  const routingContext = await getKnowledgeBaseRoutingContext();
+  const kbStats = await getKnowledgeBaseStats();
+  const routingGuide = await getKnowledgeBaseRoutingGuide();
   
   const knowledgeBaseSection = routingContext || kbStats.documentCount > 0
     ? `
@@ -511,8 +512,13 @@ Administrators can upload documents through the Admin Settings > Knowledge Base 
     ? systemPrompt
     : DEFAULT_SYSTEM_PROMPT;
 
+  // Append current Superset page if known (sent by the browser on each request)
+  const currentPageSection = currentSupersetUrl
+    ? `\n\n---\nThe user currently has this Superset URL open: ${currentSupersetUrl}\n---`
+    : "";
+
   // Prepend knowledge base section if available
-  const fullSystemContent = baseSystemContent + knowledgeBaseSection;
+  const fullSystemContent = baseSystemContent + knowledgeBaseSection + currentPageSection;
 
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
     { role: "system" as const, content: fullSystemContent },
@@ -692,8 +698,8 @@ Administrators can upload documents through the Admin Settings > Knowledge Base 
             } else if (tc.name === "knowledge_base_list") {
               // Knowledge base list tool - return the list of documents with stats
               try {
-                const stats = getKnowledgeBaseStats();
-                const docs = getKnowledgeDocuments();
+                const stats = await getKnowledgeBaseStats();
+                const docs = await getKnowledgeDocuments();
                 if (docs.length === 0) {
                   result = `Knowledge Base Status: Empty (${stats.documentCount} documents, ${stats.totalSizeFormatted} / ${stats.maxSizeFormatted} used)\n\nNo company-specific documents have been uploaded yet. Administrators can add documents through Admin Settings > Knowledge Base.`;
                 } else {
@@ -710,7 +716,7 @@ Administrators can upload documents through the Admin Settings > Knowledge Base 
                 if (!searchQuery) {
                   result = "Error: No search query provided.";
                 } else {
-                  const matches = searchKnowledgeBase(searchQuery);
+                  const matches = await searchKnowledgeBase(searchQuery);
                   if (matches.length === 0) {
                     result = `No documents found matching "${searchQuery}".`;
                   } else {
@@ -728,11 +734,11 @@ Administrators can upload documents through the Admin Settings > Knowledge Base 
                 if (!docId) {
                   result = "Error: No document ID provided.";
                 } else {
-                  const content = getKnowledgeDocumentContent(docId);
+                  const content = await getKnowledgeDocumentContent(docId);
                   if (!content) {
                     result = `Document not found: ${docId}`;
                   } else {
-                    const doc = getKnowledgeDocuments().find(d => d.id === docId);
+                    const doc = (await getKnowledgeDocuments()).find(d => d.id === docId);
                     result = `--- ${doc?.name || docId} ---\n\n${content}`;
                   }
                 }

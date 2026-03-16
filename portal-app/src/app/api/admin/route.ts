@@ -128,7 +128,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
 
-  const s = getAdminSettings();
+  const s = await getAdminSettings();
   const effectiveSystemPrompt = s?.systemPrompt ?? process.env.LLM_SYSTEM_PROMPT ?? DEFAULT_SYSTEM_PROMPT;
 
   return NextResponse.json({
@@ -157,7 +157,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const prev = getAdminSettings() ?? {};
+  const prev = await getAdminSettings() ?? {};
 
   const clamp = (v: unknown, min: number, max: number, fallback: number): number => {
     const n = Number(v);
@@ -172,7 +172,7 @@ export async function POST(request: NextRequest) {
     return Math.max(1, Math.min(10080, Math.round(n)));
   };
 
-  setAdminSettings({
+  await setAdminSettings({
     apiUrl:             body.apiUrl             !== undefined ? body.apiUrl             : prev.apiUrl,
     apiKey:             body.apiKey && body.apiKey !== "***" ? body.apiKey              : prev.apiKey,
     model:              body.model              !== undefined ? body.model              : prev.model,
@@ -197,7 +197,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
 
-  clearAdminSettings();
+  await clearAdminSettings();
   return NextResponse.json({ ok: true });
 }
 

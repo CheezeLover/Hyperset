@@ -59,12 +59,12 @@ export async function GET(
   }
 
   try {
-    const document = getKnowledgeDocument(id);
+    const document = await getKnowledgeDocument(id);
     if (!document) {
       return NextResponse.json({ error: "Document not found" }, { status: 404 });
     }
 
-    const content = getKnowledgeDocumentContent(id);
+    const content = await getKnowledgeDocumentContent(id);
     if (content === null) {
       return NextResponse.json({ error: "Document content not found" }, { status: 404 });
     }
@@ -93,7 +93,7 @@ export async function DELETE(
   }
 
   try {
-    const success = deleteKnowledgeDocument(id);
+    const success = await deleteKnowledgeDocument(id);
     if (!success) {
       return NextResponse.json({ error: "Document not found" }, { status: 404 });
     }

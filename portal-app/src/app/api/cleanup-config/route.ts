@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const s = getAdminSettings();
+  const s = await getAdminSettings();
   const cleanupDelayMinutes =
     s?.cleanupDelayMinutes ?? Number(process.env.HYPERSET_CLEANUP_DELAY_MINUTES ?? 120);
 

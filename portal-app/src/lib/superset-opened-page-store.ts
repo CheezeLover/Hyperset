@@ -1,97 +1,21 @@
-interface OpenedPageEntry {
-  url: string;
-  updatedAt: string;
-  reason?: string;
-}
+/**
+ * The opened-page tracker has been moved to the browser.
+ *
+ * The current Superset URL is now tracked in React state in HypersetLayout
+ * and passed directly to each chat request in the POST body.  There is no
+ * longer any server-side store — this file is kept as a stub so existing
+ * imports compile without modification.
+ */
 
-const _openedPages = new Map<string, OpenedPageEntry>();
-const MAX_URL_LENGTH = 2048;
-const RETENTION_MS = 1000 * 60 * 60 * 12; // 12 hours
-
-function normalizeUrl(raw: string): string | null {
-  if (typeof raw !== "string") return null;
-  const trimmed = raw.trim();
-  if (!trimmed || trimmed.length > MAX_URL_LENGTH) return null;
-  try {
-    const u = new URL(trimmed);
-    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
-    return u.toString();
-  } catch {
-    return null;
-  }
-}
-
-function isGenericHomeUrl(raw: string): boolean {
-  try {
-    const u = new URL(raw);
-    const p = (u.pathname || "/").replace(/\/+$/, "") || "/";
-    return (
-      (p === "/" || p === "/superset" || p === "/superset/welcome" || p === "/welcome") &&
-      !u.search &&
-      !u.hash
-    );
-  } catch {
-    return false;
-  }
-}
-
-function pruneExpired(nowMs: number): void {
-  for (const [key, value] of _openedPages.entries()) {
-    const ts = Date.parse(value.updatedAt);
-    if (!Number.isFinite(ts) || nowMs - ts > RETENTION_MS) {
-      _openedPages.delete(key);
-    }
-  }
-}
-
-function normalizeKey(raw: string | undefined): string {
-  return (raw ?? "").trim().toLowerCase();
-}
-
+// No-op exports kept for backwards compatibility with any direct imports.
 export function setOpenedPageForUser(
-  keys: Array<string | undefined>,
-  rawUrl: string,
-  reason?: string,
-): OpenedPageEntry | null {
-  const url = normalizeUrl(rawUrl);
-  if (!url) return null;
-
-  const now = new Date();
-  const nowIso = now.toISOString();
-  const nowMs = now.getTime();
-  pruneExpired(nowMs);
-
-  const entry: OpenedPageEntry = {
-    url,
-    updatedAt: nowIso,
-    reason: typeof reason === "string" && reason.trim() ? reason.trim().slice(0, 80) : undefined,
-  };
-  for (const key of keys) {
-    const normalizedKey = normalizeKey(key);
-    if (!normalizedKey) continue;
-
-    // Prevent noisy "home" updates from overwriting a more specific page URL.
-    // However, if the user explicitly navigates to welcome (reason is pushState, replaceState or polling_change)
-    // we DO want to update it. We only want to ignore "seed", "load" or generic requested updates when we already have a specific page.
-    const previous = _openedPages.get(normalizedKey);
-    const isExplicitNavigation = reason === "pushState" || reason === "replaceState" || reason === "polling_change" || reason === "anchor_click";
-    
-    if (previous && !isGenericHomeUrl(previous.url) && isGenericHomeUrl(url) && !isExplicitNavigation) {
-      continue;
-    }
-
-    _openedPages.set(normalizedKey, entry);
-  }
-
-  return entry;
+  _keys: Array<string | undefined>,
+  _rawUrl: string,
+  _reason?: string,
+): null {
+  return null;
 }
 
-export function getOpenedPageForKey(key: string): OpenedPageEntry | null {
-  const normalizedKey = normalizeKey(key);
-  if (!normalizedKey) return null;
-
-  const nowMs = Date.now();
-  pruneExpired(nowMs);
-
-  return _openedPages.get(normalizedKey) ?? null;
+export function getOpenedPageForKey(_key: string): null {
+  return null;
 }

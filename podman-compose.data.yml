@@ -1,0 +1,73 @@
+# podman-compose.data.yml
+# Centralised stateful services — run this alongside the other compose files.
+# All portal instances and Superset services share these backends, making the
+# rest of the stack fully stateless and horizontally scalable.
+#
+# Start order:
+#   podman-compose -f podman-compose.data.yml \
+#                  -f podman-compose.superset.yml \
+#                  -f podman-compose.yml up -d
+
+services:
+  # ── Portal application database ──────────────────────────────────────────
+  # Stores admin settings, page settings, and knowledge-base documents.
+  portal-db:
+    image: docker.io/library/postgres:15-alpine
+    container_name: hyperset-portal-db
+    environment:
+      - POSTGRES_USER=portal
+      - POSTGRES_PASSWORD=${PORTAL_DATABASE_PASSWORD:?PORTAL_DATABASE_PASSWORD must be set in .env}
+      - POSTGRES_DB=portal
+    volumes:
+      - portal_db_data:/var/lib/postgresql/data
+    networks:
+      - hyperset-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U portal -d portal"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ── Superset metadata database ────────────────────────────────────────────
+  superset-db:
+    image: docker.io/library/postgres:15-alpine
+    container_name: hyperset-superset-db
+    environment:
+      - POSTGRES_USER=superset
+      - POSTGRES_PASSWORD=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
+      - POSTGRES_DB=superset
+    volumes:
+      - superset_db_data:/var/lib/postgresql/data
+    networks:
+      - hyperset-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U superset -d superset"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ── Superset cache / Celery broker ───────────────────────────────────────
+  superset-redis:
+    image: docker.io/library/redis:7-alpine
+    container_name: hyperset-superset-redis
+    volumes:
+      - superset_redis_data:/data
+    networks:
+      - hyperset-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  portal_db_data:
+  superset_db_data:
+  superset_redis_data:
+
+networks:
+  hyperset-net:
+    external: true

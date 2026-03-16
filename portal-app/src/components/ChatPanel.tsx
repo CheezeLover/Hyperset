@@ -7,6 +7,8 @@ interface ChatPanelProps {
   isAdmin: boolean;
   supersetIframeRef: React.RefObject<HTMLIFrameElement | null>;
   supersetUrl: string;
+  /** Current Superset URL tracked in the browser; sent with each chat request. */
+  currentSupersetUrl?: string;
   injectedMessage: string | null;
   onInjectionConsumed: () => void;
   /** Lifted state — persists across panel collapse/expand */
@@ -1320,6 +1322,7 @@ export function ChatPanel({
   isAdmin,
   supersetIframeRef,
   supersetUrl,
+  currentSupersetUrl,
   injectedMessage,
   onInjectionConsumed,
   messages,
@@ -1412,7 +1415,7 @@ export function ChatPanel({
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: history }),
+        body: JSON.stringify({ messages: history, currentSupersetUrl }),
         signal: abortController.signal,
       });
 

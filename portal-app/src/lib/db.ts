@@ -1,0 +1,79 @@
+/**
+ * PostgreSQL client shared across all server-side modules.
+ *
+ * Connection string is read from PORTAL_DATABASE_URL (set in compose).
+ * The global singleton avoids creating a new pool on every Next.js hot-reload
+ * in development.
+ *
+ * Schema migrations run once on first use — CREATE TABLE IF NOT EXISTS is
+ * idempotent so multiple instances starting in parallel is safe.
+ */
+
+import postgres from "postgres";
+
+type SqlClient = ReturnType<typeof postgres>;
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __pgSql: SqlClient | undefined;
+}
+
+export const sql: SqlClient =
+  globalThis.__pgSql ??
+  postgres(
+    process.env.PORTAL_DATABASE_URL ??
+      "postgresql://portal:portal@hyperset-portal-db:5432/portal",
+    { max: 10 },
+  );
+
+if (process.env.NODE_ENV !== "production") globalThis.__pgSql = sql;
+
+// ── Schema migration ─────────────────────────────────────────────────────────
+// Runs once per process; subsequent calls return the cached promise.
+let _schemaInit: Promise<void> | null = null;
+
+export function ensureSchema(): Promise<void> {
+  if (_schemaInit) return _schemaInit;
+  _schemaInit = _runMigrations().catch((err) => {
+    _schemaInit = null; // allow retry on transient failures
+    throw err;
+  });
+  return _schemaInit;
+}
+
+async function _runMigrations(): Promise<void> {
+  await sql`
+    CREATE TABLE IF NOT EXISTS hyperset_admin_settings (
+      key   TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS hyperset_page_settings (
+      name     TEXT PRIMARY KEY,
+      settings JSONB NOT NULL
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS hyperset_kb_documents (
+      id          TEXT        PRIMARY KEY,
+      name        TEXT        NOT NULL,
+      description TEXT        NOT NULL DEFAULT '',
+      created_at  TIMESTAMPTZ NOT NULL,
+      updated_at  TIMESTAMPTZ NOT NULL,
+      size        INT         NOT NULL DEFAULT 0,
+      content     TEXT        NOT NULL DEFAULT ''
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS hyperset_kb_meta (
+      key   TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    )
+  `;
+
+  console.log("[db] Schema ready");
+}

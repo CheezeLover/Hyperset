@@ -74,6 +74,8 @@ services:
       - LLM_MODEL=${LLM_MODEL:-gpt-4o}
       # Session encryption key for admin settings storage
       - SESSION_SECRET=${SESSION_SECRET}
+      # Portal application database (admin settings, page settings, knowledge base)
+      - PORTAL_DATABASE_URL=postgresql://portal:${PORTAL_DATABASE_PASSWORD:?PORTAL_DATABASE_PASSWORD must be set in .env}@hyperset-portal-db:5432/portal
       - NODE_ENV=production
     volumes:
       - ./theme.json:/app/theme.json:Z

@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
   }
 
   const pages = scanPagesDir();
-  const settings = getAllPageSettings();
+  const settings = await getAllPageSettings();
 
   const pagesWithMeta = pages.map((p) => ({
     name: p.name,
@@ -138,11 +138,11 @@ export async function POST(request: NextRequest) {
       fs.writeFileSync(path.join(pageDir, "backend.py"), backendBuffer);
     }
 
-    setPageSettings(name, { active: true, allowedGroups: [] });
+    await setPageSettings(name, { active: true, allowedGroups: [] });
 
-    return NextResponse.json({ 
-      ok: true, 
-      page: { 
+    return NextResponse.json({
+      ok: true,
+      page: {
         name, 
         hasBackend: !!backendFile && backendFile.size > 0,
         active: true,
@@ -238,7 +238,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: `Page "${name}" not found` }, { status: 404 });
     }
 
-    const current = getAllPageSettings()[name] ?? { active: true, allowedGroups: [] };
+    const current = (await getAllPageSettings())[name] ?? { active: true, allowedGroups: [] };
     const updated: PageSettings = {
       active: active !== undefined ? active : current.active,
       allowedGroups: allowedGroups !== undefined ? allowedGroups : current.allowedGroups,
@@ -246,7 +246,7 @@ export async function PATCH(request: NextRequest) {
       iconColor: iconColor !== undefined ? iconColor : current.iconColor,
     };
 
-    setPageSettings(name, updated);
+    await setPageSettings(name, updated);
 
     return NextResponse.json({ ok: true });
   } catch (e) {
@@ -279,7 +279,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     fs.rmSync(pageDir, { recursive: true, force: true });
-    deletePageSettings(name);
+    await deletePageSettings(name);
 
     return NextResponse.json({ ok: true });
   } catch (e) {

@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
   serverExternalPackages: [
     "@modelcontextprotocol/sdk",
     "iron-session",
+    "postgres",
   ],
 };
 

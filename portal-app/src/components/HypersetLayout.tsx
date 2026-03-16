@@ -47,8 +47,8 @@ export function HypersetLayout({
   const [chatInjection, setChatInjection] = useState<string | null>(null);
   // Ref to Superset iframe for postMessage
   const supersetIframeRef = useRef<HTMLIFrameElement>(null);
-  // Prevent resetting opened-page tracking on unrelated re-renders.
-  const seededOpenedPageUrlRef = useRef<string | null>(null);
+  // Current Superset URL — tracked in browser state, sent with each chat request.
+  const [currentSupersetUrl, setCurrentSupersetUrl] = useState<string>(supersetUrl);
   // Chat message history — lifted here so it survives panel collapse/expand
   const [chatMessages, setChatMessages] = useState<Message[]>([]);
   const [isPortraitMode, setIsPortraitMode] = useState(false);
@@ -139,16 +139,6 @@ export function HypersetLayout({
       }
     })();
 
-    const reportOpenedPage = (url: string, reason?: string) => {
-      void fetch("/api/superset-opened-page", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, reason }),
-      }).catch(() => {
-        // Best-effort telemetry only.
-      });
-    };
-
     const requestOpenedPage = () => {
       supersetIframeRef.current?.contentWindow?.postMessage(
         { type: "get_location" },
@@ -160,11 +150,6 @@ export function HypersetLayout({
       );
     };
 
-    // Seed only once per configured Superset URL.
-    if (seededOpenedPageUrlRef.current !== supersetUrl) {
-      reportOpenedPage(supersetUrl, "seed");
-      seededOpenedPageUrlRef.current = supersetUrl;
-    }
     // Ask bridge for the current live location.
     requestOpenedPage();
     const pollId = window.setInterval(requestOpenedPage, 5000);
@@ -202,12 +187,9 @@ export function HypersetLayout({
           ];
         });
       } else if (msg?.type === "superset_location" && typeof msg.url === "string") {
-        reportOpenedPage(msg.url, typeof msg.reason === "string" ? msg.reason : "superset_location");
+        setCurrentSupersetUrl(msg.url);
       } else if (msg?.type === "ready") {
-        reportOpenedPage(supersetUrl, "debug_received_ready");
         requestOpenedPage();
-      } else if (msg?.type === "pong") {
-        reportOpenedPage(supersetUrl, "debug_received_pong");
       }
     };
     window.addEventListener("message", handler);
@@ -435,6 +417,7 @@ export function HypersetLayout({
                   isAdmin={isAdmin}
                   supersetIframeRef={supersetIframeRef}
                   supersetUrl={supersetUrl}
+                  currentSupersetUrl={currentSupersetUrl}
                   injectedMessage={chatInjection}
                   onInjectionConsumed={() => setChatInjection(null)}
                   messages={chatMessages}
