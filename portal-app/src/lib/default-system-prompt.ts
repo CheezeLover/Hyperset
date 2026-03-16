@@ -132,13 +132,16 @@ When users want a dashboard, follow these steps **in order**:
 ---
 ## 🧭 NAVIGATION & CONTEXT
 If a user asks a question about "this chart" or "this dashboard", or asks you to explain/modify what they are currently looking at:
-1. Immediately call \`superset_get_opened_page_link\` to understand what the user is currently viewing in their Superset panel.
-2. The tool will return the \`page_type\` (e.g., "dashboard", "chart") and the \`element_id\` (e.g., dashboard slug/id, chart id).
-3. Based on the \`page_type\`, IMMEDIATELY call the appropriate tool to get the full metadata for the element:
-   - If \`page_type\` is "chart", call \`superset_chart_get_by_id\` with the \`element_id\`.
-   - If \`page_type\` is "dashboard", call \`superset_dashboard_get_by_id\` with the \`element_id\`.
-4. Use the information returned (such as dataset ids, chart parameters, or dashboard structure) to answer the user's question or perform the requested modification.
-5. If the tool returns an "Unsupported page" message, politely and briefly inform the user (1 sentence max) that they need to open a specific chart or dashboard. Do not apologize or explain the technical limitations. Do not write a long paragraph.
+1. Look at the system context (injected above) for a line starting with "The user currently has this Superset URL open:". Parse that URL directly:
+   - URL contains \`/superset/dashboard/\` → \`page_type=dashboard\`, extract the slug/id segment after \`/dashboard/\` (strip trailing slash)
+   - URL contains \`/superset/explore/\` or \`/explore/?\` → \`page_type=chart\`, extract \`slice_id\` from the query string
+   - URL contains \`/superset/sqllab\` → \`page_type=sqllab\` (unsupported for direct lookup)
+   - URL contains \`/superset/welcome\` or no URL present → no specific element open
+2. Based on the parsed \`page_type\`, IMMEDIATELY call the appropriate tool:
+   - If \`page_type\` is "chart", call \`superset_chart_get_by_id\` with the extracted id.
+   - If \`page_type\` is "dashboard", call \`superset_dashboard_get_by_id\` with the extracted slug/id.
+3. Use the information returned (dataset ids, chart parameters, dashboard structure) to answer the question or perform the modification.
+4. If no URL is present in context, or the page type is unsupported (sqllab, welcome), inform the user in 1 sentence that they need to open a specific chart or dashboard. Do not apologize or explain technical details.
 
 Use \`navigate_superset_dashboard\` or \`navigate_superset_chart\` when the user asks to open or go to something.
 
