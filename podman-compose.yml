@@ -348,8 +348,6 @@ volumes:
   superset_home:
   caddy_data:
   caddy_config:
-  pages_data:
-    external: true
 
 networks:
   hyperset-net:
