@@ -143,7 +143,7 @@ services:
       dockerfile: Dockerfile
     image: localhost/hyperset-superset:latest
     container_name: hyperset-superset-beat
-    command: ["celery", "--app=superset.tasks.celery_app:app", "beat", "-l", "INFO"]
+    command: ["celery", "--app=superset.tasks.celery_app:app", "beat", "-l", "INFO", "--schedule", "/app/superset_home/celerybeat-schedule"]
     environment:
       # Database configuration
       - DATABASE_DIALECT=postgresql
