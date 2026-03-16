@@ -383,7 +383,6 @@ export const POST = async (req: NextRequest) => {
       "superset_get_dashboard_embed",
       "superset_get_chart_link",
       "superset_get_dashboard_link",
-      "superset_get_opened_page_link",
       "superset_analyze_data",
     ]);
 
@@ -434,11 +433,10 @@ export const POST = async (req: NextRequest) => {
     }
 
     // User / config info
-    if (/user|role|who am|config|base.?url|opened page|current page|iframe|link of the opened page/.test(msg)) {
+    if (/user|role|who am|config|base.?url/.test(msg)) {
       include.add("superset_user_get_current");
       include.add("superset_user_get_roles");
       include.add("superset_config_get_base_url");
-      include.add("superset_get_opened_page_link");
     }
 
     return allTools.filter((t) => include.has(t.function.name));
