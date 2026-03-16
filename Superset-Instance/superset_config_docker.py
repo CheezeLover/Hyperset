@@ -360,7 +360,10 @@ WTF_CSRF_ENABLED = True
 FEATURE_FLAGS = {
     "EMBEDDED_SUPERSET": True,
     "ENABLE_TEMPLATE_PROCESSING": True,
-    "ALERT_REPORTS": True,
+    # ALERT_REPORTS requires headless Chrome (Selenium) for screenshot-based reports,
+    # which is extremely memory-intensive. Enable only if you actively use email/Slack
+    # report scheduling — each screenshot task can consume 500 MB+ via a Chrome process.
+    "ALERT_REPORTS": False,
 }
 
 # ---------------------------------------------------------------------------

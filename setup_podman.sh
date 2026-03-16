@@ -125,6 +125,30 @@ generate_passwords() {
     fi
   fi
   
+  # Generate PORTAL_DATABASE_PASSWORD if not set or is placeholder
+  if [ -z "${PORTAL_DATABASE_PASSWORD:-}" ] || [[ "${PORTAL_DATABASE_PASSWORD:-}" == CHANGE_ME* ]]; then
+    local new_portal_db_pass
+    new_portal_db_pass=$(openssl rand -hex 32)
+
+    if [ -f "$env_file" ]; then
+      if grep -q "^PORTAL_DATABASE_PASSWORD=" "$env_file" && ! grep -qE "^PORTAL_DATABASE_PASSWORD=CHANGE_ME" "$env_file"; then
+        echo "==> Using existing PORTAL_DATABASE_PASSWORD from $env_file"
+      else
+        if grep -q "^PORTAL_DATABASE_PASSWORD=" "$env_file"; then
+          sed -i "s|^PORTAL_DATABASE_PASSWORD=.*|PORTAL_DATABASE_PASSWORD=$new_portal_db_pass|" "$env_file"
+        else
+          echo "" >> "$env_file"
+          echo "# Auto-generated portal database password on first run" >> "$env_file"
+          echo "PORTAL_DATABASE_PASSWORD=$new_portal_db_pass" >> "$env_file"
+        fi
+        echo "==> Generated new PORTAL_DATABASE_PASSWORD (saved to $env_file)"
+        password_changed=true
+      fi
+    else
+      echo "⚠️  Warning: .env file not found. Cannot save generated portal database password."
+    fi
+  fi
+
   # Generate DATABASE_PASSWORD if not set or is weak default
   if [ -z "${DATABASE_PASSWORD:-}" ] || [ "$DATABASE_PASSWORD" = "superset" ]; then
     local new_db_pass
@@ -176,8 +200,10 @@ podman-compose --version
 echo "==> Creating internal network (hyperset-net)..."
 podman network exists hyperset-net || podman network create hyperset-net
 
-# Always deploy with integrated Superset stack
-COMPOSE_FILES="-f podman-compose.yml -f podman-compose.superset.yml"
+# Always deploy with both compose files:
+#   podman-compose.data.yml — stateful backends (portal-db, superset-db, superset-redis)
+#   podman-compose.yml      — all stateless services (Superset, portal, Caddy, MCP, pages)
+COMPOSE_FILES="-f podman-compose.data.yml -f podman-compose.yml"
 
 echo "==> Deploying with integrated Superset stack"
 
@@ -219,5 +245,5 @@ echo ""
 echo "  4. Open the portal at:"
 echo "       https://\${HYPERSET_DOMAIN:-hyperset.internal}"
 echo ""
-echo "  Run 'podman-compose logs -f' to watch live logs."
-podman-compose logs -f
+echo "  Run 'podman-compose $COMPOSE_FILES logs -f' to watch live logs."
+podman-compose $COMPOSE_FILES logs -f

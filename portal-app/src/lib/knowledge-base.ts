@@ -1,30 +1,22 @@
 /**
- * Lightweight Knowledge Base - Optimized for low CPU usage
- * 
- * Key differences from production version:
- * - NO relevance scoring (saves CPU)
- * - NO auto-import scanning (manual import only)
- * - Pre-computed context string cached in memory
- * - Simple concatenation with truncation
- * - LRU cache for document contents only
- * - Lazy initialization - only loads when first accessed
+ * Knowledge Base store — PostgreSQL backed.
+ *
+ * Documents (metadata + content) are stored in hyperset_kb_documents.
+ * The routing guide is stored as a single key in hyperset_kb_meta.
+ *
+ * The pre-built context string and per-document content are cached in memory
+ * per instance for fast chat reads.  Cache is rebuilt on writes.
  */
 
-import fs from "fs";
-import path from "path";
 import crypto from "crypto";
+import { sql, ensureSchema } from "./db";
 
-// ── Configuration ────────────────────────────────────────────────────────────
-const MAX_CONTEXT_LENGTH = 15000; // Characters to inject into prompt (increased from 6000)
-const MAX_KB_SIZE_MB = 50; // Max total size (increased from 20)
-const MAX_DOC_SIZE_MB = 10; // Max per document (increased from 5)
+// ── Configuration ─────────────────────────────────────────────────────────────
+const MAX_CONTEXT_LENGTH = 15000;
+const MAX_KB_SIZE_MB = 50;
+const MAX_DOC_SIZE_MB = 10;
 
-// ── Simple paths ───────────────────────────────────────────────────────────
-const DATA_DIR = path.join(process.cwd(), "data");
-const METADATA_FILE = path.join(DATA_DIR, "knowledge-base.json");
-const DOCUMENTS_DIR = path.join(DATA_DIR, "knowledge-base");
-
-// ── Types ───────────────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 export interface KnowledgeDocument {
   id: string;
   name: string;
@@ -38,39 +30,14 @@ export interface KnowledgeBaseMetadata {
   documents: KnowledgeDocument[];
   totalSize: number;
   lastUpdated: string;
-  cachedContext?: string; // Pre-computed context string
-  routingGuide?: string; // Admin-defined guide for when to use which documents
+  cachedContext?: string;
+  routingGuide?: string;
 }
 
-// ── In-memory state (cleared on restart) ───────────────────────────────────
-let _metadata: KnowledgeBaseMetadata | null = null;
-let _contextCache: string | null = null; // Pre-built context string
-const _contentCache = new Map<string, string>(); // docId -> content
-
-// ── Simple file operations ─────────────────────────────────────────────────
-function ensureDirectories(): void {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-  if (!fs.existsSync(DOCUMENTS_DIR)) fs.mkdirSync(DOCUMENTS_DIR, { recursive: true });
-}
-
-function readMetadata(): KnowledgeBaseMetadata | null {
-  try {
-    const raw = fs.readFileSync(METADATA_FILE, "utf-8");
-    return JSON.parse(raw) as KnowledgeBaseMetadata;
-  } catch {
-    return null;
-  }
-}
-
-function writeMetadata(metadata: KnowledgeBaseMetadata): void {
-  ensureDirectories();
-  metadata.lastUpdated = new Date().toISOString();
-  fs.writeFileSync(METADATA_FILE, JSON.stringify(metadata, null, 2), { encoding: "utf-8", mode: 0o600 });
-}
-
-function generateId(): string {
-  return crypto.randomBytes(8).toString("hex"); // 16 chars, shorter than before
-}
+// ── In-memory caches (per-instance) ─────────────────────────────────────────
+let _docs: KnowledgeDocument[] | null = null;          // document list (no content)
+let _contextCache: string | null = null;               // pre-built context string
+const _contentCache = new Map<string, string>();       // docId → content
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -80,138 +47,138 @@ function formatBytes(bytes: number): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
 }
 
-// ── Pre-compute context string (CPU-intensive but done once) ────────────────
-function buildContextString(docs: KnowledgeDocument[]): string {
+function generateId(): string {
+  return crypto.randomBytes(8).toString("hex");
+}
+
+// ── Context string builder ────────────────────────────────────────────────────
+function buildContextString(
+  docs: KnowledgeDocument[],
+  contentMap: Map<string, string>,
+): string {
   if (docs.length === 0) return "";
-  
   const sections: string[] = [];
   let totalLength = 0;
-  
-  // Calculate how much space each document should get (at minimum)
-  // Reserve space for all documents to be at least partially included
-  const minSpacePerDoc = 500; // At least 500 chars per document
-  const availableForFull = MAX_CONTEXT_LENGTH - (docs.length * minSpacePerDoc);
+  const minSpacePerDoc = 500;
+  const availableForFull = MAX_CONTEXT_LENGTH - docs.length * minSpacePerDoc;
   const avgSpacePerDoc = Math.max(2000, Math.floor(availableForFull / docs.length));
-  
+
   for (const doc of docs) {
-    try {
-      const filePath = path.join(DOCUMENTS_DIR, `${doc.id}.md`);
-      if (!fs.existsSync(filePath)) continue;
-      
-      // Read and cache
-      let content = _contentCache.get(doc.id);
-      if (!content) {
-        content = fs.readFileSync(filePath, "utf-8");
-        _contentCache.set(doc.id, content);
-      }
-      
-      const header = `--- ${doc.name} ---\n`;
-      const sectionLength = header.length + content.length;
-      
-      // Calculate how much of this document we can include
-      const remainingSpace = MAX_CONTEXT_LENGTH - totalLength - header.length - 100;
-      
-      if (sectionLength <= avgSpacePerDoc && totalLength + sectionLength <= MAX_CONTEXT_LENGTH) {
-        // Full document fits
-        sections.push(header + content);
-        totalLength += sectionLength;
-      } else if (remainingSpace > minSpacePerDoc) {
-        // Include partial content
-        const excerptLength = Math.min(content.length, remainingSpace - 50);
-        const excerpt = content.slice(0, excerptLength);
-        const isTruncated = excerptLength < content.length;
-        sections.push(header + excerpt + (isTruncated ? "\n[... document continues ...]" : ""));
-        totalLength += header.length + excerpt.length + (isTruncated ? 30 : 0);
-      } else {
-        // Minimal space - just include the header and description
-        const description = doc.description || "Company knowledge document";
-        sections.push(header + `[${description}]`);
-        totalLength += header.length + description.length + 2;
-      }
-    } catch {
-      // Skip files that can't be read
-      continue;
+    const content = contentMap.get(doc.id) ?? "";
+    if (!content) continue;
+    const header = `--- ${doc.name} ---\n`;
+    const sectionLength = header.length + content.length;
+    const remainingSpace = MAX_CONTEXT_LENGTH - totalLength - header.length - 100;
+
+    if (sectionLength <= avgSpacePerDoc && totalLength + sectionLength <= MAX_CONTEXT_LENGTH) {
+      sections.push(header + content);
+      totalLength += sectionLength;
+    } else if (remainingSpace > minSpacePerDoc) {
+      const excerptLength = Math.min(content.length, remainingSpace - 50);
+      const excerpt = content.slice(0, excerptLength);
+      const isTruncated = excerptLength < content.length;
+      sections.push(header + excerpt + (isTruncated ? "\n[... document continues ...]" : ""));
+      totalLength += header.length + excerpt.length + (isTruncated ? 30 : 0);
+    } else {
+      const description = doc.description || "Company knowledge document";
+      sections.push(header + `[${description}]`);
+      totalLength += header.length + description.length + 2;
     }
   }
-  
   return sections.join("\n\n");
 }
 
-// ── Public API ──────────────────────────────────────────────────────────────
+// ── DB row type ───────────────────────────────────────────────────────────────
+interface DbDocRow {
+  id: string;
+  name: string;
+  description: string;
+  created_at: Date;
+  updated_at: Date;
+  size: number;
+}
 
-/** Initialize/load metadata (lazy - only runs once) */
-function ensureLoaded(): void {
-  if (_metadata !== null) return;
-  
-  const data = readMetadata();
-  _metadata = data ?? {
-    documents: [],
-    totalSize: 0,
-    lastUpdated: new Date().toISOString()
+function rowToDoc(row: DbDocRow): KnowledgeDocument {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+    size: row.size,
   };
-  
-  // Pre-compute context string
-  if (_metadata.documents.length > 0) {
-    _contextCache = buildContextString(_metadata.documents);
-    _metadata.cachedContext = _contextCache;
-  }
 }
 
-/** Get all documents (lightweight - no scanning) */
-export function getKnowledgeDocuments(): KnowledgeDocument[] {
-  ensureLoaded();
-  return _metadata?.documents ?? [];
+// ── Public API ────────────────────────────────────────────────────────────────
+
+export async function getKnowledgeDocuments(): Promise<KnowledgeDocument[]> {
+  if (_docs !== null) return _docs;
+  await ensureSchema();
+  const rows = await sql<DbDocRow[]>`
+    SELECT id, name, description, created_at, updated_at, size
+    FROM hyperset_kb_documents
+    ORDER BY created_at ASC
+  `;
+  _docs = rows.map(rowToDoc);
+  return _docs;
 }
 
-/** Get pre-computed context for LLM (FAST - just returns cached string) */
-export function getKnowledgeBaseContext(): string {
-  ensureLoaded();
-  return _contextCache ?? "";
-}
-
-/** Get document content by ID (cached) */
-export function getKnowledgeDocumentContent(id: string): string | null {
-  // Check memory cache first
-  let content = _contentCache.get(id);
-  if (content) return content;
-  
-  // Check if document exists
-  const docs = getKnowledgeDocuments();
-  const doc = docs.find(d => d.id === id);
-  if (!doc) return null;
-  
-  // Read and cache
-  try {
-    const filePath = path.join(DOCUMENTS_DIR, `${doc.id}.md`);
-    content = fs.readFileSync(filePath, "utf-8");
+export async function getKnowledgeBaseContext(): Promise<string> {
+  if (_contextCache !== null) return _contextCache;
+  await ensureSchema();
+  const rows = await sql<(DbDocRow & { content: string })[]>`
+    SELECT id, name, description, created_at, updated_at, size, content
+    FROM hyperset_kb_documents
+    ORDER BY created_at ASC
+  `;
+  const docs = rows.map(rowToDoc);
+  const contentMap = new Map(rows.map((r) => [r.id, r.content]));
+  // Populate content cache
+  for (const [id, content] of contentMap) {
     _contentCache.set(id, content);
-    return content;
-  } catch {
-    return null;
   }
+  _docs = docs;
+  _contextCache = buildContextString(docs, contentMap);
+  return _contextCache;
 }
 
-/** Get single document metadata */
-export function getKnowledgeDocument(id: string): KnowledgeDocument | null {
-  const docs = getKnowledgeDocuments();
-  return docs.find(d => d.id === id) ?? null;
+export async function getKnowledgeDocumentContent(id: string): Promise<string | null> {
+  if (_contentCache.has(id)) return _contentCache.get(id)!;
+  await ensureSchema();
+  const rows = await sql<{ content: string }[]>`
+    SELECT content FROM hyperset_kb_documents WHERE id = ${id} LIMIT 1
+  `;
+  if (rows.length === 0) return null;
+  _contentCache.set(id, rows[0].content);
+  return rows[0].content;
 }
 
-/** Simple stats (no scanning) */
-export function getKnowledgeBaseStats(): {
+export async function getKnowledgeDocument(id: string): Promise<KnowledgeDocument | null> {
+  // Check memory cache first
+  if (_docs !== null) {
+    return _docs.find((d) => d.id === id) ?? null;
+  }
+  await ensureSchema();
+  const rows = await sql<DbDocRow[]>`
+    SELECT id, name, description, created_at, updated_at, size
+    FROM hyperset_kb_documents WHERE id = ${id} LIMIT 1
+  `;
+  return rows.length > 0 ? rowToDoc(rows[0]) : null;
+}
+
+export async function getKnowledgeBaseStats(): Promise<{
   documentCount: number;
   totalSize: number;
   totalSizeFormatted: string;
   maxSize: number;
   maxSizeFormatted: string;
   utilizationPercent: number;
-} {
-  ensureLoaded();
+}> {
+  const docs = await getKnowledgeDocuments();
+  const totalSize = docs.reduce((acc, d) => acc + d.size, 0);
   const maxBytes = MAX_KB_SIZE_MB * 1024 * 1024;
-  const totalSize = _metadata?.totalSize ?? 0;
-  
   return {
-    documentCount: _metadata?.documents.length ?? 0,
+    documentCount: docs.length,
     totalSize,
     totalSizeFormatted: formatBytes(totalSize),
     maxSize: maxBytes,
@@ -220,169 +187,124 @@ export function getKnowledgeBaseStats(): {
   };
 }
 
-/** Add document (rebuilds cache) */
-export function addKnowledgeDocument(
+export async function addKnowledgeDocument(
   name: string,
   description: string,
-  content: string
-): KnowledgeDocument {
-  ensureLoaded();
-  
+  content: string,
+): Promise<KnowledgeDocument> {
+  await ensureSchema();
   const contentSize = Buffer.byteLength(content, "utf-8");
-  
-  // Simple validation
+
   if (contentSize > MAX_DOC_SIZE_MB * 1024 * 1024) {
     throw new Error(`Document too large. Max is ${MAX_DOC_SIZE_MB}MB`);
   }
-  
-  const currentSize = _metadata?.totalSize ?? 0;
-  if (currentSize + contentSize > MAX_KB_SIZE_MB * 1024 * 1024) {
-    throw new Error(`Knowledge base full. Delete some documents first.`);
+
+  const stats = await getKnowledgeBaseStats();
+  if (stats.totalSize + contentSize > MAX_KB_SIZE_MB * 1024 * 1024) {
+    throw new Error("Knowledge base full. Delete some documents first.");
   }
-  
+
   const id = generateId();
-  const now = new Date().toISOString();
-  
-  // Write file
-  ensureDirectories();
-  const filePath = path.join(DOCUMENTS_DIR, `${id}.md`);
-  fs.writeFileSync(filePath, content, "utf-8");
-  
-  // Update metadata
+  const now = new Date();
+
+  await sql`
+    INSERT INTO hyperset_kb_documents (id, name, description, created_at, updated_at, size, content)
+    VALUES (${id}, ${name.replace(/\.md$/i, "")}, ${description}, ${now}, ${now}, ${contentSize}, ${content})
+  `;
+
   const doc: KnowledgeDocument = {
     id,
     name: name.replace(/\.md$/i, ""),
     description,
-    createdAt: now,
-    updatedAt: now,
+    createdAt: now.toISOString(),
+    updatedAt: now.toISOString(),
     size: contentSize,
   };
-  
-  if (!_metadata) {
-    _metadata = { documents: [], totalSize: 0, lastUpdated: now };
-  }
-  
-  _metadata.documents.push(doc);
-  _metadata.totalSize += contentSize;
-  
-  // Cache content
+
+  // Update caches
+  if (_docs !== null) _docs.push(doc);
   _contentCache.set(id, content);
-  
-  // Rebuild context string
-  _contextCache = buildContextString(_metadata.documents);
-  _metadata.cachedContext = _contextCache;
-  
-  // Persist
-  writeMetadata(_metadata);
-  
+  _contextCache = null; // rebuild on next access
+
   return doc;
 }
 
-/** Delete document (rebuilds cache) */
-export function deleteKnowledgeDocument(id: string): boolean {
-  ensureLoaded();
-  if (!_metadata) return false;
-  
-  const idx = _metadata.documents.findIndex(d => d.id === id);
-  if (idx === -1) return false;
-  
-  const doc = _metadata.documents[idx];
-  
-  // Delete file
-  try {
-    const filePath = path.join(DOCUMENTS_DIR, `${doc.id}.md`);
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-    }
-  } catch (e) {
-    console.warn(`[kb] Could not delete ${doc.id}.md:`, e);
-  }
-  
-  // Update metadata
-  _metadata.totalSize -= doc.size;
-  _metadata.documents.splice(idx, 1);
+export async function deleteKnowledgeDocument(id: string): Promise<boolean> {
+  await ensureSchema();
+  const result = await sql`
+    DELETE FROM hyperset_kb_documents WHERE id = ${id}
+  `;
+  if (result.count === 0) return false;
+
+  // Invalidate caches
+  if (_docs !== null) _docs = _docs.filter((d) => d.id !== id);
   _contentCache.delete(id);
-  
-  // Rebuild context
-  _contextCache = buildContextString(_metadata.documents);
-  _metadata.cachedContext = _contextCache;
-  
-  writeMetadata(_metadata);
-  
+  _contextCache = null;
+
   return true;
 }
 
-/** Simple search (returns doc names only, no content scanning) */
-export function searchKnowledgeBase(query: string): Array<{ doc: KnowledgeDocument; matches: boolean }> {
-  const docs = getKnowledgeDocuments();
+export async function searchKnowledgeBase(
+  query: string,
+): Promise<Array<{ doc: KnowledgeDocument; matches: boolean }>> {
+  const docs = await getKnowledgeDocuments();
   const queryLower = query.toLowerCase();
-  
-  // Simple name/description matching only (no content scanning = fast)
   return docs
-    .filter(doc => 
-      doc.name.toLowerCase().includes(queryLower) ||
-      doc.description.toLowerCase().includes(queryLower)
+    .filter(
+      (doc) =>
+        doc.name.toLowerCase().includes(queryLower) ||
+        doc.description.toLowerCase().includes(queryLower),
     )
-    .map(doc => ({ doc, matches: true }));
+    .map((doc) => ({ doc, matches: true }));
 }
 
-/** Backward compatibility - returns full context */
-export function getAllKnowledgeDocumentContents(): string {
+export async function getAllKnowledgeDocumentContents(): Promise<string> {
   return getKnowledgeBaseContext();
 }
 
-/** Get routing guide (admin-defined document usage instructions) */
-export function getKnowledgeBaseRoutingGuide(): string {
-  ensureLoaded();
-  return _metadata?.routingGuide ?? "";
+export async function getKnowledgeBaseRoutingGuide(): Promise<string> {
+  await ensureSchema();
+  const rows = await sql<{ value: string }[]>`
+    SELECT value FROM hyperset_kb_meta WHERE key = 'routing_guide' LIMIT 1
+  `;
+  return rows.length > 0 ? rows[0].value : "";
 }
 
-/** Get routing context only (no full document content) - for tool-based retrieval */
-export function getKnowledgeBaseRoutingContext(): string {
-  ensureLoaded();
-  
-  if (!_metadata || _metadata.documents.length === 0) {
-    return "";
-  }
+export async function getKnowledgeBaseRoutingContext(): Promise<string> {
+  const docs = await getKnowledgeDocuments();
+  if (docs.length === 0) return "";
 
-  const docs = _metadata.documents.map(doc => {
-    return `## ${doc.name}\nDescription: ${doc.description}\nSize: ${formatBytes(doc.size)}`;
-  }).join("\n\n");
+  const docList = docs
+    .map((doc) => `## ${doc.name}\nDescription: ${doc.description}\nSize: ${formatBytes(doc.size)}`)
+    .join("\n\n");
 
-  const routingGuide = _metadata.routingGuide 
-    ? `\n### Routing Guide:\n${_metadata.routingGuide}` 
-    : "";
+  const routingGuide = await getKnowledgeBaseRoutingGuide();
+  const routingGuideSection = routingGuide ? `\n### Routing Guide:\n${routingGuide}` : "";
 
-  return `${docs}${routingGuide}`;
+  return `${docList}${routingGuideSection}`;
 }
 
-/** Set/update routing guide (admin only) */
-export function setKnowledgeBaseRoutingGuide(guide: string): void {
-  ensureLoaded();
-  if (!_metadata) {
-    _metadata = { documents: [], totalSize: 0, lastUpdated: new Date().toISOString() };
-  }
-  
-  _metadata.routingGuide = guide;
-  writeMetadata(_metadata);
+export async function setKnowledgeBaseRoutingGuide(guide: string): Promise<void> {
+  await ensureSchema();
+  await sql`
+    INSERT INTO hyperset_kb_meta (key, value)
+    VALUES ('routing_guide', ${guide})
+    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+  `;
   console.log("[kb] Routing guide updated:", guide.length, "characters");
 }
 
-/** Clear routing guide */
-export function clearKnowledgeBaseRoutingGuide(): void {
-  ensureLoaded();
-  if (_metadata) {
-    delete _metadata.routingGuide;
-    writeMetadata(_metadata);
-    console.log("[kb] Routing guide cleared");
-  }
+export async function clearKnowledgeBaseRoutingGuide(): Promise<void> {
+  await ensureSchema();
+  await sql`DELETE FROM hyperset_kb_meta WHERE key = 'routing_guide'`;
+  console.log("[kb] Routing guide cleared");
 }
 
-/** Rebuild cache (call if files modified externally) */
-export function rebuildKnowledgeBaseCache(): void {
-  _metadata = null;
+export async function rebuildKnowledgeBaseCache(): Promise<void> {
+  _docs = null;
   _contextCache = null;
   _contentCache.clear();
-  ensureLoaded();
-  console.log("[kb] Cache rebuilt:", getKnowledgeBaseStats().documentCount, "documents");
+  await getKnowledgeDocuments();
+  const stats = await getKnowledgeBaseStats();
+  console.log("[kb] Cache rebuilt:", stats.documentCount, "documents");
 }

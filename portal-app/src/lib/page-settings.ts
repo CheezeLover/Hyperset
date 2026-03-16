@@ -1,5 +1,12 @@
-import fs from "fs";
-import path from "path";
+/**
+ * Page settings store — PostgreSQL backed.
+ *
+ * Each page (active flag, allowed groups, icon) is stored as a JSONB row.
+ * An in-memory cache per instance avoids redundant DB round-trips on reads.
+ * Writes invalidate only the updated entry so other entries stay cached.
+ */
+
+import { sql, ensureSchema } from "./db";
 
 export interface PageSettings {
   active: boolean;
@@ -13,66 +20,47 @@ export interface PageMetadata extends PageSettings {
   hasBackend: boolean;
 }
 
-const SETTINGS_FILE =
-  process.env.PAGE_SETTINGS_PATH ??
-  path.join(process.cwd(), "data", "page-settings.json");
-
+// Per-instance cache; null = not loaded yet
 let _cache: Record<string, PageSettings> | null = null;
 
-function readFromDisk(): Record<string, PageSettings> {
-  try {
-    if (fs.existsSync(SETTINGS_FILE)) {
-      const raw = fs.readFileSync(SETTINGS_FILE, "utf-8");
-      return JSON.parse(raw);
-    }
-  } catch {
-    // File doesn't exist or is invalid - return empty
+export async function getAllPageSettings(): Promise<Record<string, PageSettings>> {
+  if (_cache !== null) return _cache;
+  await ensureSchema();
+  const rows = await sql<{ name: string; settings: PageSettings }[]>`
+    SELECT name, settings FROM hyperset_page_settings
+  `;
+  const result: Record<string, PageSettings> = {};
+  for (const row of rows) {
+    result[row.name] = row.settings;
   }
-  return {};
+  _cache = result;
+  return result;
 }
 
-function writeToDisk(settings: Record<string, PageSettings>): void {
-  try {
-    fs.mkdirSync(path.dirname(SETTINGS_FILE), { recursive: true });
-    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), { encoding: "utf-8", mode: 0o600 });
-    fs.chmodSync(SETTINGS_FILE, 0o600);
-  } catch (e) {
-    console.warn("[page-settings] Could not persist settings to disk:", e);
-  }
+export async function getPageSettings(name: string): Promise<PageSettings> {
+  const all = await getAllPageSettings();
+  return all[name] ?? { active: true, allowedGroups: [] };
 }
 
-function _ensureCache(): Record<string, PageSettings> {
-  if (_cache === null) {
-    _cache = readFromDisk();
-  }
-  return _cache;
+export async function setPageSettings(name: string, settings: PageSettings): Promise<void> {
+  await ensureSchema();
+  await sql`
+    INSERT INTO hyperset_page_settings (name, settings)
+    VALUES (${name}, ${JSON.stringify(settings)}::jsonb)
+    ON CONFLICT (name) DO UPDATE SET settings = EXCLUDED.settings
+  `;
+  // Update cache in place so callers in the same process see the new value
+  if (_cache) _cache[name] = settings;
 }
 
-export function getPageSettings(name: string): PageSettings {
-  const settings = _ensureCache();
-  return settings[name] ?? { active: true, allowedGroups: [] };
+export async function deletePageSettings(name: string): Promise<void> {
+  await ensureSchema();
+  await sql`DELETE FROM hyperset_page_settings WHERE name = ${name}`;
+  if (_cache) delete _cache[name];
 }
 
-export function getAllPageSettings(): Record<string, PageSettings> {
-  return _ensureCache();
-}
-
-export function setPageSettings(name: string, settings: PageSettings): void {
-  const all = _ensureCache();
-  all[name] = settings;
-  _cache = all;
-  writeToDisk(all);
-}
-
-export function deletePageSettings(name: string): void {
-  const all = _ensureCache();
-  delete all[name];
-  _cache = all;
-  writeToDisk(all);
-}
-
-export function canUserViewPage(name: string, userRoles: string[]): boolean {
-  const settings = getPageSettings(name);
+export async function canUserViewPage(name: string, userRoles: string[]): Promise<boolean> {
+  const settings = await getPageSettings(name);
   if (!settings.active) return false;
   if (settings.allowedGroups.length === 0) return true;
   return userRoles.some((role) => settings.allowedGroups.includes(role));

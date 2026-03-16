@@ -58,8 +58,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const documents = getKnowledgeDocuments();
-    const routingGuide = getKnowledgeBaseRoutingGuide();
+    const documents = await getKnowledgeDocuments();
+    const routingGuide = await getKnowledgeBaseRoutingGuide();
     return NextResponse.json({ documents, routingGuide });
   } catch (error) {
     console.error("[knowledge-base] Failed to list documents:", error);
@@ -154,7 +154,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Add the document
-    const doc = addKnowledgeDocument(name, description, content);
+    const doc = await addKnowledgeDocument(name, description, content);
 
     return NextResponse.json({ document: doc }, { status: 201 });
   } catch (error) {
@@ -184,7 +184,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "routingGuide must be a string" }, { status: 400 });
     }
 
-    setKnowledgeBaseRoutingGuide(routingGuide);
+    await setKnowledgeBaseRoutingGuide(routingGuide);
 
     return NextResponse.json({ 
       ok: true, 

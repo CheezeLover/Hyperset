@@ -1,4 +1,249 @@
+# podman-compose.yml
+# All stateless application services (Superset, portal, Caddy, MCP, pages).
+# Stateful backends (portal-db, superset-db, superset-redis) live in podman-compose.data.yml.
+#
+# Start both files together so depends_on resolves across files:
+#
+#   podman-compose -f podman-compose.data.yml -f podman-compose.yml up -d
+
 services:
+
+  # ---------------------------------------------------------------------------
+  # Superset application server
+  # ---------------------------------------------------------------------------
+  superset-app:
+    build:
+      context: ./Superset-Instance
+      dockerfile: Dockerfile
+    image: localhost/hyperset-superset:latest
+    container_name: hyperset-superset
+    environment:
+      # Database configuration
+      - DATABASE_DIALECT=postgresql
+      - DATABASE_USER=superset
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
+      - DATABASE_HOST=hyperset-superset-db
+      - DATABASE_PORT=5432
+      - DATABASE_DB=superset
+      # Also set DB_* vars for compatibility
+      - DB_HOST=hyperset-superset-db
+      - DB_PORT=5432
+      - DB_NAME=superset
+      - DB_USER=superset
+      - DB_PASS=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
+      # Examples database (same as main for integrated deployment)
+      - EXAMPLES_USER=superset
+      - EXAMPLES_PASSWORD=superset
+      - EXAMPLES_HOST=hyperset-superset-db
+      - EXAMPLES_PORT=5432
+      - EXAMPLES_DB=superset
+      # Redis configuration
+      - REDIS_HOST=hyperset-superset-redis
+      - REDIS_PORT=6379
+      - REDIS_CELERY_DB=0
+      - REDIS_RESULTS_DB=1
+      # Superset security
+      - SECRET_KEY=${SUPERSET_SECRET_KEY:-CHANGE_ME_RUN_openssl_rand_base64_42}
+      # Config file location (MUST be set for custom config to load)
+      - SUPERSET_CONFIG_PATH=/app/pythonpath/superset_config_docker.py
+      # Hyperset integration
+      - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
+      - HYPERSET_ORIGIN=https://${HYPERSET_DOMAIN}
+      - HYPERSET_ADMIN_ROLE_HEADER=hyperset/admin
+      - HYPERSET_USER_ROLE_HEADER=hyperset/user
+      # Port configuration
+      - SUPERSET_PORT=8088
+      - SUPERSET_APP_ROOT=/
+      # Log level (use INFO only when debugging; WARNING reduces I/O significantly)
+      - SUPERSET_LOG_LEVEL=WARNING
+    env_file:
+      - ./.env
+    volumes:
+      - ./Superset-Instance/superset_config_docker.py:/app/pythonpath/superset_config_docker.py:Z
+      - ./theme.json:/app/pythonpath/theme.json:Z
+      - ./logos/hyperset-logo.png:/app/superset/static/assets/images/superset-logo-horiz.png:Z
+      - superset_home:/app/superset_home
+    networks:
+      - hyperset-net
+    # NOTE: No port binding here - Superset is accessed only through Caddy proxy
+    # at https://superset.${HYPERSET_DOMAIN} with SSO headers
+    depends_on:
+      superset-db:
+        condition: service_healthy
+      superset-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Superset Celery worker
+  # --concurrency=2  → 2 child processes (each loads full Superset stack ~300-500 MB)
+  # -l WARNING       → suppress INFO-level task chatter; use INFO only when debugging
+  # ---------------------------------------------------------------------------
+  superset-worker:
+    build:
+      context: ./Superset-Instance
+      dockerfile: Dockerfile
+    image: localhost/hyperset-superset:latest
+    container_name: hyperset-superset-worker
+    command: ["celery", "--app=superset.tasks.celery_app:app", "worker", "--concurrency=2", "-l", "WARNING"]
+    environment:
+      - DATABASE_DIALECT=postgresql
+      - DATABASE_USER=superset
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
+      - DATABASE_HOST=hyperset-superset-db
+      - DATABASE_PORT=5432
+      - DATABASE_DB=superset
+      - DB_HOST=hyperset-superset-db
+      - DB_PORT=5432
+      - DB_NAME=superset
+      - DB_USER=superset
+      - DB_PASS=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
+      - REDIS_HOST=hyperset-superset-redis
+      - REDIS_PORT=6379
+      - REDIS_CELERY_DB=0
+      - REDIS_RESULTS_DB=1
+      - SECRET_KEY=${SUPERSET_SECRET_KEY:-CHANGE_ME_RUN_openssl_rand_base64_42}
+      - SUPERSET_CONFIG_PATH=/app/pythonpath/superset_config_docker.py
+      - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
+      - HYPERSET_ORIGIN=https://${HYPERSET_DOMAIN}
+      - HYPERSET_ADMIN_ROLE_HEADER=hyperset/admin
+      - HYPERSET_USER_ROLE_HEADER=hyperset/user
+    env_file:
+      - ./.env
+    volumes:
+      - ./Superset-Instance/superset_config_docker.py:/app/pythonpath/superset_config_docker.py:Z
+      - superset_home:/app/superset_home
+    networks:
+      - hyperset-net
+    depends_on:
+      superset-db:
+        condition: service_healthy
+      superset-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "celery --app=superset.tasks.celery_app:app inspect ping -d celery@$$HOSTNAME"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Superset Celery beat (scheduler)
+  # Schedule file written to superset_home volume (writable by the superset user)
+  # ---------------------------------------------------------------------------
+  superset-beat:
+    build:
+      context: ./Superset-Instance
+      dockerfile: Dockerfile
+    image: localhost/hyperset-superset:latest
+    container_name: hyperset-superset-beat
+    command: ["celery", "--app=superset.tasks.celery_app:app", "beat", "-l", "WARNING", "--schedule", "/app/superset_home/celerybeat-schedule"]
+    environment:
+      - DATABASE_DIALECT=postgresql
+      - DATABASE_USER=superset
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
+      - DATABASE_HOST=hyperset-superset-db
+      - DATABASE_PORT=5432
+      - DATABASE_DB=superset
+      - DB_HOST=hyperset-superset-db
+      - DB_PORT=5432
+      - DB_NAME=superset
+      - DB_USER=superset
+      - DB_PASS=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
+      - REDIS_HOST=hyperset-superset-redis
+      - REDIS_PORT=6379
+      - REDIS_CELERY_DB=0
+      - REDIS_RESULTS_DB=1
+      - SECRET_KEY=${SUPERSET_SECRET_KEY:-CHANGE_ME_RUN_openssl_rand_base64_42}
+      - SUPERSET_CONFIG_PATH=/app/pythonpath/superset_config_docker.py
+      - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
+      - HYPERSET_ORIGIN=https://${HYPERSET_DOMAIN}
+      - HYPERSET_ADMIN_ROLE_HEADER=hyperset/admin
+      - HYPERSET_USER_ROLE_HEADER=hyperset/user
+    env_file:
+      - ./.env
+    volumes:
+      - ./Superset-Instance/superset_config_docker.py:/app/pythonpath/superset_config_docker.py:Z
+      - superset_home:/app/superset_home
+    networks:
+      - hyperset-net
+    depends_on:
+      superset-db:
+        condition: service_healthy
+      superset-redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Superset initialization (runs once: db upgrade, admin user, load examples)
+  # ---------------------------------------------------------------------------
+  superset-init:
+    build:
+      context: ./Superset-Instance
+      dockerfile: Dockerfile
+    image: localhost/hyperset-superset:latest
+    container_name: hyperset-superset-init
+    command: >
+      bash -c "
+        echo 'Waiting for database...' &&
+        sleep 15 &&
+        echo 'Running database upgrade...' &&
+        superset db upgrade &&
+      echo 'Creating admin user...' &&
+        superset fab create-admin \
+          --username admin \
+          --firstname Admin \
+          --lastname User \
+          --email admin@hyperset.local \
+          --password ${SUPERSET_ADMIN_PASSWORD:?SUPERSET_ADMIN_PASSWORD must be set in .env} || echo 'Admin user may already exist' &&
+        echo 'Initializing Superset...' &&
+        superset init &&
+        echo 'Loading examples (this may take 2-3 minutes)...' &&
+        timeout 300 superset load_examples || echo 'Examples loading completed or timed out' &&
+        echo 'Superset initialization complete'
+      "
+    environment:
+      - DATABASE_DIALECT=postgresql
+      - DATABASE_USER=superset
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
+      - DATABASE_HOST=hyperset-superset-db
+      - DATABASE_PORT=5432
+      - DATABASE_DB=superset
+      - DB_HOST=hyperset-superset-db
+      - DB_PORT=5432
+      - DB_NAME=superset
+      - DB_USER=superset
+      - DB_PASS=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
+      - REDIS_HOST=hyperset-superset-redis
+      - REDIS_PORT=6379
+      - REDIS_CELERY_DB=0
+      - REDIS_RESULTS_DB=1
+      - SECRET_KEY=${SUPERSET_SECRET_KEY:-CHANGE_ME_RUN_openssl_rand_base64_42}
+      - SUPERSET_CONFIG_PATH=/app/pythonpath/superset_config_docker.py
+    env_file:
+      - ./.env
+    volumes:
+      - ./Superset-Instance/superset_config_docker.py:/app/pythonpath/superset_config_docker.py:Z
+      - superset_home:/app/superset_home
+    networks:
+      - hyperset-net
+    depends_on:
+      superset-db:
+        condition: service_healthy
+      superset-redis:
+        condition: service_healthy
+    restart: "no"
+
+  # ---------------------------------------------------------------------------
+  # Caddy — reverse proxy, JWT auth, TLS termination
+  # ---------------------------------------------------------------------------
   caddy:
     build: ./Caddy
     image: localhost/hyperset-caddy:latest
@@ -24,6 +269,9 @@ services:
       - hyperset-net
     restart: unless-stopped
 
+  # ---------------------------------------------------------------------------
+  # Pages service — serves static page content
+  # ---------------------------------------------------------------------------
   pages:
     build: ./Pages-Service
     image: localhost/hyperset-pages:latest
@@ -31,11 +279,14 @@ services:
     environment:
       - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
     volumes:
-      - ./Pages:/pages:Z
+      - pages_data:/pages:Z
     networks:
       - hyperset-net
     restart: unless-stopped
 
+  # ---------------------------------------------------------------------------
+  # Superset MCP server — LLM tool bridge to Superset API
+  # ---------------------------------------------------------------------------
   superset-mcp:
     build: ./Superset-MCP
     image: localhost/hyperset-superset-mcp:latest
@@ -52,6 +303,9 @@ services:
       - hyperset-net
     restart: unless-stopped
 
+  # ---------------------------------------------------------------------------
+  # Portal — Next.js app (chat UI, admin, knowledge base)
+  # ---------------------------------------------------------------------------
   portal:
     build:
       context: .
@@ -74,10 +328,12 @@ services:
       - LLM_MODEL=${LLM_MODEL:-gpt-4o}
       # Session encryption key for admin settings storage
       - SESSION_SECRET=${SESSION_SECRET}
+      # Portal application database (admin settings, page settings, knowledge base)
+      - PORTAL_DATABASE_URL=postgresql://portal:${PORTAL_DATABASE_PASSWORD:?PORTAL_DATABASE_PASSWORD must be set in .env}@hyperset-portal-db:5432/portal
       - NODE_ENV=production
     volumes:
       - ./theme.json:/app/theme.json:Z
-      - ./Pages:/app/pages:Z
+      - pages_data:/app/pages:Z
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/config"]
       interval: 10s
@@ -89,6 +345,7 @@ services:
     restart: unless-stopped
 
 volumes:
+  superset_home:
   caddy_data:
   caddy_config:
 
