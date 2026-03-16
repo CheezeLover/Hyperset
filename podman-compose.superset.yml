@@ -52,8 +52,8 @@ services:
       # Port configuration
       - SUPERSET_PORT=8088
       - SUPERSET_APP_ROOT=/
-      # Log level
-      - SUPERSET_LOG_LEVEL=INFO
+      # Log level (use INFO only when debugging; WARNING reduces I/O significantly)
+      - SUPERSET_LOG_LEVEL=WARNING
     env_file:
       - ./.env
     volumes:
@@ -85,7 +85,9 @@ services:
       dockerfile: Dockerfile
     image: localhost/hyperset-superset:latest
     container_name: hyperset-superset-worker
-    command: ["celery", "--app=superset.tasks.celery_app:app", "worker", "-l", "INFO"]
+    # --concurrency=2  → 2 child processes (each loads full Superset stack ~300-500 MB)
+    # -l WARNING       → suppress INFO-level task chatter; use INFO only when debugging
+    command: ["celery", "--app=superset.tasks.celery_app:app", "worker", "--concurrency=2", "-l", "WARNING"]
     environment:
       # Database configuration
       - DATABASE_DIALECT=postgresql
@@ -143,7 +145,7 @@ services:
       dockerfile: Dockerfile
     image: localhost/hyperset-superset:latest
     container_name: hyperset-superset-beat
-    command: ["celery", "--app=superset.tasks.celery_app:app", "beat", "-l", "INFO", "--schedule", "/app/superset_home/celerybeat-schedule"]
+    command: ["celery", "--app=superset.tasks.celery_app:app", "beat", "-l", "WARNING", "--schedule", "/app/superset_home/celerybeat-schedule"]
     environment:
       # Database configuration
       - DATABASE_DIALECT=postgresql
