@@ -63,10 +63,23 @@ services:
       retries: 5
     restart: unless-stopped
 
+  # ── Shared pages volume initializer ───────────────────────────────────────
+  # Ensures the pages volume is created with proper permissions.
+  # This service exits immediately after creating necessary directories.
+  pages-volume-init:
+    image: docker.io/library/busybox:latest
+    container_name: hyperset-pages-volume-init
+    volumes:
+      - pages_data:/data
+    command: >
+      sh -c "mkdir -p /data/pages && chmod 755 /data/pages && echo 'Pages volume initialized'"
+    restart: "no"
+
 volumes:
   portal_db_data:
   superset_db_data:
   superset_redis_data:
+  pages_data:
 
 networks:
   hyperset-net:

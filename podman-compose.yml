@@ -279,7 +279,7 @@ services:
     environment:
       - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
     volumes:
-      - ./Pages:/pages:Z
+      - pages_data:/pages:Z
     networks:
       - hyperset-net
     restart: unless-stopped
@@ -333,7 +333,7 @@ services:
       - NODE_ENV=production
     volumes:
       - ./theme.json:/app/theme.json:Z
-      - ./Pages:/app/pages:Z
+      - pages_data:/app/pages:Z
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/config"]
       interval: 10s
@@ -348,6 +348,8 @@ volumes:
   superset_home:
   caddy_data:
   caddy_config:
+  pages_data:
+    external: true
 
 networks:
   hyperset-net:
