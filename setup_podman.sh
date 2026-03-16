@@ -200,11 +200,10 @@ podman-compose --version
 echo "==> Creating internal network (hyperset-net)..."
 podman network exists hyperset-net || podman network create hyperset-net
 
-# Always deploy with all three compose files:
-#   data.yml      — stateful backends (portal-db, superset-db, superset-redis)
-#   superset.yml  — Superset application services
-#   podman-compose.yml — portal, caddy, pages, superset-mcp
-COMPOSE_FILES="-f podman-compose.data.yml -f podman-compose.superset.yml -f podman-compose.yml"
+# Always deploy with both compose files:
+#   podman-compose.data.yml — stateful backends (portal-db, superset-db, superset-redis)
+#   podman-compose.yml      — all stateless services (Superset, portal, Caddy, MCP, pages)
+COMPOSE_FILES="-f podman-compose.data.yml -f podman-compose.yml"
 
 echo "==> Deploying with integrated Superset stack"
 
