@@ -383,7 +383,6 @@ export const POST = async (req: NextRequest) => {
       "superset_get_dashboard_embed",
       "superset_get_chart_link",
       "superset_get_dashboard_link",
-      "superset_analyze_data",
     ]);
 
     // Chart creation flow
