@@ -64,15 +64,26 @@ services:
     restart: unless-stopped
 
   # ── Shared pages volume initializer ───────────────────────────────────────
-  # Ensures the pages volume is created with proper permissions.
-  # This service exits immediately after creating necessary directories.
+  # Copies any existing pages from ./Pages into the shared volume on first run.
+  # This service exits immediately after initialization.
   pages-volume-init:
     image: docker.io/library/busybox:latest
     container_name: hyperset-pages-volume-init
     volumes:
       - pages_data:/data
+      - ./Pages:/source/pages:ro,Z
     command: >
-      sh -c "mkdir -p /data/pages && chmod 755 /data/pages && echo 'Pages volume initialized'"
+      sh -c "
+        chmod 755 /data && 
+        if [ -d /source/pages ] && [ \"\$(ls -A /source/pages)\" ]; then
+          echo 'Copying existing pages from ./Pages to shared volume...' &&
+          cp -r /source/pages/* /data/ &&
+          echo 'Copied pages:' &&
+          ls -la /data/;
+        else
+          echo 'No existing pages found in ./Pages';
+        fi &&
+        echo 'Pages volume initialized'"
     restart: "no"
 
 volumes:
