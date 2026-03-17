@@ -26,12 +26,18 @@ let _cache: Record<string, PageSettings> | null = null;
 export async function getAllPageSettings(): Promise<Record<string, PageSettings>> {
   if (_cache !== null) return _cache;
   await ensureSchema();
-  const rows = await sql<{ name: string; settings: PageSettings }[]>`
+  const rows = await sql<{ name: string; settings: unknown }[]>`
     SELECT name, settings FROM hyperset_page_settings
   `;
   const result: Record<string, PageSettings> = {};
   for (const row of rows) {
-    result[row.name] = row.settings;
+    // postgres may return JSONB as a pre-parsed object or as a raw string
+    // depending on the query path — handle both defensively
+    const parsed: PageSettings =
+      typeof row.settings === "string"
+        ? (JSON.parse(row.settings) as PageSettings)
+        : (row.settings as PageSettings);
+    result[row.name] = parsed;
   }
   _cache = result;
   return result;
@@ -46,7 +52,7 @@ export async function setPageSettings(name: string, settings: PageSettings): Pro
   await ensureSchema();
   await sql`
     INSERT INTO hyperset_page_settings (name, settings)
-    VALUES (${name}, ${JSON.stringify(settings)}::jsonb)
+    VALUES (${name}, ${sql.json(settings)})
     ON CONFLICT (name) DO UPDATE SET settings = EXCLUDED.settings
   `;
   // Update cache in place so callers in the same process see the new value

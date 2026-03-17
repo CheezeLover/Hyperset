@@ -258,10 +258,6 @@ export async function searchKnowledgeBase(
     .map((doc) => ({ doc, matches: true }));
 }
 
-export async function getAllKnowledgeDocumentContents(): Promise<string> {
-  return getKnowledgeBaseContext();
-}
-
 export async function getKnowledgeBaseRoutingGuide(): Promise<string> {
   await ensureSchema();
   const rows = await sql<{ value: string }[]>`
@@ -294,17 +290,3 @@ export async function setKnowledgeBaseRoutingGuide(guide: string): Promise<void>
   console.log("[kb] Routing guide updated:", guide.length, "characters");
 }
 
-export async function clearKnowledgeBaseRoutingGuide(): Promise<void> {
-  await ensureSchema();
-  await sql`DELETE FROM hyperset_kb_meta WHERE key = 'routing_guide'`;
-  console.log("[kb] Routing guide cleared");
-}
-
-export async function rebuildKnowledgeBaseCache(): Promise<void> {
-  _docs = null;
-  _contextCache = null;
-  _contentCache.clear();
-  await getKnowledgeDocuments();
-  const stats = await getKnowledgeBaseStats();
-  console.log("[kb] Cache rebuilt:", stats.documentCount, "documents");
-}

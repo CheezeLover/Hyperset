@@ -47,29 +47,21 @@ let _cache: LlmSettings | null | undefined = undefined;
 
 /** Return the active admin override settings, or null if none are set. */
 export async function getAdminSettings(): Promise<LlmSettings | null> {
-  if (_cache !== undefined) {
-    console.log("[admin-settings] Returning cached settings:", _cache ? "cached" : "null");
-    return _cache;
-  }
-  console.log("[admin-settings] Cache miss - loading from database");
+  if (_cache !== undefined) return _cache;
   await ensureSchema();
   const rows = await sql<{ value: string }[]>`
     SELECT value FROM hyperset_admin_settings WHERE key = 'settings' LIMIT 1
   `;
-  console.log("[admin-settings] Database query returned", rows.length, "rows");
   if (rows.length === 0) {
-    console.log("[admin-settings] No settings found in database");
     _cache = null;
     return null;
   }
   const settings = JSON.parse(rows[0].value) as LlmSettings;
-  console.log("[admin-settings] Loaded settings from DB:", { ...settings, apiKey: settings.apiKey ? "***" : undefined });
   if (settings.apiKey) {
     try {
       settings.apiKey = decryptString(settings.apiKey);
     } catch {
       // Legacy plaintext — leave as-is; next write will encrypt it.
-      console.warn("[admin-settings] apiKey decryption failed — treating as plaintext");
     }
   }
   _cache = settings;
@@ -78,21 +70,17 @@ export async function getAdminSettings(): Promise<LlmSettings | null> {
 
 /** Persist a new set of admin override settings (applies to all users). */
 export async function setAdminSettings(settings: LlmSettings): Promise<void> {
-  console.log("[admin-settings] Saving settings to database...", { ...settings, apiKey: settings.apiKey ? "***" : undefined });
   _cache = settings;
   await ensureSchema();
   const toStore: LlmSettings = { ...settings };
   if (toStore.apiKey) {
     toStore.apiKey = encryptString(toStore.apiKey);
   }
-  const value = JSON.stringify(toStore);
-  console.log("[admin-settings] Inserting/updating settings in DB...");
   await sql`
     INSERT INTO hyperset_admin_settings (key, value)
-    VALUES ('settings', ${value})
+    VALUES ('settings', ${JSON.stringify(toStore)})
     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
   `;
-  console.log("[admin-settings] Settings saved successfully");
 }
 
 /** Clear all admin overrides — fall back to env vars for all users. */
