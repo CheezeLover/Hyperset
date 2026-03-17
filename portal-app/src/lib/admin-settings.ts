@@ -62,7 +62,6 @@ export async function getAdminSettings(): Promise<LlmSettings | null> {
       settings.apiKey = decryptString(settings.apiKey);
     } catch {
       // Legacy plaintext — leave as-is; next write will encrypt it.
-      console.warn("[admin-settings] apiKey decryption failed — treating as plaintext");
     }
   }
   _cache = settings;
@@ -77,10 +76,9 @@ export async function setAdminSettings(settings: LlmSettings): Promise<void> {
   if (toStore.apiKey) {
     toStore.apiKey = encryptString(toStore.apiKey);
   }
-  const value = JSON.stringify(toStore);
   await sql`
     INSERT INTO hyperset_admin_settings (key, value)
-    VALUES ('settings', ${value})
+    VALUES ('settings', ${JSON.stringify(toStore)})
     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
   `;
 }

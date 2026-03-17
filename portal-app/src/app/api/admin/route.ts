@@ -128,10 +128,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
 
+  console.log("[admin/api] Loading admin settings...");
   const s = await getAdminSettings();
+  console.log("[admin/api] Got settings from DB:", s ? "settings found" : "no settings");
   const effectiveSystemPrompt = s?.systemPrompt ?? process.env.LLM_SYSTEM_PROMPT ?? DEFAULT_SYSTEM_PROMPT;
 
-  return NextResponse.json({
+  const response = {
     apiUrl:              s?.apiUrl              ?? process.env.LLM_API_URL       ?? "",
     apiKey:              s?.apiKey              ? "***" : "",
     model:               s?.model               ?? process.env.LLM_MODEL        ?? "gpt-4o",
@@ -143,20 +145,28 @@ export async function GET(request: NextRequest) {
     maxHistoryMessages:  s?.maxHistoryMessages  ?? Number(process.env.LLM_MAX_HISTORY_MESSAGES ?? 20),
     cleanupDelayMinutes: s?.cleanupDelayMinutes  ?? Number(process.env.HYPERSET_CLEANUP_DELAY_MINUTES ?? 120),
     isCustom: !!(s?.apiUrl || s?.apiKey || s?.model || s?.systemPrompt || s?.modelParams),
-  });
+  };
+  console.log("[admin/api] Returning response with isCustom:", response.isCustom);
+  return NextResponse.json(response);
 }
 
 /** POST /api/admin — save LLM settings (admin-only, applies to ALL users) */
 export async function POST(request: NextRequest) {
+  console.log("[admin/api] POST handler called - starting save...");
   const denied = requireAdmin(request);
-  if (denied) return denied;
+  if (denied) {
+    console.log("[admin/api] Access denied - not an admin");
+    return denied;
+  }
 
   const { email } = getUserFromRequest(request);
+  console.log("[admin/api] User:", email);
   if (!checkRateLimit(_adminRateLimitMap, ADMIN_RATE_LIMIT, ADMIN_RATE_WINDOW, email)) {
     return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
 
   const body = await request.json();
+  console.log("[admin/api] Request body keys:", Object.keys(body));
   const prev = await getAdminSettings() ?? {};
 
   const clamp = (v: unknown, min: number, max: number, fallback: number): number => {
@@ -172,6 +182,7 @@ export async function POST(request: NextRequest) {
     return Math.max(1, Math.min(10080, Math.round(n)));
   };
 
+  console.log("[admin/api] Calling setAdminSettings...");
   await setAdminSettings({
     apiUrl:             body.apiUrl             !== undefined ? body.apiUrl             : prev.apiUrl,
     apiKey:             body.apiKey && body.apiKey !== "***" ? body.apiKey              : prev.apiKey,
@@ -183,6 +194,7 @@ export async function POST(request: NextRequest) {
     maxHistoryMessages: body.maxHistoryMessages !== undefined ? clamp(body.maxHistoryMessages, 4, 200,   20) : prev.maxHistoryMessages,
     cleanupDelayMinutes: body.cleanupDelayMinutes !== undefined ? clampMinutes(body.cleanupDelayMinutes, 120) : prev.cleanupDelayMinutes,
   });
+  console.log("[admin/api] Save completed successfully");
 
   return NextResponse.json({ ok: true });
 }
