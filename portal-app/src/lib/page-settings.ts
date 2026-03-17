@@ -52,7 +52,7 @@ export async function setPageSettings(name: string, settings: PageSettings): Pro
   await ensureSchema();
   await sql`
     INSERT INTO hyperset_page_settings (name, settings)
-    VALUES (${name}, ${sql.json(settings)})
+    VALUES (${name}, ${JSON.stringify(settings)}::jsonb)
     ON CONFLICT (name) DO UPDATE SET settings = EXCLUDED.settings
   `;
   // Update cache in place so callers in the same process see the new value
