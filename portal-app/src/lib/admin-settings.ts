@@ -47,16 +47,23 @@ let _cache: LlmSettings | null | undefined = undefined;
 
 /** Return the active admin override settings, or null if none are set. */
 export async function getAdminSettings(): Promise<LlmSettings | null> {
-  if (_cache !== undefined) return _cache;
+  if (_cache !== undefined) {
+    console.log("[admin-settings] Returning cached settings:", _cache ? "cached" : "null");
+    return _cache;
+  }
+  console.log("[admin-settings] Cache miss - loading from database");
   await ensureSchema();
   const rows = await sql<{ value: string }[]>`
     SELECT value FROM hyperset_admin_settings WHERE key = 'settings' LIMIT 1
   `;
+  console.log("[admin-settings] Database query returned", rows.length, "rows");
   if (rows.length === 0) {
+    console.log("[admin-settings] No settings found in database");
     _cache = null;
     return null;
   }
   const settings = JSON.parse(rows[0].value) as LlmSettings;
+  console.log("[admin-settings] Loaded settings from DB:", { ...settings, apiKey: settings.apiKey ? "***" : undefined });
   if (settings.apiKey) {
     try {
       settings.apiKey = decryptString(settings.apiKey);

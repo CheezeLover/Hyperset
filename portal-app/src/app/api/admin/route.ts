@@ -128,10 +128,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
 
+  console.log("[admin/api] Loading admin settings...");
   const s = await getAdminSettings();
+  console.log("[admin/api] Got settings from DB:", s ? "settings found" : "no settings");
   const effectiveSystemPrompt = s?.systemPrompt ?? process.env.LLM_SYSTEM_PROMPT ?? DEFAULT_SYSTEM_PROMPT;
 
-  return NextResponse.json({
+  const response = {
     apiUrl:              s?.apiUrl              ?? process.env.LLM_API_URL       ?? "",
     apiKey:              s?.apiKey              ? "***" : "",
     model:               s?.model               ?? process.env.LLM_MODEL        ?? "gpt-4o",
@@ -143,7 +145,9 @@ export async function GET(request: NextRequest) {
     maxHistoryMessages:  s?.maxHistoryMessages  ?? Number(process.env.LLM_MAX_HISTORY_MESSAGES ?? 20),
     cleanupDelayMinutes: s?.cleanupDelayMinutes  ?? Number(process.env.HYPERSET_CLEANUP_DELAY_MINUTES ?? 120),
     isCustom: !!(s?.apiUrl || s?.apiKey || s?.model || s?.systemPrompt || s?.modelParams),
-  });
+  };
+  console.log("[admin/api] Returning response with isCustom:", response.isCustom);
+  return NextResponse.json(response);
 }
 
 /** POST /api/admin — save LLM settings (admin-only, applies to ALL users) */
