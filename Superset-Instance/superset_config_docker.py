@@ -413,7 +413,7 @@ CELERY_CONFIG = CeleryConfig
 # ---------------------------------------------------------------------------
 # Database
 # ---------------------------------------------------------------------------
-# Use DATABASE_* env vars (set in podman-compose.superset.yml)
+# Use DATABASE_* env vars (set in podman-compose.yml)
 DB_HOST     = os.getenv("DATABASE_HOST", "hyperset-superset-db")
 DB_PORT     = os.getenv("DATABASE_PORT", "5432")
 DB_NAME     = os.getenv("DATABASE_DB", "superset")
@@ -448,7 +448,7 @@ class HypersetRemoteUserMiddleware:
         if user:
             environ["REMOTE_USER"] = user
             logger.info(f"[Middleware] Set REMOTE_USER={user} from X-Webauth-User header")
-        else:
+        elif environ.get("PATH_INFO", "") not in ("/health", "/healthcheck"):
             logger.warning(f"[Middleware] No X-Webauth-User header found! Headers: {dict((k,v) for k,v in environ.items() if k.startswith('HTTP_'))}")
         return self.app(environ, start_response)
 
@@ -629,24 +629,6 @@ def FLASK_APP_MUTATOR(app):
     if 'THEME_OVERRIDES' in globals():
         logger.info(f"[FLASK_APP_MUTATOR] THEME_OVERRIDES keys: {list(THEME_OVERRIDES.keys())}")
     
-    # Add a debug endpoint to check theme config
-    @app.route('/debug/theme')
-    def debug_theme():
-        from flask import Response
-        import json
-        theme_info = {
-            'THEME_DEFAULT_present': 'THEME_DEFAULT' in globals(),
-            'THEME_DARK_present': 'THEME_DARK' in globals(),
-            'THEME_OVERRIDES_present': 'THEME_OVERRIDES' in globals(),
-        }
-        if 'THEME_DARK' in globals():
-            theme_info['THEME_DARK'] = THEME_DARK
-            theme_info['THEME_DARK_keys'] = list(THEME_DARK.keys()) if THEME_DARK else []
-        if 'THEME_DEFAULT' in globals():
-            theme_info['THEME_DEFAULT'] = THEME_DEFAULT
-            theme_info['THEME_DEFAULT_keys'] = list(THEME_DEFAULT.keys()) if THEME_DEFAULT else []
-        return Response(json.dumps(theme_info, indent=2), mimetype='application/json')
-
     @app.after_request
     def inject_dark_mode_css(response):
         """Inject dark mode CSS into HTML responses"""
@@ -666,8 +648,8 @@ def FLASK_APP_MUTATOR(app):
 
     @app.before_request
     def hyperset_auto_login():
-        # Skip static files
-        if request.path.startswith("/static"):
+        # Skip static files and health endpoints
+        if request.path.startswith("/static") or request.path in ("/health", "/healthcheck"):
             return None
 
         remote_user = request.environ.get("REMOTE_USER", "")
@@ -740,4 +722,4 @@ else:
 
 logger.info("=========================================")
 
-LOG_LEVEL = logging.INFO
+LOG_LEVEL = getattr(logging, os.getenv("SUPERSET_LOG_LEVEL", "INFO").upper(), logging.INFO)

@@ -334,6 +334,9 @@ services:
     volumes:
       - ./theme.json:/app/theme.json:Z
       - pages_data:/app/pages:Z
+    depends_on:
+      portal-db:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/config"]
       interval: 10s
