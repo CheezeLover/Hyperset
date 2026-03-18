@@ -583,6 +583,29 @@ DARK_MODE_CSS = """
     scrollbar-color: rgba(0, 0, 0, 0.25) transparent;
 }
 
+/* Always-on: force all SVG icons inside buttons to respect currentColor.
+   Some Superset icons have hardcoded fill attributes; this overrides them. */
+.anticon svg,
+.anticon svg path,
+.anticon svg rect,
+.anticon svg polygon {
+    fill: currentColor;
+}
+
+/* Always-on: icon-only toolbar buttons (import, export, bulk-select trigger, etc.)
+   use the primary colour so they are visible in both light and dark mode. */
+.ant-btn-default.ant-btn-icon-only .anticon,
+.ant-btn-text.ant-btn-icon-only .anticon,
+.ant-btn-default.ant-btn-icon-only,
+.ant-btn-text.ant-btn-icon-only {
+    color: var(--ant-color-primary);
+}
+.ant-btn-default.ant-btn-icon-only:hover .anticon,
+.ant-btn-text.ant-btn-icon-only:hover .anticon {
+    color: var(--ant-color-primary-hover, var(--ant-color-primary));
+    opacity: 0.8;
+}
+
 /* Dark mode overrides */
 @media (prefers-color-scheme: dark) {
     ::-webkit-scrollbar-thumb {
