@@ -4,9 +4,7 @@
 # rest of the stack fully stateless and horizontally scalable.
 #
 # Start order:
-#   podman-compose -f podman-compose.data.yml \
-#                  -f podman-compose.superset.yml \
-#                  -f podman-compose.yml up -d
+#   podman-compose -f podman-compose.data.yml -f podman-compose.yml up -d
 
 services:
   # ── Portal application database ──────────────────────────────────────────

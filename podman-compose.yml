@@ -118,6 +118,7 @@ services:
       - ./.env
     volumes:
       - ./Superset-Instance/superset_config_docker.py:/app/pythonpath/superset_config_docker.py:Z
+      - ./theme.json:/app/pythonpath/theme.json:Z
       - superset_home:/app/superset_home
     networks:
       - hyperset-net
@@ -171,6 +172,7 @@ services:
       - ./.env
     volumes:
       - ./Superset-Instance/superset_config_docker.py:/app/pythonpath/superset_config_docker.py:Z
+      - ./theme.json:/app/pythonpath/theme.json:Z
       - superset_home:/app/superset_home
     networks:
       - hyperset-net
@@ -231,6 +233,7 @@ services:
       - ./.env
     volumes:
       - ./Superset-Instance/superset_config_docker.py:/app/pythonpath/superset_config_docker.py:Z
+      - ./theme.json:/app/pythonpath/theme.json:Z
       - superset_home:/app/superset_home
     networks:
       - hyperset-net
@@ -334,6 +337,9 @@ services:
     volumes:
       - ./theme.json:/app/theme.json:Z
       - pages_data:/app/pages:Z
+    depends_on:
+      portal-db:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/config"]
       interval: 10s
