@@ -113,8 +113,8 @@ if _LIGHT_THEME:
         "colorBgLayout": _bg_light,
         "colorBgSpotlight": "#262626",  # Dark tooltip background — colorTextLightSolid defaults to #fff
         "colorTextLightSolid": "#FFFFFF",  # Text on dark/colored surfaces (tooltips, filled buttons)
-        "colorIcon": _text,              # Icon color matches body text in light mode
-        "colorIconHover": _primary,      # Icons go primary on hover
+        "colorIcon": _primary,            # Icons use primary colour — visible and on-brand
+        "colorIconHover": _primary_hover, # Slightly darker on hover
         "colorText": _text,
         "colorTextSecondary": _text_secondary,
         "colorTextTertiary": _text_muted,
@@ -191,8 +191,8 @@ if _LIGHT_THEME:
         "colorBgLayout": _bg_dark,
         "colorBgSpotlight": "#3D3D3D",  # Tooltip background — distinct from dark surfaces
         "colorTextLightSolid": "#FFFFFF",  # Text on dark/colored surfaces (tooltips, filled buttons)
-        "colorIcon": _text_dark,         # Icons use light text color in dark mode (avoids black-on-black)
-        "colorIconHover": _primary_dark_mode,  # Icons go primary on hover
+        "colorIcon": _primary_dark_mode,  # Icons use primary colour — visible on dark backgrounds
+        "colorIconHover": _primary_dark_hover, # Brighter on hover
         "colorText": _text_dark,
         "colorTextSecondary": _text_secondary_dark,
         "colorTextTertiary": _text_muted_dark,
