@@ -583,27 +583,26 @@ DARK_MODE_CSS = """
     scrollbar-color: rgba(0, 0, 0, 0.25) transparent;
 }
 
-/* Always-on: force all SVG icons inside buttons to respect currentColor.
-   Some Superset icons have hardcoded fill attributes; this overrides them. */
+/* Always-on: force SVG fills to follow the element's CSS color so that
+   hardcoded fill attributes on Superset's custom icon SVGs are overridden. */
 .anticon svg,
 .anticon svg path,
 .anticon svg rect,
 .anticon svg polygon {
-    fill: currentColor;
+    fill: currentColor !important;
 }
 
-/* Always-on: icon-only toolbar buttons (import, export, bulk-select trigger, etc.)
-   use the primary colour so they are visible in both light and dark mode. */
-.ant-btn-default.ant-btn-icon-only .anticon,
-.ant-btn-text.ant-btn-icon-only .anticon,
-.ant-btn-default.ant-btn-icon-only,
-.ant-btn-text.ant-btn-icon-only {
+/* Always-on: any button whose sole content is an anticon (import, export, etc.)
+   gets primary colour — works regardless of ant-btn variant class.
+   :has() is supported in Chrome/Edge 105+, Firefox 121+. */
+.ant-btn:not(.ant-btn-primary):not(.ant-btn-dangerous):has(> .anticon:only-child),
+.ant-btn:not(.ant-btn-primary):not(.ant-btn-dangerous):has(> span.anticon:only-child),
+.ant-btn:not(.ant-btn-primary):not(.ant-btn-dangerous):has(> .ant-btn-icon:only-child) {
     color: var(--ant-color-primary);
 }
-.ant-btn-default.ant-btn-icon-only:hover .anticon,
-.ant-btn-text.ant-btn-icon-only:hover .anticon {
-    color: var(--ant-color-primary-hover, var(--ant-color-primary));
-    opacity: 0.8;
+.ant-btn:not(.ant-btn-primary):not(.ant-btn-dangerous):has(> .anticon:only-child):hover,
+.ant-btn:not(.ant-btn-primary):not(.ant-btn-dangerous):has(> span.anticon:only-child):hover {
+    opacity: 0.75;
 }
 
 /* Dark mode overrides */
