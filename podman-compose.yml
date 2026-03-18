@@ -118,6 +118,7 @@ services:
       - ./.env
     volumes:
       - ./Superset-Instance/superset_config_docker.py:/app/pythonpath/superset_config_docker.py:Z
+      - ./theme.json:/app/pythonpath/theme.json:Z
       - superset_home:/app/superset_home
     networks:
       - hyperset-net
@@ -171,6 +172,7 @@ services:
       - ./.env
     volumes:
       - ./Superset-Instance/superset_config_docker.py:/app/pythonpath/superset_config_docker.py:Z
+      - ./theme.json:/app/pythonpath/theme.json:Z
       - superset_home:/app/superset_home
     networks:
       - hyperset-net
@@ -231,6 +233,7 @@ services:
       - ./.env
     volumes:
       - ./Superset-Instance/superset_config_docker.py:/app/pythonpath/superset_config_docker.py:Z
+      - ./theme.json:/app/pythonpath/theme.json:Z
       - superset_home:/app/superset_home
     networks:
       - hyperset-net
