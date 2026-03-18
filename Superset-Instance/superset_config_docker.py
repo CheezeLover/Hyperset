@@ -111,7 +111,10 @@ if _LIGHT_THEME:
         "colorBgContainer": _surface_light,
         "colorBgElevated": _bg_light,
         "colorBgLayout": _bg_light,
-        "colorBgSpotlight": _bg_light,
+        "colorBgSpotlight": "#262626",  # Dark tooltip background — colorTextLightSolid defaults to #fff
+        "colorTextLightSolid": "#FFFFFF",  # Text on dark/colored surfaces (tooltips, filled buttons)
+        "colorIcon": _primary,            # Icons use primary colour — visible and on-brand
+        "colorIconHover": _primary_hover, # Slightly darker on hover
         "colorText": _text,
         "colorTextSecondary": _text_secondary,
         "colorTextTertiary": _text_muted,
@@ -186,7 +189,10 @@ if _LIGHT_THEME:
         "colorBgContainer": _surface_dark,
         "colorBgElevated": _surface_higher_dark,
         "colorBgLayout": _bg_dark,
-        "colorBgSpotlight": _surface_higher_dark,
+        "colorBgSpotlight": "#3D3D3D",  # Tooltip background — distinct from dark surfaces
+        "colorTextLightSolid": "#FFFFFF",  # Text on dark/colored surfaces (tooltips, filled buttons)
+        "colorIcon": _primary_dark_mode,  # Icons use primary colour — visible on dark backgrounds
+        "colorIconHover": _primary_dark_hover, # Brighter on hover
         "colorText": _text_dark,
         "colorTextSecondary": _text_secondary_dark,
         "colorTextTertiary": _text_muted_dark,
