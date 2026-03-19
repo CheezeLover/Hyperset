@@ -223,14 +223,20 @@ function KnowledgeBaseTab() {
     setReindexResult("");
     setError("");
     try {
-      const res = await fetch("/api/knowledge-base/reindex", { method: "POST" });
+      const res = await fetch("/api/knowledge-base/reindex?all=true", { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Reindex failed");
-      if (data.indexed === 0) {
+      if (data.failed > 0) {
+        const errs = (data.results as Array<{ name: string; chunks: number; error?: string }>)
+          .filter((r) => r.error)
+          .map((r) => `${r.name}: ${r.error}`)
+          .join("\n");
+        throw new Error(`${data.failed} document(s) failed:\n${errs}`);
+      } else if (data.indexed === 0) {
         setReindexResult("All documents already indexed.");
       } else {
-        const failMsg = data.failed > 0 ? ` (${data.failed} failed)` : "";
-        setReindexResult(`Indexed ${data.indexed} document${data.indexed !== 1 ? "s" : ""}${failMsg}.`);
+        const totalChunks = (data.results as Array<{ chunks: number }>).reduce((s, r) => s + r.chunks, 0);
+        setReindexResult(`Indexed ${data.indexed} doc${data.indexed !== 1 ? "s" : ""} → ${totalChunks} chunks.`);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Reindex failed");
@@ -519,7 +525,7 @@ When user mentions abbreviations like "OTP", "RASM", "CASM" → Check airline-te
 
       {error && (
         <div style={{ padding: "12px 16px", borderRadius: 12, background: "rgba(211,47,47,0.1)", border: "1px solid rgba(211,47,47,0.25)" }}>
-          <span style={{ color: "#ef5350", fontSize: 13 }}>{error}</span>
+          <span style={{ color: "#ef5350", fontSize: 13, whiteSpace: "pre-wrap" }}>{error}</span>
         </div>
       )}
     </div>
