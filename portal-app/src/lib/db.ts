@@ -97,5 +97,11 @@ async function _runMigrations(): Promise<void> {
       USING embedding::text::vector
   `.catch(() => {/* already dimensionless or table just created */});
 
+  // GIN index for full-text search — avoids sequential tsvector recomputation on every query.
+  await sql`
+    CREATE INDEX IF NOT EXISTS hyperset_kb_chunks_content_fts_idx
+      ON hyperset_kb_chunks USING GIN (to_tsvector('english', content))
+  `;
+
   console.log("[db] Schema ready");
 }

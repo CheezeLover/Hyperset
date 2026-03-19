@@ -6,27 +6,11 @@ import path from "path";
 
 const PAGES_DIR = process.env.PAGES_DIR ?? path.join(process.cwd(), "pages");
 
+import { checkRateLimit } from "@/lib/utils";
+
 const _rateLimitMap = new Map<string, number[]>();
 const RATE_LIMIT = 20;
 const RATE_WINDOW = 60_000;
-
-function checkRateLimit(
-  map: Map<string, number[]>,
-  limit: number,
-  windowMs: number,
-  key: string,
-): boolean {
-  const now = Date.now();
-  const timestamps = map.get(key) ?? [];
-  const recent = timestamps.filter((t) => now - t < windowMs);
-  if (recent.length >= limit) {
-    map.set(key, recent);
-    return false;
-  }
-  recent.push(now);
-  map.set(key, recent);
-  return true;
-}
 
 function requireAdmin(request: NextRequest) {
   const user = getUserFromRequest(request);

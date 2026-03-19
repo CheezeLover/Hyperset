@@ -8,12 +8,14 @@
 
 import crypto from "crypto";
 import { sql, ensureSchema } from "./db";
+import { formatBytes } from "./utils";
 
 // ── Configuration ─────────────────────────────────────────────────────────────
 const MAX_KB_SIZE_MB = 50;
 const MAX_DOC_SIZE_MB = 10;
 export const DEFAULT_CHUNK_SIZE = 1500;
 export const DEFAULT_CHUNK_OVERLAP = 200;
+const MAX_CONTENT_CACHE = 20; // max full document texts kept in memory per instance
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface KnowledgeDocument {
@@ -36,14 +38,6 @@ export interface ChunkSearchResult {
 // ── In-memory caches ──────────────────────────────────────────────────────────
 let _docs: KnowledgeDocument[] | null = null;
 const _contentCache = new Map<string, string>();
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return "0 B";
-  const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
-}
 
 function generateId(): string {
   return crypto.randomBytes(8).toString("hex");
@@ -114,23 +108,27 @@ export async function indexDocument(
   content: string,
   docName: string,
   config?: { chunkSize?: number; chunkOverlap?: number },
-): Promise<void> {
+): Promise<number> {
   await ensureSchema();
   await sql`DELETE FROM hyperset_kb_chunks WHERE doc_id = ${docId}`;
 
   const chunks = chunkMarkdown(content, config?.chunkSize, config?.chunkOverlap);
-  if (!chunks.length) return;
+  if (!chunks.length) return 0;
 
-  for (let i = 0; i < chunks.length; i++) {
-    const id = `${docId}-${i}`;
-    await sql`
-      INSERT INTO hyperset_kb_chunks (id, doc_id, chunk_index, content)
-      VALUES (${id}, ${docId}, ${i}, ${chunks[i]})
-      ON CONFLICT (id) DO UPDATE SET content = EXCLUDED.content
-    `;
-  }
+  const rows = chunks.map((chunk, i) => ({
+    id: `${docId}-${i}`,
+    doc_id: docId,
+    chunk_index: i,
+    content: chunk,
+  }));
+
+  await sql`
+    INSERT INTO hyperset_kb_chunks ${sql(rows, "id", "doc_id", "chunk_index", "content")}
+    ON CONFLICT (id) DO UPDATE SET content = EXCLUDED.content
+  `;
 
   console.log(`[kb] Indexed ${chunks.length} chunks for "${docName}"`);
+  return chunks.length;
 }
 
 // ── Full-text search ──────────────────────────────────────────────────────────
@@ -284,6 +282,10 @@ export async function getKnowledgeDocumentContent(id: string): Promise<string | 
     SELECT content FROM hyperset_kb_documents WHERE id = ${id} LIMIT 1
   `;
   if (rows.length === 0) return null;
+  if (_contentCache.size >= MAX_CONTENT_CACHE) {
+    // Evict the oldest entry (Maps preserve insertion order)
+    _contentCache.delete(_contentCache.keys().next().value as string);
+  }
   _contentCache.set(id, rows[0].content);
   return rows[0].content;
 }

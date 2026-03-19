@@ -20,7 +20,6 @@ export async function POST(request: NextRequest) {
   try {
     await ensureSchema();
     const s = await getAdminSettings();
-    const chunkConfig = { chunkSize: s?.kbChunkSize, chunkOverlap: s?.kbChunkOverlap };
 
     // Find documents to re-index
     const rows = forceAll
@@ -42,11 +41,11 @@ export async function POST(request: NextRequest) {
 
     for (const row of rows) {
       try {
-        await indexDocument(row.id, row.content, row.name, chunkConfig);
-        const [{ count }] = await sql<{ count: number }[]>`
-          SELECT COUNT(*) AS count FROM hyperset_kb_chunks WHERE doc_id = ${row.id}
-        `;
-        results.push({ name: row.name, chunks: Number(count) });
+        const count = await indexDocument(row.id, row.content, row.name, {
+          chunkSize: s?.kbChunkSize,
+          chunkOverlap: s?.kbChunkOverlap,
+        });
+        results.push({ name: row.name, chunks: count });
       } catch (e) {
         results.push({ name: row.name, chunks: 0, error: e instanceof Error ? e.message : String(e) });
       }

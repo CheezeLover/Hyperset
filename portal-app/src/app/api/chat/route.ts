@@ -11,30 +11,11 @@ import {
   semanticSearch,
 } from "@/lib/knowledge-base";
 
-// ── Helper functions ───────────────────────────────────────────────────────
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return "0 B";
-  const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
-}
-const _rateLimitMap = new Map<string, number[]>();
-const RATE_LIMIT      = 20;
-const RATE_WINDOW_MS  = 60_000;
+import { formatBytes, checkRateLimit } from "@/lib/utils";
 
-function checkRateLimit(email: string): boolean {
-  const now = Date.now();
-  const timestamps = _rateLimitMap.get(email) ?? [];
-  const recent = timestamps.filter((t) => now - t < RATE_WINDOW_MS);
-  if (recent.length >= RATE_LIMIT) {
-    _rateLimitMap.set(email, recent);
-    return false;
-  }
-  recent.push(now);
-  _rateLimitMap.set(email, recent);
-  return true;
-}
+const _rateLimitMap = new Map<string, number[]>();
+const RATE_LIMIT     = 20;
+const RATE_WINDOW_MS = 60_000;
 
 // ── Message history normalisation ───────────────────────────────────────────
 // ChatPanel strips tool_calls when building the history it sends to the server,
@@ -198,7 +179,7 @@ export const POST = async (req: NextRequest) => {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!checkRateLimit(requestUser.email)) {
+  if (!checkRateLimit(_rateLimitMap, RATE_LIMIT, RATE_WINDOW_MS, requestUser.email)) {
     return NextResponse.json({ error: "Rate limit exceeded. Please wait before sending more messages." }, { status: 429 });
   }
 

@@ -8,6 +8,8 @@ import {
 } from "@/lib/admin-settings";
 import { DEFAULT_SYSTEM_PROMPT } from "@/lib/default-system-prompt";
 
+import { checkRateLimit } from "@/lib/utils";
+
 // ── Rate limiters ──────────────────────────────────────────────────────────────
 // General admin endpoint limit: 20 req / 60 s per user (config reads/saves).
 const _adminRateLimitMap = new Map<string, number[]>();
@@ -18,24 +20,6 @@ const ADMIN_RATE_WINDOW  = 60_000;
 const _patchRateLimitMap = new Map<string, number[]>();
 const PATCH_RATE_LIMIT   = 5;
 const PATCH_RATE_WINDOW  = 60_000;
-
-function checkRateLimit(
-  map: Map<string, number[]>,
-  limit: number,
-  windowMs: number,
-  key: string,
-): boolean {
-  const now = Date.now();
-  const timestamps = map.get(key) ?? [];
-  const recent = timestamps.filter((t) => now - t < windowMs);
-  if (recent.length >= limit) {
-    map.set(key, recent);
-    return false;
-  }
-  recent.push(now);
-  map.set(key, recent);
-  return true;
-}
 
 function requireAdmin(request: NextRequest) {
   const user = getUserFromRequest(request);

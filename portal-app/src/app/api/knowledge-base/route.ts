@@ -6,6 +6,7 @@ import {
   indexDocument,
 } from "@/lib/knowledge-base";
 import { getAdminSettings } from "@/lib/admin-settings";
+import { checkRateLimit } from "@/lib/utils";
 
 // ── Rate limiters ──────────────────────────────────────────────────────────────
 // Public read access: 30 req / 60 s per user
@@ -17,24 +18,6 @@ const READ_RATE_WINDOW = 60_000;
 const _uploadRateLimitMap = new Map<string, number[]>();
 const UPLOAD_RATE_LIMIT = 10;
 const UPLOAD_RATE_WINDOW = 60_000;
-
-function checkRateLimit(
-  map: Map<string, number[]>,
-  limit: number,
-  windowMs: number,
-  key: string
-): boolean {
-  const now = Date.now();
-  const timestamps = map.get(key) ?? [];
-  const recent = timestamps.filter((t) => now - t < windowMs);
-  if (recent.length >= limit) {
-    map.set(key, recent);
-    return false;
-  }
-  recent.push(now);
-  map.set(key, recent);
-  return true;
-}
 
 function requireAdmin(request: NextRequest) {
   const user = getUserFromRequest(request);
