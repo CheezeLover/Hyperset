@@ -19,7 +19,7 @@ const CHUNK_SIZE = 1500;      // target characters per chunk
 const CHUNK_OVERLAP = 200;    // overlap between consecutive chunks
 const EMBEDDING_BATCH_SIZE = 96; // max inputs per embeddings API call
 
-export const DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small";
+export const DEFAULT_EMBEDDING_MODEL = "nomic-embed-text";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface KnowledgeDocument {
@@ -158,10 +158,50 @@ async function generateEmbeddings(
   return data.data.sort((a, b) => a.index - b.index).map((d) => d.embedding);
 }
 
+// ── RAG: Dimension management ─────────────────────────────────────────────────
+const DIMS_META_KEY = "embedding_dims";
+
+/**
+ * Ensure the HNSW index exists for the given dimension.
+ * If the stored dimension differs from `dims`, all chunks are cleared
+ * (they are invalid for the new model) and the index is recreated.
+ */
+async function ensureEmbeddingDimension(dims: number): Promise<void> {
+  const rows = await sql<{ value: string }[]>`
+    SELECT value FROM hyperset_kb_meta WHERE key = ${DIMS_META_KEY} LIMIT 1
+  `;
+  const storedDims = rows.length > 0 ? parseInt(rows[0].value, 10) : null;
+
+  if (storedDims !== null && storedDims !== dims) {
+    // Embedding model changed — existing chunks use a different dimension and
+    // cannot be compared against the new model's vectors.
+    console.log(`[kb] Embedding dimension changed ${storedDims} → ${dims}. Clearing all chunks.`);
+    await sql`DELETE FROM hyperset_kb_chunks`;
+    await sql`DROP INDEX IF EXISTS idx_kb_chunks_embedding`;
+  }
+
+  if (storedDims !== dims) {
+    // Persist the new dimension
+    await sql`
+      INSERT INTO hyperset_kb_meta (key, value)
+      VALUES (${DIMS_META_KEY}, ${String(dims)})
+      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+    `;
+    // (Re-)create HNSW index with the correct dimension operator
+    await sql`DROP INDEX IF EXISTS idx_kb_chunks_embedding`;
+    await sql`
+      CREATE INDEX idx_kb_chunks_embedding
+      ON hyperset_kb_chunks USING hnsw (embedding vector_cosine_ops)
+    `;
+    console.log(`[kb] HNSW index created for dim=${dims}`);
+  }
+}
+
 // ── RAG: Index a document ─────────────────────────────────────────────────────
 /**
  * Chunk the document, batch-embed all chunks, and store them in hyperset_kb_chunks.
- * Re-indexes from scratch on each call (idempotent).
+ * Automatically detects the embedding dimension and manages the HNSW index.
+ * Re-indexes from scratch on each call (idempotent per document).
  */
 export async function indexDocument(
   docId: string,
@@ -171,7 +211,7 @@ export async function indexDocument(
 ): Promise<void> {
   await ensureSchema();
 
-  // Remove stale chunks first
+  // Remove stale chunks for this document first
   await sql`DELETE FROM hyperset_kb_chunks WHERE doc_id = ${docId}`;
 
   const chunks = chunkMarkdown(content);
@@ -188,6 +228,10 @@ export async function indexDocument(
     allEmbeddings.push(...embeddings);
   }
 
+  // Detect the actual dimension from the first embedding and ensure the index matches
+  const dims = allEmbeddings[0].length;
+  await ensureEmbeddingDimension(dims);
+
   // Insert all chunks
   for (let i = 0; i < chunks.length; i++) {
     const chunkId = `${docId}-${i}`;
@@ -200,7 +244,7 @@ export async function indexDocument(
     `;
   }
 
-  console.log(`[kb] Indexed ${chunks.length} chunks for "${docName}" (${docId})`);
+  console.log(`[kb] Indexed ${chunks.length} chunks (dim=${dims}) for "${docName}" (${docId})`);
 }
 
 // ── RAG: Semantic search ──────────────────────────────────────────────────────

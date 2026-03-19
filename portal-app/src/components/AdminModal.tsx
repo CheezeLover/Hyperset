@@ -15,6 +15,8 @@ interface LlmSettings {
   apiKey: string;
   model: string;
   embeddingModel: string;
+  embeddingApiUrl: string;
+  embeddingApiKey: string;
   systemPrompt: string;
   modelParams: string;
   isCustom: boolean;
@@ -1014,7 +1016,7 @@ function PagesTab() {
 export function AdminModal({ onClose }: AdminModalProps) {
   const [activeTab, setActiveTab] = useState<Tab>("llm");
   const [settings, setSettings] = useState<LlmSettings>({
-    apiUrl: "", apiKey: "", model: "", embeddingModel: "", systemPrompt: "", modelParams: "", isCustom: false,
+    apiUrl: "", apiKey: "", model: "", embeddingModel: "", embeddingApiUrl: "", embeddingApiKey: "", systemPrompt: "", modelParams: "", isCustom: false,
     maxTurns: 40, maxToolResultChars: 3000, maxHistoryMessages: 20,
     cleanupDelayMinutes: 120,
   });
@@ -1072,6 +1074,8 @@ export function AdminModal({ onClose }: AdminModalProps) {
           apiKey: settings.apiKey !== "***" ? settings.apiKey : undefined,
           model: settings.model,
           embeddingModel: settings.embeddingModel,
+          embeddingApiUrl: settings.embeddingApiUrl,
+          embeddingApiKey: settings.embeddingApiKey !== "***" ? settings.embeddingApiKey : undefined,
           systemPrompt: settings.systemPrompt,
           modelParams: settings.modelParams,
           maxTurns: settings.maxTurns,
@@ -1235,7 +1239,22 @@ export function AdminModal({ onClose }: AdminModalProps) {
               <span style={labelStyle}>Embedding Model <span style={{ fontWeight: 400, opacity: 0.55 }}>(for knowledge base RAG)</span></span>
               <input type="text" value={settings.embeddingModel}
                 onChange={(e) => setSettings((s) => ({ ...s, embeddingModel: e.target.value }))}
-                placeholder="text-embedding-3-small" style={inputStyle} disabled={saving} />
+                placeholder="nomic-embed-text" style={inputStyle} disabled={saving} />
+            </label>
+
+            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span style={labelStyle}>Embedding API URL <span style={{ fontWeight: 400, opacity: 0.55 }}>(leave blank to use LLM API URL)</span></span>
+              <input type="url" value={settings.embeddingApiUrl}
+                onChange={(e) => setSettings((s) => ({ ...s, embeddingApiUrl: e.target.value }))}
+                placeholder="http://hyperset-ollama:11434/v1" style={inputStyle} disabled={saving} />
+            </label>
+
+            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span style={labelStyle}>Embedding API Key <span style={{ fontWeight: 400, opacity: 0.55 }}>(leave blank to use LLM API key)</span></span>
+              <input type="password" value={settings.embeddingApiKey}
+                onChange={(e) => setSettings((s) => ({ ...s, embeddingApiKey: e.target.value }))}
+                placeholder={settings.embeddingApiKey === "***" ? "••••• (currently set)" : "Same as LLM API key if blank"}
+                style={inputStyle} disabled={saving} autoComplete="new-password" />
             </label>
 
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>

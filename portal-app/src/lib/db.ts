@@ -77,20 +77,16 @@ async function _runMigrations(): Promise<void> {
     )
   `;
 
+  // Dimensionless vector column — dimension is determined at runtime by the
+  // embedding model and managed by knowledge-base.ts (ensureEmbeddingDimension).
   await sql`
     CREATE TABLE IF NOT EXISTS hyperset_kb_chunks (
-      id          TEXT        PRIMARY KEY,
-      doc_id      TEXT        NOT NULL REFERENCES hyperset_kb_documents(id) ON DELETE CASCADE,
-      chunk_index INT         NOT NULL,
-      content     TEXT        NOT NULL,
-      embedding   vector(1536)
+      id          TEXT  PRIMARY KEY,
+      doc_id      TEXT  NOT NULL REFERENCES hyperset_kb_documents(id) ON DELETE CASCADE,
+      chunk_index INT   NOT NULL,
+      content     TEXT  NOT NULL,
+      embedding   vector
     )
-  `;
-
-  // HNSW index for fast cosine similarity search (pgvector >= 0.5.0)
-  await sql`
-    CREATE INDEX IF NOT EXISTS idx_kb_chunks_embedding
-    ON hyperset_kb_chunks USING hnsw (embedding vector_cosine_ops)
   `;
 
   console.log("[db] Schema ready");

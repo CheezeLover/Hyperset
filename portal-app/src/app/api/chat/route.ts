@@ -716,8 +716,8 @@ Administrators can upload documents through the Admin Settings > Knowledge Base 
               } else {
                 try {
                   const embeddingConfig = {
-                    apiKey,
-                    apiUrl,
+                    apiKey:  s?.embeddingApiKey  ?? process.env.LLM_EMBEDDING_API_KEY  ?? apiKey,
+                    apiUrl:  s?.embeddingApiUrl  ?? process.env.LLM_EMBEDDING_API_URL  ?? apiUrl,
                     embeddingModel: s?.embeddingModel ?? process.env.LLM_EMBEDDING_MODEL ?? DEFAULT_EMBEDDING_MODEL,
                   };
                   const chunks = await semanticSearch(searchQuery, 6, embeddingConfig);

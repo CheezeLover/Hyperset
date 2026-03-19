@@ -26,6 +26,10 @@ export interface LlmSettings {
   // ── Knowledge base RAG ───────────────────────────────────────────
   /** Embedding model for knowledge base RAG (default: text-embedding-3-small) */
   embeddingModel?: string;
+  /** Separate API URL for embeddings — falls back to apiUrl if unset */
+  embeddingApiUrl?: string;
+  /** Separate API key for embeddings — falls back to apiKey if unset */
+  embeddingApiKey?: string;
 }
 
 export interface SessionData {
