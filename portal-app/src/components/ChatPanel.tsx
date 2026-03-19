@@ -871,8 +871,8 @@ function SqlResultCard({ data, index }: { data: SqlData; index: number }) {
       marginBottom: 8,
       borderRadius: 12,
       overflow: "hidden",
-      border: "2px solid #2e7d32",
-      boxShadow: "0 2px 10px rgba(46,125,50,0.15)",
+      border: "1px solid var(--md-primary-cont)",
+      boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
     }}>
       {/* Header */}
       <button
@@ -883,35 +883,38 @@ function SqlResultCard({ data, index }: { data: SqlData; index: number }) {
           alignItems: "center",
           gap: 8,
           padding: "9px 14px",
-          background: "#2e7d32",
+          background: "var(--md-primary-cont)",
           border: "none",
           cursor: "pointer",
-          color: "#fff",
+          color: "var(--md-on-primary-cont)",
           fontSize: 12,
           fontWeight: 600,
           textAlign: "left",
+          transition: "opacity 0.15s ease",
         }}
+        onMouseOver={e => e.currentTarget.style.opacity = "0.9"}
+        onMouseOut={e => e.currentTarget.style.opacity = "1"}
       >
-        <svg viewBox="0 0 24 24" width={13} height={13} fill="currentColor" style={{ flexShrink: 0, opacity: 0.9 }}>
-          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
+        <svg viewBox="0 0 24 24" width={13} height={13} fill="currentColor" style={{ flexShrink: 0, opacity: 0.85 }}>
+          <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/>
         </svg>
         <span style={{ flex: 1 }}>
-          Query Result {index > 0 ? `#${index + 1}` : ""} — Verified from database
+          Raw numbers {index > 0 ? `#${index + 1}` : ""}
         </span>
         <span style={{
           fontSize: 10,
-          background: "rgba(255,255,255,0.2)",
+          background: "rgba(0,0,0,0.12)",
           borderRadius: 4,
           padding: "2px 7px",
           letterSpacing: "0.3px",
         }}>
           {data.rowcount} row{data.rowcount !== 1 ? "s" : ""}
         </span>
-        <span style={{ fontSize: 11, opacity: 0.7, marginLeft: 4, flexShrink: 0 }}>{collapsed ? "▾" : "▴"}</span>
+        <span style={{ fontSize: 11, opacity: 0.6, marginLeft: 4, flexShrink: 0 }}>{collapsed ? "▾" : "▴"}</span>
       </button>
 
       {!collapsed && (
-        <div style={{ overflowX: "auto", background: "#f1f8e9" }}>
+        <div style={{ overflowX: "auto", background: "var(--md-surface)" }}>
           <table style={{
             width: "100%",
             borderCollapse: "collapse",
@@ -924,12 +927,13 @@ function SqlResultCard({ data, index }: { data: SqlData; index: number }) {
                   <th key={ci} style={{
                     padding: "6px 12px",
                     textAlign: "left",
-                    background: "#388e3c",
-                    color: "#fff",
+                    background: "var(--md-surface-cont-hi)",
+                    color: "var(--md-on-surface)",
                     fontWeight: 600,
                     fontSize: 11,
                     whiteSpace: "nowrap",
-                    borderRight: ci < data.columns.length - 1 ? "1px solid rgba(255,255,255,0.2)" : "none",
+                    borderRight: ci < data.columns.length - 1 ? "1px solid var(--md-outline-var)" : "none",
+                    borderBottom: "1px solid var(--md-outline-var)",
                   }}>
                     {col}
                   </th>
@@ -938,21 +942,22 @@ function SqlResultCard({ data, index }: { data: SqlData; index: number }) {
             </thead>
             <tbody>
               {visibleRows.map((row, ri) => (
-                <tr key={ri} style={{ background: ri % 2 === 0 ? "#f1f8e9" : "#e8f5e9" }}>
+                <tr key={ri} style={{ background: ri % 2 === 0 ? "var(--md-surface)" : "var(--md-surface-cont)" }}>
                   {data.columns.map((col, ci) => {
                     const val = row[col];
                     const isNum = typeof val === "number";
                     return (
                       <td key={ci} style={{
                         padding: "5px 12px",
-                        color: isNum ? "#1b5e20" : "#33691e",
+                        color: "var(--md-on-surface)",
                         fontWeight: isNum ? 600 : 400,
-                        borderRight: ci < data.columns.length - 1 ? "1px solid #c8e6c9" : "none",
-                        borderBottom: "1px solid #c8e6c9",
+                        opacity: isNum ? 1 : 0.85,
+                        borderRight: ci < data.columns.length - 1 ? "1px solid var(--md-outline-var)" : "none",
+                        borderBottom: "1px solid var(--md-outline-var)",
                         whiteSpace: "nowrap",
                       }}>
                         {val === null || val === undefined ? (
-                          <span style={{ opacity: 0.4, fontStyle: "italic" }}>null</span>
+                          <span style={{ opacity: 0.35, fontStyle: "italic" }}>null</span>
                         ) : String(val)}
                       </td>
                     );
@@ -965,9 +970,10 @@ function SqlResultCard({ data, index }: { data: SqlData; index: number }) {
             <div style={{
               padding: "6px 12px",
               fontSize: 11,
-              color: "#558b2f",
-              background: "#dcedc8",
-              borderTop: "1px solid #c8e6c9",
+              color: "var(--md-on-surface)",
+              opacity: 0.7,
+              background: "var(--md-surface-cont)",
+              borderTop: "1px solid var(--md-outline-var)",
             }}>
               Showing {MAX_ROWS} of {data.rowcount} rows
             </div>
@@ -975,12 +981,13 @@ function SqlResultCard({ data, index }: { data: SqlData; index: number }) {
           <div style={{
             padding: "5px 12px",
             fontSize: 10,
-            color: "#558b2f",
-            background: "#dcedc8",
-            borderTop: "1px solid #c8e6c9",
+            color: "var(--md-on-primary-cont)",
+            background: "var(--md-primary-cont)",
+            borderTop: "1px solid var(--md-outline-var)",
             display: "flex",
             alignItems: "center",
             gap: 5,
+            opacity: 0.8,
           }}>
             <svg viewBox="0 0 24 24" width={10} height={10} fill="currentColor">
               <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/>
