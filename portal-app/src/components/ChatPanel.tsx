@@ -862,69 +862,62 @@ function isSqlDataEvent(e: ChatEvent): e is ChatEvent & Required<Pick<ChatEvent,
   return Array.isArray(e.columns) && Array.isArray(e.rows) && typeof e.rowcount === "number";
 }
 
-// ── SQL Result Reference Card ─────────────────────────────────────
-// Displays verified SQL query results directly from the database.
-// Numbers here are NEVER passed through the LLM — they are raw query output.
-function SqlResultCard({ data, index }: { data: SqlData; index: number }) {
-  const [collapsed, setCollapsed] = useState(true);
-  const visibleRows = collapsed ? [] : data.rows.slice(0, SQL_CARD_MAX_ROWS);
+// ── SQL Result sub-block (used inside SqlResultsZone) ────────────
+function SqlResultCard({ data, index, total }: { data: SqlData; index: number; total: number }) {
+  const [open, setOpen] = useState(false);
+  const visibleRows = open ? data.rows.slice(0, SQL_CARD_MAX_ROWS) : [];
   const truncated = data.rowcount > SQL_CARD_MAX_ROWS;
+  const label = total > 1 ? `Query ${index + 1}` : "Query result";
 
   return (
     <div style={{
-      maxWidth: "88%",
-      marginBottom: 8,
-      borderRadius: 12,
+      border: "1px solid var(--md-outline-var)",
+      borderRadius: 10,
       overflow: "hidden",
-      border: "1px solid var(--md-primary-cont)",
-      boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+      background: "var(--md-surface-cont)",
+      boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
     }}>
-      {/* Header */}
       <button
-        onClick={() => setCollapsed(c => !c)}
+        onClick={() => setOpen(o => !o)}
         style={{
           width: "100%",
           display: "flex",
           alignItems: "center",
           gap: 8,
-          padding: "9px 14px",
-          background: "var(--md-primary-cont)",
+          padding: "8px 12px",
+          background: "transparent",
           border: "none",
           cursor: "pointer",
-          color: "var(--md-on-primary-cont)",
+          color: "var(--md-on-surface)",
           fontSize: 12,
-          fontWeight: 600,
+          fontWeight: 500,
           textAlign: "left",
+          opacity: 0.9,
           transition: "opacity 0.15s ease",
         }}
-        onMouseOver={e => e.currentTarget.style.opacity = "0.9"}
-        onMouseOut={e => e.currentTarget.style.opacity = "1"}
+        onMouseOver={e => e.currentTarget.style.opacity = "1"}
+        onMouseOut={e => e.currentTarget.style.opacity = "0.9"}
       >
-        <svg viewBox="0 0 24 24" width={13} height={13} fill="currentColor" style={{ flexShrink: 0, opacity: 0.85 }}>
-          <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/>
-        </svg>
-        <span style={{ flex: 1 }}>
-          Raw numbers {index > 0 ? `#${index + 1}` : ""}
-        </span>
+        <span style={{ flex: 1 }}>{open ? "▾" : "▸"} {label}</span>
         <span style={{
           fontSize: 10,
-          background: "rgba(0,0,0,0.12)",
+          background: "var(--md-outline-var)",
           borderRadius: 4,
           padding: "2px 7px",
-          letterSpacing: "0.3px",
+          opacity: 0.8,
         }}>
           {data.rowcount} row{data.rowcount !== 1 ? "s" : ""}
         </span>
-        <span style={{ fontSize: 11, opacity: 0.6, marginLeft: 4, flexShrink: 0 }}>{collapsed ? "▾" : "▴"}</span>
       </button>
 
-      {!collapsed && (
-        <div style={{ overflowX: "auto", background: "var(--md-surface)" }}>
+      {open && (
+        <div style={{ overflowX: "auto", borderTop: "1px solid var(--md-outline-var)" }}>
           <table style={{
             width: "100%",
             borderCollapse: "collapse",
             fontSize: 12,
             fontFamily: "ui-monospace, SFMono-Regular, monospace",
+            background: "var(--md-surface)",
           }}>
             <thead>
               <tr>
@@ -961,9 +954,9 @@ function SqlResultCard({ data, index }: { data: SqlData; index: number }) {
                         borderBottom: "1px solid var(--md-outline-var)",
                         whiteSpace: "nowrap",
                       }}>
-                        {val === null || val === undefined ? (
-                          <span style={{ opacity: 0.35, fontStyle: "italic" }}>null</span>
-                        ) : String(val)}
+                        {val === null || val === undefined
+                          ? <span style={{ opacity: 0.35, fontStyle: "italic" }}>null</span>
+                          : String(val)}
                       </td>
                     );
                   })}
@@ -973,31 +966,93 @@ function SqlResultCard({ data, index }: { data: SqlData; index: number }) {
           </table>
           {truncated && (
             <div style={{
-              padding: "6px 12px",
+              padding: "5px 12px",
               fontSize: 11,
               color: "var(--md-on-surface)",
-              opacity: 0.7,
+              opacity: 0.6,
               background: "var(--md-surface-cont)",
               borderTop: "1px solid var(--md-outline-var)",
             }}>
               Showing {SQL_CARD_MAX_ROWS} of {data.rowcount} rows
             </div>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── SQL Results Zone (groups all SQL results in one collapsible) ──
+function SqlResultsZone({ sqlRefs }: { sqlRefs: SqlData[] }) {
+  const [open, setOpen] = useState(false);
+  if (!sqlRefs || sqlRefs.length === 0) return null;
+
+  const totalRows = sqlRefs.reduce((s, d) => s + d.rowcount, 0);
+  const label = `${sqlRefs.length} raw result${sqlRefs.length !== 1 ? "s" : ""}`;
+
+  return (
+    <div style={{
+      maxWidth: "88%",
+      borderRadius: 12,
+      marginBottom: 8,
+      overflow: "hidden",
+      boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+      border: "1px solid var(--md-primary-cont)",
+    }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "10px 14px",
+          background: "var(--md-primary-cont)",
+          border: "none",
+          cursor: "pointer",
+          color: "var(--md-on-primary-cont)",
+          fontSize: 13,
+          fontWeight: 500,
+          textAlign: "left",
+          transition: "opacity 0.15s ease",
+        }}
+        onMouseOver={e => e.currentTarget.style.opacity = "0.95"}
+        onMouseOut={e => e.currentTarget.style.opacity = "1"}
+      >
+        <svg viewBox="0 0 24 24" width={14} height={14} fill="currentColor" style={{ flexShrink: 0, opacity: 0.85 }}>
+          <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/>
+        </svg>
+        <span style={{ flex: 1 }}>{label}</span>
+        <span style={{ fontSize: 11, opacity: 0.5, marginRight: 4 }}>{totalRows} row{totalRows !== 1 ? "s" : ""}</span>
+        <span style={{ fontSize: 12, opacity: 0.6, flexShrink: 0 }}>{open ? "▴" : "▾"}</span>
+      </button>
+
+      {open && (
+        <div style={{
+          padding: 10,
+          background: "var(--md-surface)",
+          display: "flex",
+          flexDirection: "column",
+          gap: 6,
+        }}>
+          {sqlRefs.map((data, i) => (
+            <SqlResultCard key={i} data={data} index={i} total={sqlRefs.length} />
+          ))}
           <div style={{
-            padding: "5px 12px",
+            padding: "4px 8px",
             fontSize: 10,
             color: "var(--md-on-primary-cont)",
             background: "var(--md-primary-cont)",
-            borderTop: "1px solid var(--md-outline-var)",
+            borderRadius: 6,
             display: "flex",
             alignItems: "center",
             gap: 5,
-            opacity: 0.8,
+            opacity: 0.75,
           }}>
-            <svg viewBox="0 0 24 24" width={10} height={10} fill="currentColor">
+            <svg viewBox="0 0 24 24" width={9} height={9} fill="currentColor">
               <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/>
             </svg>
-            Numbers above come directly from the database query — not generated by the AI
+            Numbers come directly from the database — not generated by the AI
           </div>
         </div>
       )}
@@ -1180,9 +1235,9 @@ function MessageBubble({ msg, supersetUrl, onSuggestionClick, onSupersetLinkClic
         <ToolCallsZone toolCalls={msg.toolCalls} streaming={msg.streaming} />
       )}
 
-      {msg.sqlRefs && msg.sqlRefs.length > 0 && msg.sqlRefs.map((sqlData, i) => (
-        <SqlResultCard key={i} data={sqlData} index={i} />
-      ))}
+      {msg.sqlRefs && msg.sqlRefs.length > 0 && (
+        <SqlResultsZone sqlRefs={msg.sqlRefs} />
+      )}
 
       {msg.content && (
         <div style={{
