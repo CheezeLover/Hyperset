@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/auth";
 import { sql, ensureSchema } from "@/lib/db";
 import { indexDocument } from "@/lib/knowledge-base";
+import { getAdminSettings } from "@/lib/admin-settings";
 
 /**
  * POST /api/knowledge-base/reindex
@@ -18,6 +19,8 @@ export async function POST(request: NextRequest) {
 
   try {
     await ensureSchema();
+    const s = await getAdminSettings();
+    const chunkConfig = { chunkSize: s?.kbChunkSize, chunkOverlap: s?.kbChunkOverlap };
 
     // Find documents to re-index
     const rows = forceAll
@@ -39,7 +42,7 @@ export async function POST(request: NextRequest) {
 
     for (const row of rows) {
       try {
-        await indexDocument(row.id, row.content, row.name);
+        await indexDocument(row.id, row.content, row.name, chunkConfig);
         const [{ count }] = await sql<{ count: number }[]>`
           SELECT COUNT(*) AS count FROM hyperset_kb_chunks WHERE doc_id = ${row.id}
         `;

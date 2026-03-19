@@ -5,6 +5,7 @@ import {
   addKnowledgeDocument,
   indexDocument,
 } from "@/lib/knowledge-base";
+import { getAdminSettings } from "@/lib/admin-settings";
 
 // ── Rate limiters ──────────────────────────────────────────────────────────────
 // Public read access: 30 req / 60 s per user
@@ -156,7 +157,11 @@ export async function POST(request: NextRequest) {
     // Trigger FTS indexing — non-blocking so the response is returned immediately.
     void (async () => {
       try {
-        await indexDocument(doc.id, content, doc.name);
+        const s = await getAdminSettings();
+        await indexDocument(doc.id, content, doc.name, {
+          chunkSize: s?.kbChunkSize,
+          chunkOverlap: s?.kbChunkOverlap,
+        });
       } catch (e) {
         console.error("[kb] Background indexing failed for", doc.id, ":", e);
       }

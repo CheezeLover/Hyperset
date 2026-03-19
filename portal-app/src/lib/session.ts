@@ -23,6 +23,13 @@ export interface LlmSettings {
   /** Minutes before a [HYPERSET-AI-TEMPORARY] chart is auto-deleted (default: 120) */
   cleanupDelayMinutes?: number;
 
+  // ── Knowledge base RAG ───────────────────────────────────────────
+  /** Number of chunks returned per search query (default: 6) */
+  kbTopK?: number;
+  /** Character size of each chunk when indexing (default: 1500) — requires re-index to take effect */
+  kbChunkSize?: number;
+  /** Character overlap between consecutive chunks (default: 200) — requires re-index to take effect */
+  kbChunkOverlap?: number;
 }
 
 export interface SessionData {

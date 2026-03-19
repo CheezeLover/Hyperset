@@ -140,10 +140,13 @@ export async function GET(request: NextRequest) {
     systemPrompt:        s?.systemPrompt        ?? process.env.LLM_SYSTEM_PROMPT ?? "",
     modelParams:         s?.modelParams         ?? "",
     effectiveSystemPrompt,
-    maxTurns:            s?.maxTurns            ?? Number(process.env.LLM_MAX_TURNS           ?? 40),
+    maxTurns:            s?.maxTurns            ?? Number(process.env.LLM_MAX_TURNS             ?? 40),
     maxToolResultChars:  s?.maxToolResultChars  ?? Number(process.env.LLM_MAX_TOOL_RESULT_CHARS ?? 3000),
-    maxHistoryMessages:  s?.maxHistoryMessages  ?? Number(process.env.LLM_MAX_HISTORY_MESSAGES ?? 20),
-    cleanupDelayMinutes: s?.cleanupDelayMinutes  ?? Number(process.env.HYPERSET_CLEANUP_DELAY_MINUTES ?? 120),
+    maxHistoryMessages:  s?.maxHistoryMessages  ?? Number(process.env.LLM_MAX_HISTORY_MESSAGES  ?? 20),
+    cleanupDelayMinutes: s?.cleanupDelayMinutes ?? Number(process.env.HYPERSET_CLEANUP_DELAY_MINUTES ?? 120),
+    kbTopK:              s?.kbTopK              ?? 6,
+    kbChunkSize:         s?.kbChunkSize         ?? 1500,
+    kbChunkOverlap:      s?.kbChunkOverlap      ?? 200,
     isCustom: !!(s?.apiUrl || s?.apiKey || s?.model || s?.systemPrompt || s?.modelParams),
   };
   console.log("[admin/api] Returning response with isCustom:", response.isCustom);
@@ -193,6 +196,9 @@ export async function POST(request: NextRequest) {
     maxToolResultChars: body.maxToolResultChars !== undefined ? clamp(body.maxToolResultChars, 500, 50000, 3000) : prev.maxToolResultChars,
     maxHistoryMessages: body.maxHistoryMessages !== undefined ? clamp(body.maxHistoryMessages, 4, 200,   20) : prev.maxHistoryMessages,
     cleanupDelayMinutes: body.cleanupDelayMinutes !== undefined ? clampMinutes(body.cleanupDelayMinutes, 120) : prev.cleanupDelayMinutes,
+    kbTopK:              body.kbTopK             !== undefined ? clamp(body.kbTopK,        1, 20,   6)    : prev.kbTopK,
+    kbChunkSize:         body.kbChunkSize        !== undefined ? clamp(body.kbChunkSize,   200, 8000, 1500) : prev.kbChunkSize,
+    kbChunkOverlap:      body.kbChunkOverlap     !== undefined ? clamp(body.kbChunkOverlap, 0, 1000, 200)  : prev.kbChunkOverlap,
   });
   console.log("[admin/api] Save completed successfully");
 

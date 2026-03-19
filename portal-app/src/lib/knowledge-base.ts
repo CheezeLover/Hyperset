@@ -12,8 +12,8 @@ import { sql, ensureSchema } from "./db";
 // ── Configuration ─────────────────────────────────────────────────────────────
 const MAX_KB_SIZE_MB = 50;
 const MAX_DOC_SIZE_MB = 10;
-const CHUNK_SIZE = 1500;
-const CHUNK_OVERLAP = 200;
+export const DEFAULT_CHUNK_SIZE = 1500;
+export const DEFAULT_CHUNK_OVERLAP = 200;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface KnowledgeDocument {
@@ -70,23 +70,27 @@ function rowToDoc(row: DbDocRow): KnowledgeDocument {
 }
 
 // ── Chunking ──────────────────────────────────────────────────────────────────
-function chunkMarkdown(content: string): string[] {
+function chunkMarkdown(
+  content: string,
+  chunkSize = DEFAULT_CHUNK_SIZE,
+  chunkOverlap = DEFAULT_CHUNK_OVERLAP,
+): string[] {
   const chunks: string[] = [];
   const sections = content.split(/(?=^#{1,3} )/m).filter((s) => s.trim().length > 0);
 
   for (const section of sections) {
     if (section.trim().length < 50) continue;
-    if (section.length <= CHUNK_SIZE) {
+    if (section.length <= chunkSize) {
       chunks.push(section.trim());
     } else {
       const paragraphs = section.split(/\n\n+/).filter((p) => p.trim().length > 0);
       let current = "";
       for (const para of paragraphs) {
-        if (current.length + para.length + 2 <= CHUNK_SIZE) {
+        if (current.length + para.length + 2 <= chunkSize) {
           current = current ? current + "\n\n" + para : para;
         } else {
           if (current.trim().length >= 50) chunks.push(current.trim());
-          const overlap = current.length > CHUNK_OVERLAP ? current.slice(-CHUNK_OVERLAP) : current;
+          const overlap = current.length > chunkOverlap ? current.slice(-chunkOverlap) : current;
           current = overlap ? overlap + "\n\n" + para : para;
         }
       }
@@ -95,8 +99,8 @@ function chunkMarkdown(content: string): string[] {
   }
 
   if (chunks.length === 0 && content.trim().length >= 50) {
-    for (let i = 0; i < content.length; i += CHUNK_SIZE - CHUNK_OVERLAP) {
-      const chunk = content.slice(i, i + CHUNK_SIZE).trim();
+    for (let i = 0; i < content.length; i += chunkSize - chunkOverlap) {
+      const chunk = content.slice(i, i + chunkSize).trim();
       if (chunk.length >= 50) chunks.push(chunk);
     }
   }
@@ -109,11 +113,12 @@ export async function indexDocument(
   docId: string,
   content: string,
   docName: string,
+  config?: { chunkSize?: number; chunkOverlap?: number },
 ): Promise<void> {
   await ensureSchema();
   await sql`DELETE FROM hyperset_kb_chunks WHERE doc_id = ${docId}`;
 
-  const chunks = chunkMarkdown(content);
+  const chunks = chunkMarkdown(content, config?.chunkSize, config?.chunkOverlap);
   if (!chunks.length) return;
 
   for (let i = 0; i < chunks.length; i++) {

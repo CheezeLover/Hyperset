@@ -685,7 +685,7 @@ Administrators can upload documents through the Admin Settings > Knowledge Base 
                 result = "Error: No search query provided.";
               } else {
                 try {
-                  const chunks = await semanticSearch(searchQuery, 6);
+                  const chunks = await semanticSearch(searchQuery, s?.kbTopK ?? 6);
                   if (chunks.length === 0) {
                     result = `No relevant content found for "${searchQuery}". The knowledge base may not cover this topic.`;
                   } else {

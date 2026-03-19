@@ -21,6 +21,9 @@ interface LlmSettings {
   maxToolResultChars: number;
   maxHistoryMessages: number;
   cleanupDelayMinutes: number;
+  kbTopK: number;
+  kbChunkSize: number;
+  kbChunkOverlap: number;
 }
 
 interface AdminSettingsResponse extends LlmSettings {
@@ -956,6 +959,7 @@ export function AdminModal({ onClose }: AdminModalProps) {
     apiUrl: "", apiKey: "", model: "", systemPrompt: "", modelParams: "", isCustom: false,
     maxTurns: 40, maxToolResultChars: 3000, maxHistoryMessages: 20,
     cleanupDelayMinutes: 120,
+    kbTopK: 6, kbChunkSize: 1500, kbChunkOverlap: 200,
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -1016,6 +1020,9 @@ export function AdminModal({ onClose }: AdminModalProps) {
           maxToolResultChars: settings.maxToolResultChars,
           maxHistoryMessages: settings.maxHistoryMessages,
           cleanupDelayMinutes: settings.cleanupDelayMinutes,
+          kbTopK: settings.kbTopK,
+          kbChunkSize: settings.kbChunkSize,
+          kbChunkOverlap: settings.kbChunkOverlap,
         }),
       });
       if (!res.ok) throw new Error("Save failed");
@@ -1347,7 +1354,51 @@ export function AdminModal({ onClose }: AdminModalProps) {
             </div>
           </div>
         ) : activeTab === "knowledge" ? (
-          <KnowledgeBaseTab />
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            {/* ── RAG search settings ── */}
+            <section style={{
+              background: "var(--md-surface)", borderRadius: 16, padding: 20,
+              border: "1px solid var(--md-outline-var)",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#2196f3" }} />
+                <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--md-on-surface)", margin: 0 }}>Search Settings</h3>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <span style={labelStyle}>Top K <span style={{ fontWeight: 400, opacity: 0.55 }}>(chunks per query)</span></span>
+                  <input type="number" min={1} max={20} value={settings.kbTopK}
+                    onChange={(e) => setSettings((s) => ({ ...s, kbTopK: Math.max(1, Math.min(20, Number(e.target.value))) }))}
+                    style={inputStyle} disabled={saving} />
+                </label>
+                <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <span style={labelStyle}>Chunk Size <span style={{ fontWeight: 400, opacity: 0.55 }}>(chars — re-index)</span></span>
+                  <input type="number" min={200} max={8000} step={100} value={settings.kbChunkSize}
+                    onChange={(e) => setSettings((s) => ({ ...s, kbChunkSize: Math.max(200, Math.min(8000, Number(e.target.value))) }))}
+                    style={inputStyle} disabled={saving} />
+                </label>
+                <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <span style={labelStyle}>Chunk Overlap <span style={{ fontWeight: 400, opacity: 0.55 }}>(chars — re-index)</span></span>
+                  <input type="number" min={0} max={1000} step={50} value={settings.kbChunkOverlap}
+                    onChange={(e) => setSettings((s) => ({ ...s, kbChunkOverlap: Math.max(0, Math.min(1000, Number(e.target.value))) }))}
+                    style={inputStyle} disabled={saving} />
+                </label>
+              </div>
+              <div style={{ marginTop: 16, display: "flex", gap: 10, alignItems: "center" }}>
+                <button onClick={handleSave} disabled={saving} style={{
+                  ...primaryBtnStyle,
+                  padding: "10px 24px",
+                  boxShadow: saved ? "none" : "0 4px 12px rgba(33, 150, 243, 0.3)",
+                  ...(saved ? { background: "#4caf50", boxShadow: "0 4px 12px rgba(76, 175, 80, 0.3)" } : {}),
+                }}>
+                  {saved ? "✓ Saved" : saving ? "Saving…" : "Save"}
+                </button>
+                {saveError && <span style={{ color: "#ef5350", fontSize: 12 }}>{saveError}</span>}
+                <span style={{ fontSize: 11, opacity: 0.5, marginLeft: 4 }}>Top K applies immediately · Chunk Size/Overlap require Re-index</span>
+              </div>
+            </section>
+            <KnowledgeBaseTab />
+          </div>
         ) : (
           <PagesTab />
         )}
