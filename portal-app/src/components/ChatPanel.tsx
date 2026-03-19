@@ -1899,6 +1899,19 @@ export function ChatPanel({
               }
               return { ...m, toolCalls: calls };
             }));
+          } else if (event.type === "sql_data") {
+            if (Array.isArray(event.columns) && Array.isArray(event.rows) && typeof event.rowcount === "number") {
+              const sqlEntry: SqlData = {
+                columns: event.columns,
+                rows: event.rows as Record<string, unknown>[],
+                rowcount: event.rowcount,
+              };
+              setMessages((prev) => prev.map((m) =>
+                m.id === assistantId
+                  ? { ...m, sqlRefs: [...(m.sqlRefs ?? []), sqlEntry] }
+                  : m
+              ));
+            }
           } else if (event.type === "followup_suggestions") {
             const suggestions = Array.isArray(event.suggestions)
               ? event.suggestions.filter((s): s is string => typeof s === "string")
