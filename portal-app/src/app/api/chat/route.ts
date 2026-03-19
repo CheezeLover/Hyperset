@@ -689,6 +689,32 @@ Administrators can upload documents through the Admin Settings > Knowledge Base 
               try {
                 const raw = await callMcpTool(tc.name, args);
                 result = typeof raw === "string" ? raw : JSON.stringify(raw);
+
+                // For SQL query results: parse and emit structured data so the
+                // frontend can display it in a "verified from DB" reference card,
+                // clearly separate from anything the LLM may say about the data.
+                if (tc.name === "superset_sqllab_execute_query") {
+                  try {
+                    const parsed: unknown = typeof raw === "string" ? JSON.parse(raw) : raw;
+                    if (
+                      parsed !== null &&
+                      typeof parsed === "object" &&
+                      "data" in parsed && Array.isArray((parsed as Record<string, unknown>).data) &&
+                      "columns" in parsed && Array.isArray((parsed as Record<string, unknown>).columns)
+                    ) {
+                      const p = parsed as { columns: unknown[]; data: unknown[]; rowcount?: number };
+                      const columns: string[] = p.columns.map((c) =>
+                        typeof c === "string" ? c : (typeof c === "object" && c !== null && "name" in c ? String((c as {name: unknown}).name) : String(c))
+                      );
+                      send({
+                        type: "sql_data",
+                        columns,
+                        rows: p.data,
+                        rowcount: p.rowcount ?? p.data.length,
+                      });
+                    }
+                  } catch { /* non-fatal — sql_data is best-effort */ }
+                }
               } catch (e) {
                 result = `Error calling ${tc.name}: ${e instanceof Error ? e.message : String(e)}`;
               }

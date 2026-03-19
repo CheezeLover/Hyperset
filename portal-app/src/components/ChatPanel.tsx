@@ -19,14 +19,26 @@ interface ChatPanelProps {
 // ── Message types ────────────────────────────────────────────────
 type Role = "user" | "assistant" | "tool";
 
+// Structured SQL query result delivered as a separate event so the
+// frontend can show it as a "verified from DB" reference card.
+export interface SqlData {
+  columns: string[];
+  rows: Record<string, unknown>[];
+  rowcount: number;
+}
+
 interface ChatEvent {
-  type: "delta" | "tool_call" | "tool_result" | "done" | "error" | "followup_suggestions";
+  type: "delta" | "tool_call" | "tool_result" | "done" | "error" | "followup_suggestions" | "sql_data";
   content?: string;
   name?: string;
   args?: Record<string, unknown>;
   result?: string;
   message?: string;
   suggestions?: unknown; // Will be validated as string[]
+  // sql_data fields
+  columns?: string[];
+  rows?: Record<string, unknown>[];
+  rowcount?: number;
 }
 
 export interface ToolCall {
@@ -44,6 +56,8 @@ export interface Message {
   followupSuggestions?: string[];
   /** true while assistant is still streaming */
   streaming?: boolean;
+  /** Verified SQL query results — displayed in a reference card, never passed through the LLM */
+  sqlRefs?: SqlData[];
 }
 
 // ── AI chart embed component ─────────────────────────────────────
@@ -842,6 +856,143 @@ function inlineRender(
   return <>{parts}</>;
 }
 
+// ── SQL Result Reference Card ─────────────────────────────────────
+// Displays verified SQL query results directly from the database.
+// Numbers here are NEVER passed through the LLM — they are raw query output.
+function SqlResultCard({ data, index }: { data: SqlData; index: number }) {
+  const [collapsed, setCollapsed] = useState(false);
+  const MAX_ROWS = 200;
+  const visibleRows = data.rows.slice(0, MAX_ROWS);
+  const truncated = data.rows.length > MAX_ROWS;
+
+  return (
+    <div style={{
+      maxWidth: "88%",
+      marginBottom: 8,
+      borderRadius: 12,
+      overflow: "hidden",
+      border: "2px solid #2e7d32",
+      boxShadow: "0 2px 10px rgba(46,125,50,0.15)",
+    }}>
+      {/* Header */}
+      <button
+        onClick={() => setCollapsed(c => !c)}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "9px 14px",
+          background: "#2e7d32",
+          border: "none",
+          cursor: "pointer",
+          color: "#fff",
+          fontSize: 12,
+          fontWeight: 600,
+          textAlign: "left",
+        }}
+      >
+        <svg viewBox="0 0 24 24" width={13} height={13} fill="currentColor" style={{ flexShrink: 0, opacity: 0.9 }}>
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
+        </svg>
+        <span style={{ flex: 1 }}>
+          Query Result {index > 0 ? `#${index + 1}` : ""} — Verified from database
+        </span>
+        <span style={{
+          fontSize: 10,
+          background: "rgba(255,255,255,0.2)",
+          borderRadius: 4,
+          padding: "2px 7px",
+          letterSpacing: "0.3px",
+        }}>
+          {data.rowcount} row{data.rowcount !== 1 ? "s" : ""}
+        </span>
+        <span style={{ fontSize: 11, opacity: 0.7, marginLeft: 4, flexShrink: 0 }}>{collapsed ? "▾" : "▴"}</span>
+      </button>
+
+      {!collapsed && (
+        <div style={{ overflowX: "auto", background: "#f1f8e9" }}>
+          <table style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            fontSize: 12,
+            fontFamily: "ui-monospace, SFMono-Regular, monospace",
+          }}>
+            <thead>
+              <tr>
+                {data.columns.map((col, ci) => (
+                  <th key={ci} style={{
+                    padding: "6px 12px",
+                    textAlign: "left",
+                    background: "#388e3c",
+                    color: "#fff",
+                    fontWeight: 600,
+                    fontSize: 11,
+                    whiteSpace: "nowrap",
+                    borderRight: ci < data.columns.length - 1 ? "1px solid rgba(255,255,255,0.2)" : "none",
+                  }}>
+                    {col}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {visibleRows.map((row, ri) => (
+                <tr key={ri} style={{ background: ri % 2 === 0 ? "#f1f8e9" : "#e8f5e9" }}>
+                  {data.columns.map((col, ci) => {
+                    const val = row[col];
+                    const isNum = typeof val === "number";
+                    return (
+                      <td key={ci} style={{
+                        padding: "5px 12px",
+                        color: isNum ? "#1b5e20" : "#33691e",
+                        fontWeight: isNum ? 600 : 400,
+                        borderRight: ci < data.columns.length - 1 ? "1px solid #c8e6c9" : "none",
+                        borderBottom: "1px solid #c8e6c9",
+                        whiteSpace: "nowrap",
+                      }}>
+                        {val === null || val === undefined ? (
+                          <span style={{ opacity: 0.4, fontStyle: "italic" }}>null</span>
+                        ) : String(val)}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {truncated && (
+            <div style={{
+              padding: "6px 12px",
+              fontSize: 11,
+              color: "#558b2f",
+              background: "#dcedc8",
+              borderTop: "1px solid #c8e6c9",
+            }}>
+              Showing {MAX_ROWS} of {data.rowcount} rows
+            </div>
+          )}
+          <div style={{
+            padding: "5px 12px",
+            fontSize: 10,
+            color: "#558b2f",
+            background: "#dcedc8",
+            borderTop: "1px solid #c8e6c9",
+            display: "flex",
+            alignItems: "center",
+            gap: 5,
+          }}>
+            <svg viewBox="0 0 24 24" width={10} height={10} fill="currentColor">
+              <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/>
+            </svg>
+            Numbers above come directly from the database query — not generated by the AI
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Tool call step component (used inside ToolCallsZone) ────────
 function ToolStep({ tc }: { tc: ToolCall }) {
   const [open, setOpen] = useState(false);
@@ -1016,6 +1167,10 @@ function MessageBubble({ msg, supersetUrl, onSuggestionClick, onSupersetLinkClic
       {msg.toolCalls && msg.toolCalls.length > 0 && (
         <ToolCallsZone toolCalls={msg.toolCalls} streaming={msg.streaming} />
       )}
+
+      {msg.sqlRefs && msg.sqlRefs.length > 0 && msg.sqlRefs.map((sqlData, i) => (
+        <SqlResultCard key={i} data={sqlData} index={i} />
+      ))}
 
       {msg.content && (
         <div style={{
@@ -1519,6 +1674,24 @@ export function ChatPanel({
                   }
                 }
               }, 500);
+            }
+          } else if (event.type === "sql_data") {
+            // Attach verified SQL result to the message for reference display
+            if (
+              Array.isArray(event.columns) &&
+              Array.isArray(event.rows) &&
+              typeof event.rowcount === "number"
+            ) {
+              const sqlEntry: SqlData = {
+                columns: event.columns,
+                rows: event.rows as Record<string, unknown>[],
+                rowcount: event.rowcount,
+              };
+              setMessages((prev) => prev.map((m) =>
+                m.id === assistantId
+                  ? { ...m, sqlRefs: [...(m.sqlRefs ?? []), sqlEntry] }
+                  : m
+              ));
             }
           } else if (event.type === "done") {
             setMessages((prev) => prev.map((m) => m.id === assistantId
