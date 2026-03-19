@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
 
     const settings = await getAdminSettings();
     const apiUrl = settings?.embeddingApiUrl ?? process.env.LLM_EMBEDDING_API_URL ?? "";
-    const apiKey = settings?.embeddingApiKey || process.env.LLM_EMBEDDING_API_KEY || settings?.apiKey || process.env.LLM_API_KEY || "";
+    const apiKey = process.env.LLM_EMBEDDING_API_KEY || settings?.apiKey || process.env.LLM_API_KEY || "";
     const embeddingModel = settings?.embeddingModel ?? process.env.LLM_EMBEDDING_MODEL ?? DEFAULT_EMBEDDING_MODEL;
     // Empty apiUrl → indexDocument stores chunks text-only (FTS fallback), no error
     const config = { apiKey, apiUrl, embeddingModel };
