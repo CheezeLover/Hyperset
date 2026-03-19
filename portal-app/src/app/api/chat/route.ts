@@ -673,38 +673,21 @@ Administrators can upload documents through the Admin Settings > Knowledge Base 
                   result = `Knowledge Base Status: Empty (${stats.documentCount} documents, ${stats.totalSizeFormatted} / ${stats.maxSizeFormatted} used)\n\nNo company-specific documents have been uploaded yet. Administrators can add documents through Admin Settings > Knowledge Base.`;
                 } else {
                   const docList = docs.map(d => `- **${d.name}** (ID: ${d.id}, ${formatBytes(d.size)}): ${d.description || 'No description'}`).join('\n');
-                  result = `Knowledge Base Status: ${stats.documentCount} documents, ${stats.totalSizeFormatted} / ${stats.maxSizeFormatted} used (${stats.utilizationPercent}%)\n\nAvailable documents:\n${docList}\n\nTo get document content, use knowledge_base_get with the document ID.`;
+                  result = `Knowledge Base Status: ${stats.documentCount} documents, ${stats.totalSizeFormatted} / ${stats.maxSizeFormatted} used (${stats.utilizationPercent}%)\n\nAvailable documents:\n${docList}\n\nUse knowledge_base_search to find relevant content.`;
                 }
               } catch (e) {
                 result = `Error accessing knowledge base: ${e instanceof Error ? e.message : String(e)}`;
               }
             } else if (tc.name === "knowledge_base_search") {
-              // Semantic RAG search with text-search fallback
+              // Full-text search (FTS) over knowledge base chunks
               const searchQuery = args.query as string;
               if (!searchQuery) {
                 result = "Error: No search query provided.";
               } else {
                 try {
-                  const embeddingConfig = {
-                    // Empty apiUrl → use local ONNX model (no key needed).
-                    // Do NOT fall back to chatApiUrl — that would force API mode.
-                    apiUrl:  s?.embeddingApiUrl ?? process.env.LLM_EMBEDDING_API_URL ?? "",
-                    apiKey:  process.env.LLM_EMBEDDING_API_KEY ?? apiKey,
-                    embeddingModel: s?.embeddingModel ?? process.env.LLM_EMBEDDING_MODEL ?? DEFAULT_EMBEDDING_MODEL,
-                  };
-                  const chunks = await semanticSearch(searchQuery, 6, embeddingConfig);
-
+                  const chunks = await semanticSearch(searchQuery, 6);
                   if (chunks.length === 0) {
-                    // No vector chunks yet — fall back to text search on name/description
-                    const textMatches = await searchKnowledgeBase(searchQuery);
-                    if (textMatches.length === 0) {
-                      result = `No relevant content found for "${searchQuery}". The knowledge base may not cover this topic.`;
-                    } else {
-                      const docList = textMatches
-                        .map((m) => `- **${m.doc.name}** (ID: ${m.doc.id}): ${m.doc.description || "No description"}`)
-                        .join("\n");
-                      result = `Found documents related to "${searchQuery}" (text match — semantic index not yet built):\n${docList}\n\nUse knowledge_base_get with the document ID to read full content.`;
-                    }
+                    result = `No relevant content found for "${searchQuery}". The knowledge base may not cover this topic.`;
                   } else {
                     // Group chunks by source document, preserving relevance order
                     const seen = new Map<string, { name: string; contents: string[] }>();
@@ -717,41 +700,9 @@ Administrators can upload documents through the Admin Settings > Knowledge Base 
                     );
                     result = `Relevant knowledge base content for "${searchQuery}":\n\n${sections.join("\n\n---\n\n")}`;
                   }
-                } catch (embErr) {
-                  // Embedding API unavailable — graceful text search fallback
-                  console.error("[chat] Semantic search failed, falling back to text search:", embErr);
-                  try {
-                    const textMatches = await searchKnowledgeBase(searchQuery);
-                    if (textMatches.length === 0) {
-                      result = `No documents found matching "${searchQuery}".`;
-                    } else {
-                      const docList = textMatches
-                        .map((m) => `- **${m.doc.name}** (ID: ${m.doc.id}): ${m.doc.description || "No description"}`)
-                        .join("\n");
-                      result = `Found documents (text search) for "${searchQuery}":\n${docList}\n\nUse knowledge_base_get with the document ID to read full content.`;
-                    }
-                  } catch (e) {
-                    result = `Error searching knowledge base: ${e instanceof Error ? e.message : String(e)}`;
-                  }
+                } catch (e) {
+                  result = `Error searching knowledge base: ${e instanceof Error ? e.message : String(e)}`;
                 }
-              }
-            } else if (tc.name === "knowledge_base_get") {
-              // Get full document content by ID
-              try {
-                const docId = args.id as string;
-                if (!docId) {
-                  result = "Error: No document ID provided.";
-                } else {
-                  const content = await getKnowledgeDocumentContent(docId);
-                  if (!content) {
-                    result = `Document not found: ${docId}`;
-                  } else {
-                    const doc = (await getKnowledgeDocuments()).find(d => d.id === docId);
-                    result = `--- ${doc?.name || docId} ---\n\n${content}`;
-                  }
-                }
-              } catch (e) {
-                result = `Error: ${e instanceof Error ? e.message : String(e)}`;
               }
             } else {
               try {

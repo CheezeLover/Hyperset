@@ -240,6 +240,17 @@ export async function addKnowledgeDocument(
   return doc;
 }
 
+export async function getKnowledgeDocumentContent(id: string): Promise<string | null> {
+  if (_contentCache.has(id)) return _contentCache.get(id)!;
+  await ensureSchema();
+  const rows = await sql<{ content: string }[]>`
+    SELECT content FROM hyperset_kb_documents WHERE id = ${id} LIMIT 1
+  `;
+  if (rows.length === 0) return null;
+  _contentCache.set(id, rows[0].content);
+  return rows[0].content;
+}
+
 export async function deleteKnowledgeDocument(id: string): Promise<boolean> {
   await ensureSchema();
   const result = await sql`DELETE FROM hyperset_kb_documents WHERE id = ${id}`;

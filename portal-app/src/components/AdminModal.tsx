@@ -14,8 +14,6 @@ interface LlmSettings {
   apiUrl: string;
   apiKey: string;
   model: string;
-  embeddingModel: string;
-  embeddingApiUrl: string;
   systemPrompt: string;
   modelParams: string;
   isCustom: boolean;
@@ -955,7 +953,7 @@ function PagesTab() {
 export function AdminModal({ onClose }: AdminModalProps) {
   const [activeTab, setActiveTab] = useState<Tab>("llm");
   const [settings, setSettings] = useState<LlmSettings>({
-    apiUrl: "", apiKey: "", model: "", embeddingModel: "", embeddingApiUrl: "", systemPrompt: "", modelParams: "", isCustom: false,
+    apiUrl: "", apiKey: "", model: "", systemPrompt: "", modelParams: "", isCustom: false,
     maxTurns: 40, maxToolResultChars: 3000, maxHistoryMessages: 20,
     cleanupDelayMinutes: 120,
   });
@@ -1012,8 +1010,6 @@ export function AdminModal({ onClose }: AdminModalProps) {
           apiUrl: settings.apiUrl,
           apiKey: settings.apiKey !== "***" ? settings.apiKey : undefined,
           model: settings.model,
-          embeddingModel: settings.embeddingModel,
-          embeddingApiUrl: settings.embeddingApiUrl,
           systemPrompt: settings.systemPrompt,
           modelParams: settings.modelParams,
           maxTurns: settings.maxTurns,
@@ -1173,19 +1169,7 @@ export function AdminModal({ onClose }: AdminModalProps) {
                 placeholder="ministral-3b-2512" style={inputStyle} disabled={saving} />
             </label>
 
-            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <span style={labelStyle}>Embedding Model <span style={{ fontWeight: 400, opacity: 0.55 }}>(optional — for semantic search via pgvector)</span></span>
-              <input type="text" value={settings.embeddingModel}
-                onChange={(e) => setSettings((s) => ({ ...s, embeddingModel: e.target.value }))}
-                placeholder="nomic-embed-text" style={inputStyle} disabled={saving} />
-            </label>
 
-            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <span style={labelStyle}>Embedding API URL <span style={{ fontWeight: 400, opacity: 0.55 }}>(optional — leave blank for full-text search fallback, uses LLM API key)</span></span>
-              <input type="url" value={settings.embeddingApiUrl}
-                onChange={(e) => setSettings((s) => ({ ...s, embeddingApiUrl: e.target.value }))}
-                placeholder="https://api.openai.com/v1" style={inputStyle} disabled={saving} />
-            </label>
 
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <button onClick={handleTest}
