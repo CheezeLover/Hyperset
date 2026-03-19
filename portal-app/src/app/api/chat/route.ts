@@ -695,7 +695,17 @@ Administrators can upload documents through the Admin Settings > Knowledge Base 
                 // clearly separate from anything the LLM may say about the data.
                 if (tc.name === "superset_sqllab_execute_query") {
                   try {
-                    const parsed: unknown = typeof raw === "string" ? JSON.parse(raw) : raw;
+                    // callMcpTool always returns a string (joined MCP text content).
+                    // Try JSON.parse first; if the string has surrounding prose (e.g.
+                    // "Query executed.\n{…}"), extract the first {...} block instead.
+                    let parsed: unknown = null;
+                    const rawStr = typeof raw === "string" ? raw : JSON.stringify(raw);
+                    try {
+                      parsed = JSON.parse(rawStr);
+                    } catch {
+                      const match = rawStr.match(/\{[\s\S]*\}/);
+                      if (match) parsed = JSON.parse(match[0]);
+                    }
                     if (
                       parsed !== null &&
                       typeof parsed === "object" &&
