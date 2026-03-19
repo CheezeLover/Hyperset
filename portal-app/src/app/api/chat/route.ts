@@ -4,13 +4,15 @@ import OpenAI from "openai";
 import { getAdminSettings } from "@/lib/admin-settings";
 import { getUserFromRequest } from "@/lib/auth";
 import { DEFAULT_SYSTEM_PROMPT } from "@/lib/default-system-prompt";
-import { 
-  getKnowledgeBaseRoutingContext, 
+import {
+  getKnowledgeBaseRoutingContext,
   getKnowledgeDocuments,
   getKnowledgeBaseStats,
   searchKnowledgeBase,
+  semanticSearch,
   getKnowledgeBaseRoutingGuide,
-  getKnowledgeDocumentContent
+  getKnowledgeDocumentContent,
+  DEFAULT_EMBEDDING_MODEL,
 } from "@/lib/knowledge-base";
 
 // ── Helper functions ───────────────────────────────────────────────────────
@@ -321,13 +323,13 @@ export const POST = async (req: NextRequest) => {
       type: "function",
       function: {
         name: "knowledge_base_search",
-        description: "Search for documents by name or description. Provide keywords to find relevant documents. Returns matching document names.",
+        description: "Semantically search the company knowledge base. Returns the most relevant text passages matching the query by meaning — not just keywords. Use this for any company-specific question before answering from memory.",
         parameters: {
           type: "object",
           properties: {
-            query: { 
-              type: "string", 
-              description: "Search keywords (e.g., 'safety', 'metrics', 'procedures')" 
+            query: {
+              type: "string",
+              description: "The question or topic to search for (e.g., 'Q3 revenue metrics', 'safety procedures for night operations')",
             },
           },
           required: ["query"],
@@ -707,22 +709,59 @@ Administrators can upload documents through the Admin Settings > Knowledge Base 
                 result = `Error accessing knowledge base: ${e instanceof Error ? e.message : String(e)}`;
               }
             } else if (tc.name === "knowledge_base_search") {
-              // Knowledge base search - simple name/description only
-              try {
-                const searchQuery = args.query as string;
-                if (!searchQuery) {
-                  result = "Error: No search query provided.";
-                } else {
-                  const matches = await searchKnowledgeBase(searchQuery);
-                  if (matches.length === 0) {
-                    result = `No documents found matching "${searchQuery}".`;
+              // Semantic RAG search with text-search fallback
+              const searchQuery = args.query as string;
+              if (!searchQuery) {
+                result = "Error: No search query provided.";
+              } else {
+                try {
+                  const embeddingConfig = {
+                    apiKey,
+                    apiUrl,
+                    embeddingModel: s?.embeddingModel ?? process.env.LLM_EMBEDDING_MODEL ?? DEFAULT_EMBEDDING_MODEL,
+                  };
+                  const chunks = await semanticSearch(searchQuery, 6, embeddingConfig);
+
+                  if (chunks.length === 0) {
+                    // No vector chunks yet — fall back to text search on name/description
+                    const textMatches = await searchKnowledgeBase(searchQuery);
+                    if (textMatches.length === 0) {
+                      result = `No relevant content found for "${searchQuery}". The knowledge base may not cover this topic.`;
+                    } else {
+                      const docList = textMatches
+                        .map((m) => `- **${m.doc.name}** (ID: ${m.doc.id}): ${m.doc.description || "No description"}`)
+                        .join("\n");
+                      result = `Found documents related to "${searchQuery}" (text match — semantic index not yet built):\n${docList}\n\nUse knowledge_base_get with the document ID to read full content.`;
+                    }
                   } else {
-                    const docList = matches.map(m => `- ${m.doc.name} (ID: ${m.doc.id}): ${m.doc.description || 'No description'}`).join('\n');
-                    result = `Found ${matches.length} document(s) matching "${searchQuery}":\n${docList}\n\nUse knowledge_base_get with the document ID to fetch full content.`;
+                    // Group chunks by source document, preserving relevance order
+                    const seen = new Map<string, { name: string; contents: string[] }>();
+                    for (const chunk of chunks) {
+                      if (!seen.has(chunk.docId)) seen.set(chunk.docId, { name: chunk.docName, contents: [] });
+                      seen.get(chunk.docId)!.contents.push(chunk.content);
+                    }
+                    const sections = [...seen.values()].map(({ name, contents }) =>
+                      `### Source: ${name}\n\n${contents.join("\n\n---\n\n")}`
+                    );
+                    result = `Relevant knowledge base content for "${searchQuery}":\n\n${sections.join("\n\n---\n\n")}`;
+                  }
+                } catch (embErr) {
+                  // Embedding API unavailable — graceful text search fallback
+                  console.error("[chat] Semantic search failed, falling back to text search:", embErr);
+                  try {
+                    const textMatches = await searchKnowledgeBase(searchQuery);
+                    if (textMatches.length === 0) {
+                      result = `No documents found matching "${searchQuery}".`;
+                    } else {
+                      const docList = textMatches
+                        .map((m) => `- **${m.doc.name}** (ID: ${m.doc.id}): ${m.doc.description || "No description"}`)
+                        .join("\n");
+                      result = `Found documents (text search) for "${searchQuery}":\n${docList}\n\nUse knowledge_base_get with the document ID to read full content.`;
+                    }
+                  } catch (e) {
+                    result = `Error searching knowledge base: ${e instanceof Error ? e.message : String(e)}`;
                   }
                 }
-              } catch (e) {
-                result = `Error: ${e instanceof Error ? e.message : String(e)}`;
               }
             } else if (tc.name === "knowledge_base_get") {
               // Get full document content by ID

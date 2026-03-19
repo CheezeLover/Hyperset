@@ -3,10 +3,13 @@ import { getUserFromRequest } from "@/lib/auth";
 import {
   getKnowledgeDocuments,
   addKnowledgeDocument,
+  indexDocument,
   getKnowledgeBaseRoutingGuide,
   setKnowledgeBaseRoutingGuide,
+  DEFAULT_EMBEDDING_MODEL,
   KnowledgeDocument,
 } from "@/lib/knowledge-base";
+import { getAdminSettings } from "@/lib/admin-settings";
 
 // ── Rate limiters ──────────────────────────────────────────────────────────────
 // Public read access: 30 req / 60 s per user
@@ -155,6 +158,24 @@ export async function POST(request: NextRequest) {
 
     // Add the document
     const doc = await addKnowledgeDocument(name, description, content);
+
+    // Trigger RAG indexing — non-blocking so the response is returned immediately.
+    // If embedding fails the document is still accessible via text search fallback.
+    void (async () => {
+      try {
+        const settings = await getAdminSettings();
+        const apiKey = settings?.apiKey ?? process.env.LLM_API_KEY ?? "";
+        if (!apiKey) {
+          console.warn("[kb] No API key — skipping RAG indexing for", doc.id);
+          return;
+        }
+        const apiUrl = settings?.apiUrl ?? process.env.LLM_API_URL ?? "https://api.openai.com/v1";
+        const embeddingModel = settings?.embeddingModel ?? process.env.LLM_EMBEDDING_MODEL ?? DEFAULT_EMBEDDING_MODEL;
+        await indexDocument(doc.id, content, doc.name, { apiKey, apiUrl, embeddingModel });
+      } catch (e) {
+        console.error("[kb] Background indexing failed for", doc.id, ":", e);
+      }
+    })();
 
     return NextResponse.json({ document: doc }, { status: 201 });
   } catch (error) {

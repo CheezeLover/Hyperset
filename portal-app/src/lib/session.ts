@@ -22,6 +22,10 @@ export interface LlmSettings {
   // ── AI chart cleanup ─────────────────────────────────────────────
   /** Minutes before a [HYPERSET-AI-TEMPORARY] chart is auto-deleted (default: 120) */
   cleanupDelayMinutes?: number;
+
+  // ── Knowledge base RAG ───────────────────────────────────────────
+  /** Embedding model for knowledge base RAG (default: text-embedding-3-small) */
+  embeddingModel?: string;
 }
 
 export interface SessionData {
