@@ -856,14 +856,15 @@ function inlineRender(
   return <>{parts}</>;
 }
 
+const SQL_CARD_MAX_ROWS = 200;
+
 // ── SQL Result Reference Card ─────────────────────────────────────
 // Displays verified SQL query results directly from the database.
 // Numbers here are NEVER passed through the LLM — they are raw query output.
 function SqlResultCard({ data, index }: { data: SqlData; index: number }) {
-  const [collapsed, setCollapsed] = useState(false);
-  const MAX_ROWS = 200;
-  const visibleRows = data.rows.slice(0, MAX_ROWS);
-  const truncated = data.rows.length > MAX_ROWS;
+  const [collapsed, setCollapsed] = useState(true);
+  const visibleRows = collapsed ? [] : data.rows.slice(0, SQL_CARD_MAX_ROWS);
+  const truncated = data.rowcount > SQL_CARD_MAX_ROWS;
 
   return (
     <div style={{
@@ -975,7 +976,7 @@ function SqlResultCard({ data, index }: { data: SqlData; index: number }) {
               background: "var(--md-surface-cont)",
               borderTop: "1px solid var(--md-outline-var)",
             }}>
-              Showing {MAX_ROWS} of {data.rowcount} rows
+              Showing {SQL_CARD_MAX_ROWS} of {data.rowcount} rows
             </div>
           )}
           <div style={{
