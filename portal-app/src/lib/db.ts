@@ -42,6 +42,8 @@ export function ensureSchema(): Promise<void> {
 }
 
 async function _runMigrations(): Promise<void> {
+  await sql`CREATE EXTENSION IF NOT EXISTS vector`;
+
   await sql`
     CREATE TABLE IF NOT EXISTS hyperset_admin_settings (
       key   TEXT PRIMARY KEY,
@@ -73,6 +75,12 @@ async function _runMigrations(): Promise<void> {
       key   TEXT PRIMARY KEY,
       value TEXT NOT NULL
     )
+  `;
+
+  // Add embedding column for future RAG support (no-op if already present)
+  await sql`
+    ALTER TABLE hyperset_kb_documents
+    ADD COLUMN IF NOT EXISTS embedding vector(1536)
   `;
 
   console.log("[db] Schema ready");

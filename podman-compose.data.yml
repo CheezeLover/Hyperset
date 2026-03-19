@@ -10,7 +10,7 @@ services:
   # ── Portal application database ──────────────────────────────────────────
   # Stores admin settings, page settings, and knowledge-base documents.
   portal-db:
-    image: docker.io/library/postgres:15-alpine
+    image: docker.io/pgvector/pgvector:pg15
     container_name: hyperset-portal-db
     environment:
       - POSTGRES_USER=portal
