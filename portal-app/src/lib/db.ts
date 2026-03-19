@@ -89,5 +89,13 @@ async function _runMigrations(): Promise<void> {
     )
   `;
 
+  // Migrate any existing fixed-dimension column (e.g. vector(1536)) to dimensionless.
+  // This is a no-op when the column is already dimensionless.
+  await sql`
+    ALTER TABLE hyperset_kb_chunks
+      ALTER COLUMN embedding TYPE vector
+      USING embedding::text::vector
+  `.catch(() => {/* already dimensionless or table just created */});
+
   console.log("[db] Schema ready");
 }

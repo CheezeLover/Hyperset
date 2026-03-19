@@ -21,13 +21,15 @@ export async function POST(request: NextRequest) {
     await ensureSchema();
 
     const settings = await getAdminSettings();
+    // apiUrl: only fall back to embedding-specific env var, NOT to chat API URL.
+    // Empty string → use local ONNX model (no key needed).
+    const apiUrl  = settings?.embeddingApiUrl ?? process.env.LLM_EMBEDDING_API_URL ?? "";
     const chatApiKey = settings?.apiKey ?? process.env.LLM_API_KEY ?? "";
     const apiKey  = settings?.embeddingApiKey ?? process.env.LLM_EMBEDDING_API_KEY ?? chatApiKey;
-    if (!apiKey) {
-      return NextResponse.json({ error: "No API key configured — cannot generate embeddings" }, { status: 503 });
+    // Only require a key when hitting an external API; local ONNX needs none.
+    if (apiUrl && !apiKey) {
+      return NextResponse.json({ error: "No API key configured — cannot call embedding API" }, { status: 503 });
     }
-    const chatApiUrl = settings?.apiUrl ?? process.env.LLM_API_URL ?? "https://api.openai.com/v1";
-    const apiUrl  = settings?.embeddingApiUrl ?? process.env.LLM_EMBEDDING_API_URL ?? chatApiUrl;
     const embeddingModel = settings?.embeddingModel ?? process.env.LLM_EMBEDDING_MODEL ?? DEFAULT_EMBEDDING_MODEL;
     const config = { apiKey, apiUrl, embeddingModel };
 
