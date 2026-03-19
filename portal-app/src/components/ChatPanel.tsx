@@ -936,7 +936,7 @@ function SqlResultCard({ data, index }: { data: SqlData; index: number }) {
                     borderRight: ci < data.columns.length - 1 ? "1px solid var(--md-outline-var)" : "none",
                     borderBottom: "1px solid var(--md-outline-var)",
                   }}>
-                    {col}
+                    {col.replace(/_/g, " ")}
                   </th>
                 ))}
               </tr>
