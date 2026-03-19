@@ -9,9 +9,22 @@
 services:
   # ── Portal application database ──────────────────────────────────────────
   # Stores admin settings, page settings, and knowledge-base documents.
+  # pgvector extension is automatically installed and enabled for RAG support.
   portal-db:
     image: docker.io/library/postgres:15-alpine
     container_name: hyperset-portal-db
+    command: >
+      sh -c "
+        apk add --no-cache postgresql15-pgvector &&
+        export PGDATA=/var/lib/postgresql/data/pgdata &&
+        docker-entrypoint.sh postgres -c shared_preload_libraries=vector &
+        sleep 3 &&
+        until pg_isready -U portal > /dev/null 2>&1; do sleep 1; done &&
+        psql -U portal -d portal -c 'CREATE EXTENSION IF NOT EXISTS vector' &&
+        kill %1 &&
+        wait %1 2>/dev/null || true &&
+        exec docker-entrypoint.sh postgres -c shared_preload_libraries=vector
+      "
     environment:
       - POSTGRES_USER=portal
       - POSTGRES_PASSWORD=${PORTAL_DATABASE_PASSWORD:?PORTAL_DATABASE_PASSWORD must be set in .env}
