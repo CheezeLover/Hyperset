@@ -148,7 +148,7 @@ export async function semanticSearch(
   type Row = { doc_id: string; doc_name: string; chunk_index: number; content: string; rank: number };
 
   // Pass 1: AND — all terms must match
-  let rows = await sql<Row[]>`
+  let rows: Row[] = await sql<Row[]>`
     SELECT c.doc_id, d.name AS doc_name, c.chunk_index, c.content,
            ts_rank(to_tsvector('english', c.content), plainto_tsquery('english', ${query})) AS rank
     FROM hyperset_kb_chunks c
