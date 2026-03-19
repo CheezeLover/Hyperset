@@ -16,6 +16,8 @@ import { formatBytes, checkRateLimit } from "@/lib/utils";
 const _rateLimitMap = new Map<string, number[]>();
 const RATE_LIMIT     = 20;
 const RATE_WINDOW_MS = 60_000;
+// Max rows sent in a sql_data stream event — matches SQL_CARD_MAX_ROWS in ChatPanel
+const SQL_STREAM_MAX_ROWS = 200;
 
 // ── Message history normalisation ───────────────────────────────────────────
 // ChatPanel strips tool_calls when building the history it sends to the server,
@@ -697,14 +699,17 @@ Administrators can upload documents through the Admin Settings > Knowledge Base 
                   try {
                     // callMcpTool always returns a string (joined MCP text content).
                     // Try JSON.parse first; if the string has surrounding prose (e.g.
-                    // "Query executed.\n{…}"), extract the first {...} block instead.
+                    // "Query executed.\n{…}"), slice from the first '{' to the last '}'.
                     let parsed: unknown = null;
                     const rawStr = typeof raw === "string" ? raw : JSON.stringify(raw);
                     try {
                       parsed = JSON.parse(rawStr);
                     } catch {
-                      const match = rawStr.match(/\{[\s\S]*\}/);
-                      if (match) parsed = JSON.parse(match[0]);
+                      const first = rawStr.indexOf("{");
+                      const last  = rawStr.lastIndexOf("}");
+                      if (first !== -1 && last > first) {
+                        try { parsed = JSON.parse(rawStr.slice(first, last + 1)); } catch { /* ignore */ }
+                      }
                     }
                     if (
                       parsed !== null &&
@@ -719,7 +724,7 @@ Administrators can upload documents through the Admin Settings > Knowledge Base 
                       send({
                         type: "sql_data",
                         columns,
-                        rows: p.data,
+                        rows: p.data.slice(0, SQL_STREAM_MAX_ROWS),
                         rowcount: p.rowcount ?? p.data.length,
                       });
                     }

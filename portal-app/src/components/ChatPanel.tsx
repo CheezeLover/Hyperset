@@ -858,6 +858,10 @@ function inlineRender(
 
 const SQL_CARD_MAX_ROWS = 200;
 
+function isSqlDataEvent(e: ChatEvent): e is ChatEvent & Required<Pick<ChatEvent, "columns" | "rows" | "rowcount">> {
+  return Array.isArray(e.columns) && Array.isArray(e.rows) && typeof e.rowcount === "number";
+}
+
 // ── SQL Result Reference Card ─────────────────────────────────────
 // Displays verified SQL query results directly from the database.
 // Numbers here are NEVER passed through the LLM — they are raw query output.
@@ -1600,7 +1604,6 @@ export function ChatPanel({
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
-      let currentToolCallIndex: number | null = null;
 
       while (true) {
         // Check if the request was aborted
@@ -1630,7 +1633,6 @@ export function ChatPanel({
               : m
             ));
           } else if (event.type === "tool_call") {
-            currentToolCallIndex = Date.now(); // unique per call
             const tc: ToolCall = { name: event.name as string, args: event.args as Record<string, unknown> };
             // Send navigation postMessage to Superset immediately
             if (event.name === "navigate_superset_dashboard") {
@@ -1661,8 +1663,6 @@ export function ChatPanel({
               }
               return { ...m, toolCalls: calls };
             }));
-            void currentToolCallIndex; // suppress unused warning
-            
             // Refresh Superset iframe after dashboard operations to ensure charts load properly
             const dashboardTools = ["superset_dashboard_create", "superset_dashboard_add_charts", "superset_dashboard_update"];
             if (dashboardTools.includes(event.name as string)) {
@@ -1684,17 +1684,8 @@ export function ChatPanel({
               }, 500);
             }
           } else if (event.type === "sql_data") {
-            // Attach verified SQL result to the message for reference display
-            if (
-              Array.isArray(event.columns) &&
-              Array.isArray(event.rows) &&
-              typeof event.rowcount === "number"
-            ) {
-              const sqlEntry: SqlData = {
-                columns: event.columns,
-                rows: event.rows as Record<string, unknown>[],
-                rowcount: event.rowcount,
-              };
+            if (isSqlDataEvent(event)) {
+              const sqlEntry: SqlData = { columns: event.columns, rows: event.rows, rowcount: event.rowcount };
               setMessages((prev) => prev.map((m) =>
                 m.id === assistantId
                   ? { ...m, sqlRefs: [...(m.sqlRefs ?? []), sqlEntry] }
@@ -1818,7 +1809,7 @@ export function ChatPanel({
     fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: history }),
+      body: JSON.stringify({ messages: history, currentSupersetUrl }),
       signal: abortController.signal,
     })
     .then(async (response) => {
@@ -1840,7 +1831,6 @@ export function ChatPanel({
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
-      let currentToolCallIndex: number | null = null;
 
       while (true) {
         // Check if the request was aborted
@@ -1870,7 +1860,6 @@ export function ChatPanel({
               : m
             ));
           } else if (event.type === "tool_call") {
-            currentToolCallIndex = Date.now();
             const tc: ToolCall = { name: event.name as string, args: event.args as Record<string, unknown> };
             if (event.name === "navigate_superset_dashboard") {
               supersetIframeRef.current?.contentWindow?.postMessage(
@@ -1900,12 +1889,8 @@ export function ChatPanel({
               return { ...m, toolCalls: calls };
             }));
           } else if (event.type === "sql_data") {
-            if (Array.isArray(event.columns) && Array.isArray(event.rows) && typeof event.rowcount === "number") {
-              const sqlEntry: SqlData = {
-                columns: event.columns,
-                rows: event.rows as Record<string, unknown>[],
-                rowcount: event.rowcount,
-              };
+            if (isSqlDataEvent(event)) {
+              const sqlEntry: SqlData = { columns: event.columns, rows: event.rows, rowcount: event.rowcount };
               setMessages((prev) => prev.map((m) =>
                 m.id === assistantId
                   ? { ...m, sqlRefs: [...(m.sqlRefs ?? []), sqlEntry] }
