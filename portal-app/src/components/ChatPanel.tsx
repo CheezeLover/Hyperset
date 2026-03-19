@@ -19,14 +19,26 @@ interface ChatPanelProps {
 // ── Message types ────────────────────────────────────────────────
 type Role = "user" | "assistant" | "tool";
 
+// Structured SQL query result delivered as a separate event so the
+// frontend can show it as a "verified from DB" reference card.
+export interface SqlData {
+  columns: string[];
+  rows: Record<string, unknown>[];
+  rowcount: number;
+}
+
 interface ChatEvent {
-  type: "delta" | "tool_call" | "tool_result" | "done" | "error" | "followup_suggestions";
+  type: "delta" | "tool_call" | "tool_result" | "done" | "error" | "followup_suggestions" | "sql_data";
   content?: string;
   name?: string;
   args?: Record<string, unknown>;
   result?: string;
   message?: string;
   suggestions?: unknown; // Will be validated as string[]
+  // sql_data fields
+  columns?: string[];
+  rows?: Record<string, unknown>[];
+  rowcount?: number;
 }
 
 export interface ToolCall {
@@ -44,6 +56,8 @@ export interface Message {
   followupSuggestions?: string[];
   /** true while assistant is still streaming */
   streaming?: boolean;
+  /** Verified SQL query results — displayed in a reference card, never passed through the LLM */
+  sqlRefs?: SqlData[];
 }
 
 // ── AI chart embed component ─────────────────────────────────────
@@ -842,6 +856,204 @@ function inlineRender(
   return <>{parts}</>;
 }
 
+const SQL_CARD_MAX_ROWS = 200;
+
+function isSqlDataEvent(e: ChatEvent): e is ChatEvent & Required<Pick<ChatEvent, "columns" | "rows" | "rowcount">> {
+  return Array.isArray(e.columns) && Array.isArray(e.rows) && typeof e.rowcount === "number";
+}
+
+// ── SQL Result sub-block (used inside SqlResultsZone) ────────────
+function SqlResultCard({ data, index }: { data: SqlData; index: number }) {
+  const [open, setOpen] = useState(false);
+  const visibleRows = useMemo(() => (open ? data.rows.slice(0, SQL_CARD_MAX_ROWS) : []), [open, data.rows]);
+  const truncated = data.rowcount > SQL_CARD_MAX_ROWS;
+  const label = `Query ${index + 1}`;
+
+  return (
+    <div style={{
+      border: "1px solid var(--md-outline-var)",
+      borderRadius: 10,
+      overflow: "hidden",
+      background: "var(--md-surface-cont)",
+      boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+    }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "8px 12px",
+          background: "transparent",
+          border: "none",
+          cursor: "pointer",
+          color: "var(--md-on-surface)",
+          fontSize: 12,
+          fontWeight: 500,
+          textAlign: "left",
+          opacity: 0.9,
+          transition: "opacity 0.15s ease",
+        }}
+        onMouseOver={e => e.currentTarget.style.opacity = "1"}
+        onMouseOut={e => e.currentTarget.style.opacity = "0.9"}
+      >
+        <span style={{ flex: 1 }}>{open ? "▾" : "▸"} {label}</span>
+        <span style={{
+          fontSize: 10,
+          background: "var(--md-outline-var)",
+          borderRadius: 4,
+          padding: "2px 7px",
+          opacity: 0.8,
+        }}>
+          {data.rowcount} row{data.rowcount !== 1 ? "s" : ""}
+        </span>
+      </button>
+
+      {open && (
+        <div style={{ overflowX: "auto", borderTop: "1px solid var(--md-outline-var)" }}>
+          <table style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            fontSize: 12,
+            fontFamily: "ui-monospace, SFMono-Regular, monospace",
+            background: "var(--md-surface)",
+          }}>
+            <thead>
+              <tr>
+                {data.columns.map((col, ci) => (
+                  <th key={ci} style={{
+                    padding: "6px 12px",
+                    textAlign: "left",
+                    background: "var(--md-surface-cont-hi)",
+                    color: "var(--md-on-surface)",
+                    fontWeight: 600,
+                    fontSize: 11,
+                    whiteSpace: "nowrap",
+                    borderRight: ci < data.columns.length - 1 ? "1px solid var(--md-outline-var)" : "none",
+                    borderBottom: "1px solid var(--md-outline-var)",
+                  }}>
+                    {col.replace(/_/g, " ")}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {visibleRows.map((row, ri) => (
+                <tr key={ri} style={{ background: ri % 2 === 0 ? "var(--md-surface)" : "var(--md-surface-cont)" }}>
+                  {data.columns.map((col, ci) => {
+                    const val = row[col];
+                    const isNum = typeof val === "number";
+                    return (
+                      <td key={ci} style={{
+                        padding: "5px 12px",
+                        color: "var(--md-on-surface)",
+                        fontWeight: isNum ? 600 : 400,
+                        opacity: isNum ? 1 : 0.85,
+                        borderRight: ci < data.columns.length - 1 ? "1px solid var(--md-outline-var)" : "none",
+                        borderBottom: "1px solid var(--md-outline-var)",
+                        whiteSpace: "nowrap",
+                      }}>
+                        {val === null || val === undefined
+                          ? <span style={{ opacity: 0.35, fontStyle: "italic" }}>null</span>
+                          : String(val)}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {truncated && (
+            <div style={{
+              padding: "5px 12px",
+              fontSize: 11,
+              color: "var(--md-on-surface)",
+              opacity: 0.6,
+              background: "var(--md-surface-cont)",
+              borderTop: "1px solid var(--md-outline-var)",
+            }}>
+              Showing {SQL_CARD_MAX_ROWS} of {data.rowcount} rows
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── SQL Results Zone (groups all SQL results in one collapsible) ──
+function SqlResultsZone({ sqlRefs }: { sqlRefs: SqlData[] }) {
+  const [open, setOpen] = useState(false);
+  if (sqlRefs.length === 0) return null;
+
+  const totalRows = sqlRefs.reduce((s, d) => s + d.rowcount, 0);
+  const label = `${sqlRefs.length} raw result${sqlRefs.length !== 1 ? "s" : ""}`;
+
+  return (
+    <div style={{
+      maxWidth: "88%",
+      borderRadius: "12px",
+      marginBottom: "8px",
+      overflow: "hidden",
+      boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+      border: "1px solid var(--md-primary-cont)",
+    }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "10px 14px",
+          background: "var(--md-primary-cont)",
+          border: "none",
+          cursor: "pointer",
+          color: "var(--md-on-primary-cont)",
+          fontSize: 13,
+          fontWeight: 500,
+          textAlign: "left",
+          transition: "opacity 0.15s ease",
+        }}
+        onMouseOver={e => e.currentTarget.style.opacity = "0.95"}
+        onMouseOut={e => e.currentTarget.style.opacity = "1"}
+      >
+        <svg viewBox="0 0 24 24" width={14} height={14} fill="currentColor" style={{ flexShrink: 0, opacity: 0.85 }}>
+          <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/>
+        </svg>
+        <span style={{ flex: 1 }}>{label}</span>
+        <span style={{ fontSize: 11, opacity: 0.5, marginRight: 4 }}>{totalRows} row{totalRows !== 1 ? "s" : ""}</span>
+        <span style={{ fontSize: 12, opacity: 0.6, flexShrink: 0 }}>{open ? "▴" : "▾"}</span>
+      </button>
+
+      {open && (
+        <div style={{
+          padding: 10,
+          background: "var(--md-surface)",
+          display: "flex",
+          flexDirection: "column",
+          gap: 6,
+        }}>
+          {sqlRefs.map((data, i) => (
+            <SqlResultCard key={i} data={data} index={i} />
+          ))}
+          <div style={{
+            padding: "4px 8px",
+            fontSize: 10,
+            color: "var(--md-on-primary-cont)",
+            background: "var(--md-primary-cont)",
+            borderRadius: 6,
+            opacity: 0.75,
+          }}>
+            Numbers come directly from the database — not generated by the AI
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Tool call step component (used inside ToolCallsZone) ────────
 function ToolStep({ tc }: { tc: ToolCall }) {
   const [open, setOpen] = useState(false);
@@ -1015,6 +1227,10 @@ function MessageBubble({ msg, supersetUrl, onSuggestionClick, onSupersetLinkClic
     }}>
       {msg.toolCalls && msg.toolCalls.length > 0 && (
         <ToolCallsZone toolCalls={msg.toolCalls} streaming={msg.streaming} />
+      )}
+
+      {msg.sqlRefs && msg.sqlRefs.length > 0 && (
+        <SqlResultsZone sqlRefs={msg.sqlRefs} />
       )}
 
       {msg.content && (
@@ -1437,7 +1653,6 @@ export function ChatPanel({
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
-      let currentToolCallIndex: number | null = null;
 
       while (true) {
         // Check if the request was aborted
@@ -1467,7 +1682,6 @@ export function ChatPanel({
               : m
             ));
           } else if (event.type === "tool_call") {
-            currentToolCallIndex = Date.now(); // unique per call
             const tc: ToolCall = { name: event.name as string, args: event.args as Record<string, unknown> };
             // Send navigation postMessage to Superset immediately
             if (event.name === "navigate_superset_dashboard") {
@@ -1498,8 +1712,6 @@ export function ChatPanel({
               }
               return { ...m, toolCalls: calls };
             }));
-            void currentToolCallIndex; // suppress unused warning
-            
             // Refresh Superset iframe after dashboard operations to ensure charts load properly
             const dashboardTools = ["superset_dashboard_create", "superset_dashboard_add_charts", "superset_dashboard_update"];
             if (dashboardTools.includes(event.name as string)) {
@@ -1519,6 +1731,15 @@ export function ChatPanel({
                   }
                 }
               }, 500);
+            }
+          } else if (event.type === "sql_data") {
+            if (isSqlDataEvent(event)) {
+              const sqlEntry: SqlData = { columns: event.columns, rows: event.rows, rowcount: event.rowcount };
+              setMessages((prev) => prev.map((m) =>
+                m.id === assistantId
+                  ? { ...m, sqlRefs: [...(m.sqlRefs ?? []), sqlEntry] }
+                  : m
+              ));
             }
           } else if (event.type === "done") {
             setMessages((prev) => prev.map((m) => m.id === assistantId
@@ -1637,7 +1858,7 @@ export function ChatPanel({
     fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: history }),
+      body: JSON.stringify({ messages: history, currentSupersetUrl }),
       signal: abortController.signal,
     })
     .then(async (response) => {
@@ -1659,7 +1880,6 @@ export function ChatPanel({
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
-      let currentToolCallIndex: number | null = null;
 
       while (true) {
         // Check if the request was aborted
@@ -1689,7 +1909,6 @@ export function ChatPanel({
               : m
             ));
           } else if (event.type === "tool_call") {
-            currentToolCallIndex = Date.now();
             const tc: ToolCall = { name: event.name as string, args: event.args as Record<string, unknown> };
             if (event.name === "navigate_superset_dashboard") {
               supersetIframeRef.current?.contentWindow?.postMessage(
@@ -1718,6 +1937,15 @@ export function ChatPanel({
               }
               return { ...m, toolCalls: calls };
             }));
+          } else if (event.type === "sql_data") {
+            if (isSqlDataEvent(event)) {
+              const sqlEntry: SqlData = { columns: event.columns, rows: event.rows, rowcount: event.rowcount };
+              setMessages((prev) => prev.map((m) =>
+                m.id === assistantId
+                  ? { ...m, sqlRefs: [...(m.sqlRefs ?? []), sqlEntry] }
+                  : m
+              ));
+            }
           } else if (event.type === "followup_suggestions") {
             const suggestions = Array.isArray(event.suggestions)
               ? event.suggestions.filter((s): s is string => typeof s === "string")

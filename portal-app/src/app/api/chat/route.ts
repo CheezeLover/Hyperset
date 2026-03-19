@@ -16,6 +16,8 @@ import { formatBytes, checkRateLimit } from "@/lib/utils";
 const _rateLimitMap = new Map<string, number[]>();
 const RATE_LIMIT     = 20;
 const RATE_WINDOW_MS = 60_000;
+// Max rows sent in a sql_data stream event — matches SQL_CARD_MAX_ROWS in ChatPanel
+const SQL_STREAM_MAX_ROWS = 200;
 
 // ── Message history normalisation ───────────────────────────────────────────
 // ChatPanel strips tool_calls when building the history it sends to the server,
@@ -689,6 +691,45 @@ Administrators can upload documents through the Admin Settings > Knowledge Base 
               try {
                 const raw = await callMcpTool(tc.name, args);
                 result = typeof raw === "string" ? raw : JSON.stringify(raw);
+
+                // For SQL query results: parse and emit structured data so the
+                // frontend can display it in a "verified from DB" reference card,
+                // clearly separate from anything the LLM may say about the data.
+                if (tc.name === "superset_sqllab_execute_query") {
+                  try {
+                    // callMcpTool always returns a string (joined MCP text content).
+                    // Try JSON.parse first; if the string has surrounding prose (e.g.
+                    // "Query executed.\n{…}"), slice from the first '{' to the last '}'.
+                    let parsed: unknown = null;
+                    const rawStr = typeof raw === "string" ? raw : JSON.stringify(raw);
+                    try {
+                      parsed = JSON.parse(rawStr);
+                    } catch {
+                      const first = rawStr.indexOf("{");
+                      const last  = rawStr.lastIndexOf("}");
+                      if (first !== -1 && last > first) {
+                        try { parsed = JSON.parse(rawStr.slice(first, last + 1)); } catch { /* ignore */ }
+                      }
+                    }
+                    if (
+                      parsed !== null &&
+                      typeof parsed === "object" &&
+                      "data" in parsed && Array.isArray((parsed as Record<string, unknown>).data) &&
+                      "columns" in parsed && Array.isArray((parsed as Record<string, unknown>).columns)
+                    ) {
+                      const p = parsed as { columns: unknown[]; data: unknown[]; rowcount?: number };
+                      const columns: string[] = p.columns.map((c) =>
+                        typeof c === "string" ? c : (typeof c === "object" && c !== null && "name" in c ? String((c as {name: unknown}).name) : String(c))
+                      );
+                      send({
+                        type: "sql_data",
+                        columns,
+                        rows: p.data.slice(0, SQL_STREAM_MAX_ROWS),
+                        rowcount: p.rowcount ?? p.data.length,
+                      });
+                    }
+                  } catch { /* non-fatal — sql_data is best-effort */ }
+                }
               } catch (e) {
                 result = `Error calling ${tc.name}: ${e instanceof Error ? e.message : String(e)}`;
               }
