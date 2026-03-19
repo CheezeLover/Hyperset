@@ -111,6 +111,8 @@ function KnowledgeBaseTab() {
   const [routingGuide, setRoutingGuide] = useState("");
   const [routingGuideSaving, setRoutingGuideSaving] = useState(false);
   const [routingGuideSaved, setRoutingGuideSaved] = useState(false);
+  const [reindexing, setReindexing] = useState(false);
+  const [reindexResult, setReindexResult] = useState<string>("");
 
   const loadDocuments = useCallback(async () => {
     try {
@@ -211,6 +213,27 @@ function KnowledgeBaseTab() {
       setError("Failed to delete document");
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleReindex = async () => {
+    setReindexing(true);
+    setReindexResult("");
+    setError("");
+    try {
+      const res = await fetch("/api/knowledge-base/reindex", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Reindex failed");
+      if (data.indexed === 0) {
+        setReindexResult("All documents already indexed.");
+      } else {
+        const failMsg = data.failed > 0 ? ` (${data.failed} failed)` : "";
+        setReindexResult(`Indexed ${data.indexed} document${data.indexed !== 1 ? "s" : ""}${failMsg}.`);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Reindex failed");
+    } finally {
+      setReindexing(false);
     }
   };
 
@@ -355,7 +378,23 @@ function KnowledgeBaseTab() {
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
           <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#4caf50" }} />
           <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--md-on-surface)", margin: 0 }}>Knowledge Base Documents ({documents.length})</h3>
+          <button
+            onClick={handleReindex}
+            disabled={reindexing || documents.length === 0}
+            title="Generate embeddings for documents not yet indexed"
+            style={{
+              marginLeft: "auto", padding: "5px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600,
+              cursor: reindexing || documents.length === 0 ? "default" : "pointer",
+              border: "1px solid var(--md-outline)", background: "var(--md-surface-cont)",
+              color: "var(--md-on-surface)", opacity: reindexing || documents.length === 0 ? 0.5 : 1,
+            }}
+          >
+            {reindexing ? "Indexing..." : "Re-index"}
+          </button>
         </div>
+        {reindexResult && (
+          <p style={{ fontSize: 12, color: "#4caf50", margin: "0 0 12px", opacity: 0.85 }}>{reindexResult}</p>
+        )}
 
         {loading ? (
           <p style={{ opacity: 0.6, fontSize: 13 }}>Loading documents...</p>
