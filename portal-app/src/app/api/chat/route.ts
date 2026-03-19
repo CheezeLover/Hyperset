@@ -10,7 +10,6 @@ import {
   getKnowledgeBaseStats,
   searchKnowledgeBase,
   semanticSearch,
-  getKnowledgeBaseRoutingGuide,
   getKnowledgeDocumentContent,
   DEFAULT_EMBEDDING_MODEL,
 } from "@/lib/knowledge-base";
@@ -449,10 +448,8 @@ export const POST = async (req: NextRequest) => {
   const isMistral = /ministral|mistral/i.test(model);
   const activeTools = filterToolsForContext(tools, userMessages);
 
-  // Load routing context only (LLM will use tools to fetch document content)
   const routingContext = await getKnowledgeBaseRoutingContext();
   const kbStats = await getKnowledgeBaseStats();
-  const routingGuide = await getKnowledgeBaseRoutingGuide();
   
   const knowledgeBaseSection = routingContext || kbStats.documentCount > 0
     ? `
@@ -476,8 +473,6 @@ The following documents are your **BIBLE** — your absolute, definitive, and on
 
 ### 📖 AVAILABLE DOCUMENTS:
 ${routingContext || "No documents configured."}
-
-### 🧭 ROUTING GUIDE:${routingGuide ? "\n" + routingGuide : "\nUse documents based on their names and descriptions."}
 
 ### 🔧 HOW TO USE KNOWLEDGE BASE (REQUIRED - Follow these exact steps):
 1. **Use knowledge_base_search** with relevant keywords to find documents (e.g., "safety", "metrics", "policy")

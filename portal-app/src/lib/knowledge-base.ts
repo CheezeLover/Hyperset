@@ -358,14 +358,6 @@ export async function searchKnowledgeBase(
     .map((doc) => ({ doc, matches: true }));
 }
 
-export async function getKnowledgeBaseRoutingGuide(): Promise<string> {
-  await ensureSchema();
-  const rows = await sql<{ value: string }[]>`
-    SELECT value FROM hyperset_kb_meta WHERE key = 'routing_guide' LIMIT 1
-  `;
-  return rows.length > 0 ? rows[0].value : "";
-}
-
 export async function getKnowledgeBaseRoutingContext(): Promise<string> {
   const docs = await getKnowledgeDocuments();
   if (docs.length === 0) return "";
@@ -374,11 +366,3 @@ export async function getKnowledgeBaseRoutingContext(): Promise<string> {
     .join("\n");
 }
 
-export async function setKnowledgeBaseRoutingGuide(guide: string): Promise<void> {
-  await ensureSchema();
-  await sql`
-    INSERT INTO hyperset_kb_meta (key, value) VALUES ('routing_guide', ${guide})
-    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
-  `;
-  console.log("[kb] Routing guide updated:", guide.length, "characters");
-}

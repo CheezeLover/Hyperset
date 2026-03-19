@@ -109,9 +109,6 @@ function KnowledgeBaseTab() {
   const [textContent, setTextContent] = useState("");
   const [textName, setTextName] = useState("");
   const [uploadMode, setUploadMode] = useState<"file" | "text">("file");
-  const [routingGuide, setRoutingGuide] = useState("");
-  const [routingGuideSaving, setRoutingGuideSaving] = useState(false);
-  const [routingGuideSaved, setRoutingGuideSaved] = useState(false);
   const [reindexing, setReindexing] = useState(false);
   const [reindexResult, setReindexResult] = useState<string>("");
 
@@ -121,7 +118,6 @@ function KnowledgeBaseTab() {
       if (!res.ok) throw new Error("Failed to load documents");
       const data = await res.json();
       setDocuments(data.documents || []);
-      setRoutingGuide(data.routingGuide || "");
       setError("");
     } catch (e) {
       setError("Failed to load documents");
@@ -458,68 +454,6 @@ function KnowledgeBaseTab() {
             ))}
           </div>
         )}
-      </section>
-
-      {/* Routing Guide Editor */}
-      <section style={{
-        background: "var(--md-surface)", borderRadius: 16, padding: 20,
-        border: "1px solid var(--md-outline-var)",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#9c27b0" }} />
-          <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--md-on-surface)", margin: 0 }}>Routing Guide</h3>
-          <span style={{ fontSize: 11, opacity: 0.5, marginLeft: "auto" }}>
-            {routingGuide.length} chars
-          </span>
-        </div>
-        <p style={{ fontSize: 12, opacity: 0.6, margin: "0 0 12px", lineHeight: 1.5 }}>
-          Explain to the AI which document to use for different topics. Be specific about routing decisions.
-        </p>
-        <textarea
-          value={routingGuide}
-          onChange={(e) => setRoutingGuide(e.target.value)}
-          placeholder={`Example routing guide:
-
-- For financial metrics and KPIs → Use "airline-metrics.md"
-- For safety procedures and regulations → Use "regulatory-compliance.md"  
-- For company procedures and operations → Use "company-overview.md"
-- For terminology and definitions → Use "airline-terminology.md"
-
-When user asks about "revenue", "costs", "profits" → Check airline-metrics.md first
-When user asks about "delays", "on-time performance" → Check company-overview.md first
-When user mentions abbreviations like "OTP", "RASM", "CASM" → Check airline-terminology.md`}
-          rows={10}
-          style={{ ...inputStyle, resize: "vertical", fontFamily: "monospace", fontSize: 12, lineHeight: 1.5, marginBottom: 12 }}
-        />
-        <button
-          onClick={async () => {
-            setRoutingGuideSaving(true);
-            setError("");
-            try {
-              const res = await fetch("/api/knowledge-base", {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ routingGuide }),
-              });
-              if (!res.ok) throw new Error("Failed to save routing guide");
-              setRoutingGuideSaved(true);
-              setTimeout(() => setRoutingGuideSaved(false), 2000);
-            } catch (e) {
-              setError("Failed to save routing guide");
-            } finally {
-              setRoutingGuideSaving(false);
-            }
-          }}
-          disabled={routingGuideSaving}
-          style={{ 
-            ...primaryBtnStyle, alignSelf: "flex-start", 
-            padding: "12px 24px",
-            boxShadow: routingGuideSaved ? "none" : "0 4px 12px rgba(211, 84, 0, 0.3)",
-            ...(routingGuideSaved ? { background: "#4caf50", boxShadow: "0 4px 12px rgba(76, 175, 80, 0.3)" } : {}),
-          }}
-        >
-          {routingGuideSaved ? "✓ Saved" : routingGuideSaving ? "Saving..." : "Save Routing Guide"}
-        </button>
       </section>
 
       {error && (
