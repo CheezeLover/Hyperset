@@ -153,26 +153,28 @@ export async function semanticSearch(
     LIMIT ${topK}
   `;
 
-  // Pass 2: OR — any term matches (broader recall fallback)
+  // Pass 2: OR — any term matches (broader recall fallback).
+  // Uses a CTE to compute the OR tsquery once and guard against empty tsquery
+  // (stop-word-only queries like "the a" produce '' which would crash to_tsquery).
   if (rows.length === 0) {
-    // Convert plainto_tsquery AND expression to OR by replacing ' & ' with ' | '
-    // e.g. plainto_tsquery('otp airlines')::text = "'otp' & 'airlin'" → "'otp' | 'airlin'"
-    rows = await sql<Row[]>`
-      SELECT c.doc_id, d.name AS doc_name, c.chunk_index, c.content,
-             ts_rank(to_tsvector('english', c.content),
-               to_tsquery('english',
-                 replace(plainto_tsquery('english', ${query})::text, ' & ', ' | ')
-               )
-             ) AS rank
-      FROM hyperset_kb_chunks c
-      JOIN hyperset_kb_documents d ON d.id = c.doc_id
-      WHERE to_tsvector('english', c.content) @@
-        to_tsquery('english',
-          replace(plainto_tsquery('english', ${query})::text, ' & ', ' | ')
+    try {
+      rows = await sql<Row[]>`
+        WITH orq AS (
+          SELECT replace(plainto_tsquery('english', ${query})::text, ' & ', ' | ') AS q
         )
-      ORDER BY rank DESC
-      LIMIT ${topK}
-    `;
+        SELECT c.doc_id, d.name AS doc_name, c.chunk_index, c.content,
+               ts_rank(to_tsvector('english', c.content), to_tsquery('english', orq.q)) AS rank
+        FROM hyperset_kb_chunks c
+        JOIN hyperset_kb_documents d ON d.id = c.doc_id, orq
+        WHERE orq.q <> ''
+          AND to_tsvector('english', c.content) @@ to_tsquery('english', orq.q)
+        ORDER BY rank DESC
+        LIMIT ${topK}
+      `;
+    } catch {
+      // OR fallback failed (e.g. stop-word-only query) — return empty
+      rows = [];
+    }
   }
 
   return rows.map((r) => ({
