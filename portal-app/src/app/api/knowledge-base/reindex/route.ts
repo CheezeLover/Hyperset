@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/auth";
 import { sql, ensureSchema } from "@/lib/db";
-import { indexDocument, DEFAULT_EMBEDDING_MODEL } from "@/lib/knowledge-base";
-import { getAdminSettings } from "@/lib/admin-settings";
+import { indexDocument } from "@/lib/knowledge-base";
 
 /**
  * POST /api/knowledge-base/reindex
@@ -19,13 +18,6 @@ export async function POST(request: NextRequest) {
 
   try {
     await ensureSchema();
-
-    const settings = await getAdminSettings();
-    const apiUrl = settings?.embeddingApiUrl ?? process.env.LLM_EMBEDDING_API_URL ?? "";
-    const apiKey = process.env.LLM_EMBEDDING_API_KEY || settings?.apiKey || process.env.LLM_API_KEY || "";
-    const embeddingModel = settings?.embeddingModel ?? process.env.LLM_EMBEDDING_MODEL ?? DEFAULT_EMBEDDING_MODEL;
-    // Empty apiUrl → indexDocument stores chunks text-only (FTS fallback), no error
-    const config = { apiKey, apiUrl, embeddingModel };
 
     // Find documents to re-index
     const rows = forceAll
@@ -47,7 +39,7 @@ export async function POST(request: NextRequest) {
 
     for (const row of rows) {
       try {
-        await indexDocument(row.id, row.content, row.name, config);
+        await indexDocument(row.id, row.content, row.name);
         const [{ count }] = await sql<{ count: number }[]>`
           SELECT COUNT(*) AS count FROM hyperset_kb_chunks WHERE doc_id = ${row.id}
         `;

@@ -4,10 +4,7 @@ import {
   getKnowledgeDocuments,
   addKnowledgeDocument,
   indexDocument,
-  DEFAULT_EMBEDDING_MODEL,
-  KnowledgeDocument,
 } from "@/lib/knowledge-base";
-import { getAdminSettings } from "@/lib/admin-settings";
 
 // ── Rate limiters ──────────────────────────────────────────────────────────────
 // Public read access: 30 req / 60 s per user
@@ -156,15 +153,10 @@ export async function POST(request: NextRequest) {
     // Add the document
     const doc = await addKnowledgeDocument(name, description, content);
 
-    // Trigger RAG indexing — non-blocking so the response is returned immediately.
-    // If embedding fails the document is still accessible via text search fallback.
+    // Trigger FTS indexing — non-blocking so the response is returned immediately.
     void (async () => {
       try {
-        const settings = await getAdminSettings();
-        const apiUrl = settings?.embeddingApiUrl ?? process.env.LLM_EMBEDDING_API_URL ?? "";
-        const apiKey = process.env.LLM_EMBEDDING_API_KEY || settings?.apiKey || process.env.LLM_API_KEY || "";
-        const embeddingModel = settings?.embeddingModel ?? process.env.LLM_EMBEDDING_MODEL ?? DEFAULT_EMBEDDING_MODEL;
-        await indexDocument(doc.id, content, doc.name, { apiKey, apiUrl, embeddingModel });
+        await indexDocument(doc.id, content, doc.name);
       } catch (e) {
         console.error("[kb] Background indexing failed for", doc.id, ":", e);
       }

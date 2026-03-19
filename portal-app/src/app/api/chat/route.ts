@@ -8,10 +8,7 @@ import {
   getKnowledgeBaseRoutingContext,
   getKnowledgeDocuments,
   getKnowledgeBaseStats,
-  searchKnowledgeBase,
   semanticSearch,
-  getKnowledgeDocumentContent,
-  DEFAULT_EMBEDDING_MODEL,
 } from "@/lib/knowledge-base";
 
 // ── Helper functions ───────────────────────────────────────────────────────
@@ -335,23 +332,6 @@ export const POST = async (req: NextRequest) => {
         },
       },
     },
-    {
-      type: "function",
-      function: {
-        name: "knowledge_base_get",
-        description: "Get the full content of a specific document by its ID. Use this after finding the document ID from knowledge_base_search or knowledge_base_list.",
-        parameters: {
-          type: "object",
-          properties: {
-            id: { 
-              type: "string", 
-              description: "The document ID (e.g., '01abc123')" 
-            },
-          },
-          required: ["id"],
-        },
-      },
-    },
   ];
 
   const tools = [...navTools, ...mcpTools, ...knowledgeBaseTools];
@@ -375,7 +355,6 @@ export const POST = async (req: NextRequest) => {
       "navigate_superset_chart",
       "knowledge_base_list",
       "knowledge_base_search",
-      "knowledge_base_get",
       "superset_dashboard_list",
       "superset_chart_list",
       "superset_dataset_list",
@@ -475,14 +454,10 @@ The following documents are your **BIBLE** — your absolute, definitive, and on
 ${routingContext || "No documents configured."}
 
 ### 🔧 HOW TO USE KNOWLEDGE BASE (REQUIRED - Follow these exact steps):
-1. **Use knowledge_base_search** with relevant keywords to find documents (e.g., "safety", "metrics", "policy")
+1. **Use knowledge_base_search** with relevant keywords to find and read the most relevant passages (e.g., "safety", "metrics", "policy")
 2. **Use knowledge_base_list** to see all available documents if needed
-3. **Use knowledge_base_get with the document ID** to fetch the FULL content of relevant documents
-4. **READ the full document content** before answering - never answer from search results alone!
-5. **Cite sources** with document name for every fact (e.g., "Per employee-handbook.md...")
-6. If KB doesn't cover the topic, admit it — don't improvise
-
-⚠️ **IMPORTANT**: You MUST call knowledge_base_get after finding a relevant document. The search results only show titles/descriptions - the actual content is in the document file!
+3. **Cite sources** with document name for every fact (e.g., "Per employee-handbook.md...")
+4. If KB doesn't cover the topic, admit it — don't improvise
 
 ### 🚫 FORBIDDEN:
 - Using training data when KB has the answer

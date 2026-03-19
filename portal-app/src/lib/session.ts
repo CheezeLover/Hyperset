@@ -23,11 +23,6 @@ export interface LlmSettings {
   /** Minutes before a [HYPERSET-AI-TEMPORARY] chart is auto-deleted (default: 120) */
   cleanupDelayMinutes?: number;
 
-  // ── Knowledge base RAG ───────────────────────────────────────────
-  /** Embedding model for semantic search (optional, falls back to FTS if no URL set) */
-  embeddingModel?: string;
-  /** Embedding API URL — if unset, full-text search is used instead */
-  embeddingApiUrl?: string;
 }
 
 export interface SessionData {
