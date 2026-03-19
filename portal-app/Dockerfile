@@ -4,7 +4,7 @@ WORKDIR /app
 
 # Copy package files
 COPY portal-app/package*.json ./
-RUN npm ci
+RUN npm install
 
 # Copy source files
 COPY portal-app/ ./
