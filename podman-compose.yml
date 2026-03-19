@@ -337,7 +337,6 @@ services:
     volumes:
       - ./theme.json:/app/theme.json:Z
       - pages_data:/app/pages:Z
-      - hf_model_cache:/app/hf-cache:Z
     depends_on:
       portal-db:
         condition: service_healthy
@@ -355,7 +354,6 @@ volumes:
   superset_home:
   caddy_data:
   caddy_config:
-  hf_model_cache:
 
 networks:
   hyperset-net:

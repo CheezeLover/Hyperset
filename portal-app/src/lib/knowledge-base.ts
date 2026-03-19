@@ -1,12 +1,10 @@
 /**
- * Knowledge Base store — PostgreSQL + pgvector backed RAG.
+ * Knowledge Base — PostgreSQL + pgvector RAG.
  *
- * Documents (metadata + full text) are stored in hyperset_kb_documents.
- * Documents are chunked and embedded into hyperset_kb_chunks for semantic search.
- * The routing guide is stored as a single key in hyperset_kb_meta.
- *
- * On every add/delete, embeddings are regenerated automatically.
- * Semantic search falls back to text search if embeddings are unavailable.
+ * Chunks are always stored for full-text search (FTS).
+ * If an OpenAI-compatible embedding API is configured, chunks are also
+ * vectorised and searched via cosine similarity (pgvector HNSW).
+ * When no embedding API URL is set, FTS is used automatically.
  */
 
 import crypto from "crypto";
@@ -15,14 +13,10 @@ import { sql, ensureSchema } from "./db";
 // ── Configuration ─────────────────────────────────────────────────────────────
 const MAX_KB_SIZE_MB = 50;
 const MAX_DOC_SIZE_MB = 10;
-const CHUNK_SIZE = 1500;      // target characters per chunk
-const CHUNK_OVERLAP = 200;    // overlap between consecutive chunks
-const EMBEDDING_BATCH_SIZE = 96; // max inputs per embeddings API call
+const CHUNK_SIZE = 1500;
+const CHUNK_OVERLAP = 200;
 
-// Default: runs fully in-process via Transformers.js, no external service needed.
-// 384-dim, ~90 MB quantised download, MIT licensed.
-// To use an API instead: set embeddingApiUrl + embeddingApiKey in Admin Settings.
-export const DEFAULT_EMBEDDING_MODEL = "Xenova/all-MiniLM-L6-v2";
+export const DEFAULT_EMBEDDING_MODEL = "nomic-embed-text";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface KnowledgeDocument {
@@ -36,7 +30,7 @@ export interface KnowledgeDocument {
 
 export interface EmbeddingConfig {
   apiKey: string;
-  apiUrl: string;
+  apiUrl: string;        // empty → skip embedding, use FTS fallback
   embeddingModel: string;
 }
 
@@ -48,7 +42,7 @@ export interface ChunkSearchResult {
   similarity: number;
 }
 
-// ── In-memory caches (per-instance) ─────────────────────────────────────────
+// ── In-memory caches ──────────────────────────────────────────────────────────
 let _docs: KnowledgeDocument[] | null = null;
 const _contentCache = new Map<string, string>();
 
@@ -64,7 +58,6 @@ function generateId(): string {
   return crypto.randomBytes(8).toString("hex");
 }
 
-// ── DB row type ───────────────────────────────────────────────────────────────
 interface DbDocRow {
   id: string;
   name: string;
@@ -85,33 +78,23 @@ function rowToDoc(row: DbDocRow): KnowledgeDocument {
   };
 }
 
-// ── RAG: Chunking ─────────────────────────────────────────────────────────────
-/**
- * Split markdown content into overlapping text chunks.
- * Tries to split on headers first, then paragraphs, then raw size.
- */
+// ── Chunking ──────────────────────────────────────────────────────────────────
 function chunkMarkdown(content: string): string[] {
   const chunks: string[] = [];
-
-  // Split on markdown headers (h1–h3) to preserve section boundaries
   const sections = content.split(/(?=^#{1,3} )/m).filter((s) => s.trim().length > 0);
 
   for (const section of sections) {
     if (section.trim().length < 50) continue;
-
     if (section.length <= CHUNK_SIZE) {
       chunks.push(section.trim());
     } else {
-      // Large section: split by double newlines (paragraphs)
       const paragraphs = section.split(/\n\n+/).filter((p) => p.trim().length > 0);
       let current = "";
-
       for (const para of paragraphs) {
         if (current.length + para.length + 2 <= CHUNK_SIZE) {
           current = current ? current + "\n\n" + para : para;
         } else {
           if (current.trim().length >= 50) chunks.push(current.trim());
-          // Carry a short overlap from the end of the previous chunk
           const overlap = current.length > CHUNK_OVERLAP ? current.slice(-CHUNK_OVERLAP) : current;
           current = overlap ? overlap + "\n\n" + para : para;
         }
@@ -120,7 +103,6 @@ function chunkMarkdown(content: string): string[] {
     }
   }
 
-  // Fallback: raw character splitting (no headers/paragraphs found)
   if (chunks.length === 0 && content.trim().length >= 50) {
     for (let i = 0; i < content.length; i += CHUNK_SIZE - CHUNK_OVERLAP) {
       const chunk = content.slice(i, i + CHUNK_SIZE).trim();
@@ -131,218 +113,134 @@ function chunkMarkdown(content: string): string[] {
   return chunks;
 }
 
-// ── RAG: Local embedding pipeline (Transformers.js / ONNX) ───────────────────
-// Lazy singleton — loaded once per process, kept in memory for fast re-use.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let _localPipeline: any | null = null;
-let _localPipelineModel = "";
-
-async function getLocalPipeline(model: string) {
-  if (_localPipeline && _localPipelineModel === model) return _localPipeline;
-
-  // Dynamic import so webpack never bundles this (it's in serverExternalPackages)
-  const { pipeline, env } = await import("@huggingface/transformers");
-
-  // Persist downloaded models across container restarts
-  env.cacheDir = process.env.HF_CACHE_DIR ?? "/app/hf-cache";
-
-  console.log(`[kb] Loading local embedding model "${model}" (first run downloads ~90 MB)…`);
-  _localPipeline = await pipeline("feature-extraction", model, {
-    dtype: "q8", // 8-bit quantised: half the size, negligible quality loss
-  });
-  _localPipelineModel = model;
-  console.log(`[kb] Local embedding model ready`);
-  return _localPipeline;
-}
-
-async function generateLocalEmbeddings(texts: string[], model: string): Promise<number[][]> {
-  const pipe = await getLocalPipeline(model);
-  // Process in batches to avoid OOM on large uploads
-  const results: number[][] = [];
-  for (let i = 0; i < texts.length; i += 32) {
-    const batch = texts.slice(i, i + 32);
-    const output = await pipe(batch, { pooling: "mean", normalize: true });
-    const list: number[][] = output.tolist();
-    results.push(...list);
-  }
-  return results;
-}
-
-// ── RAG: Batch Embedding API ──────────────────────────────────────────────────
+// ── Embedding API ─────────────────────────────────────────────────────────────
 /**
- * Generate embeddings for a batch of texts.
- * - If config.apiUrl is empty → runs locally via Transformers.js (no extra service).
- * - Otherwise → calls the OpenAI-compatible /embeddings endpoint.
+ * Call an OpenAI-compatible /embeddings endpoint.
+ * Returns null when apiUrl is empty or on any error → caller uses FTS instead.
  */
-async function generateEmbeddings(
-  texts: string[],
-  config: EmbeddingConfig,
-): Promise<number[][]> {
-  // No API URL configured → use the in-process ONNX model
-  if (!config.apiUrl) {
-    return generateLocalEmbeddings(texts, config.embeddingModel);
+async function embed(texts: string[], cfg: EmbeddingConfig): Promise<number[][] | null> {
+  if (!cfg.apiUrl || !texts.length) return null;
+  try {
+    const res = await fetch(`${cfg.apiUrl.replace(/\/+$/, "")}/embeddings`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.apiKey}` },
+      body: JSON.stringify({ model: cfg.embeddingModel, input: texts.map((t) => t.slice(0, 8000)) }),
+    });
+    if (!res.ok) {
+      console.warn(`[kb] Embedding API ${res.status}: ${(await res.text().catch(() => "")).slice(0, 200)}`);
+      return null;
+    }
+    const data = (await res.json()) as { data: { index: number; embedding: number[] }[] };
+    return data.data.sort((a, b) => a.index - b.index).map((d) => d.embedding);
+  } catch (e) {
+    console.warn("[kb] Embedding error:", e);
+    return null;
   }
-
-  const baseUrl = config.apiUrl.replace(/\/+$/, "");
-  const response = await fetch(`${baseUrl}/embeddings`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${config.apiKey}`,
-    },
-    body: JSON.stringify({
-      model: config.embeddingModel,
-      input: texts.map((t) => t.slice(0, 8000)),
-    }),
-  });
-
-  if (!response.ok) {
-    const errText = await response.text().catch(() => "");
-    throw new Error(`Embedding API error ${response.status}: ${errText.slice(0, 200)}`);
-  }
-
-  const data = (await response.json()) as {
-    data: Array<{ index: number; embedding: number[] }>;
-  };
-  // Sort by index to guarantee correct order
-  return data.data.sort((a, b) => a.index - b.index).map((d) => d.embedding);
 }
 
-// ── RAG: Dimension management ─────────────────────────────────────────────────
-const DIMS_META_KEY = "embedding_dims";
-
-/**
- * Ensure the HNSW index exists for the given dimension.
- * If the stored dimension differs from `dims`, all chunks are cleared
- * (they are invalid for the new model) and the index is recreated.
- */
+// ── HNSW index management ─────────────────────────────────────────────────────
 async function ensureEmbeddingDimension(dims: number): Promise<void> {
   const rows = await sql<{ value: string }[]>`
-    SELECT value FROM hyperset_kb_meta WHERE key = ${DIMS_META_KEY} LIMIT 1
+    SELECT value FROM hyperset_kb_meta WHERE key = 'embedding_dims' LIMIT 1
   `;
-  const storedDims = rows.length > 0 ? parseInt(rows[0].value, 10) : null;
+  const stored = rows.length > 0 ? parseInt(rows[0].value, 10) : null;
 
-  if (storedDims !== null && storedDims !== dims) {
-    // Embedding model changed — existing chunks use a different dimension and
-    // cannot be compared against the new model's vectors.
-    console.log(`[kb] Embedding dimension changed ${storedDims} → ${dims}. Clearing all chunks.`);
+  if (stored !== null && stored !== dims) {
+    console.log(`[kb] Embedding dimension changed ${stored} → ${dims}. Clearing chunks.`);
     await sql`DELETE FROM hyperset_kb_chunks`;
     await sql`DROP INDEX IF EXISTS idx_kb_chunks_embedding`;
   }
 
-  if (storedDims !== dims) {
-    // Persist the new dimension
+  if (stored !== dims) {
     await sql`
-      INSERT INTO hyperset_kb_meta (key, value)
-      VALUES (${DIMS_META_KEY}, ${String(dims)})
+      INSERT INTO hyperset_kb_meta (key, value) VALUES ('embedding_dims', ${String(dims)})
       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
     `;
-    // (Re-)create HNSW index with the correct dimension operator
     await sql`DROP INDEX IF EXISTS idx_kb_chunks_embedding`;
-    await sql`
-      CREATE INDEX idx_kb_chunks_embedding
-      ON hyperset_kb_chunks USING hnsw (embedding vector_cosine_ops)
-    `;
-    console.log(`[kb] HNSW index created for dim=${dims}`);
+    await sql`CREATE INDEX idx_kb_chunks_embedding ON hyperset_kb_chunks USING hnsw (embedding vector_cosine_ops)`;
+    console.log(`[kb] HNSW index ready (dim=${dims})`);
   }
 }
 
-// ── RAG: Index a document ─────────────────────────────────────────────────────
-/**
- * Chunk the document, batch-embed all chunks, and store them in hyperset_kb_chunks.
- * Automatically detects the embedding dimension and manages the HNSW index.
- * Re-indexes from scratch on each call (idempotent per document).
- */
+// ── Index a document ──────────────────────────────────────────────────────────
 export async function indexDocument(
   docId: string,
   content: string,
   docName: string,
-  config: EmbeddingConfig,
+  cfg: EmbeddingConfig,
 ): Promise<void> {
   await ensureSchema();
-
-  // Remove stale chunks for this document first
   await sql`DELETE FROM hyperset_kb_chunks WHERE doc_id = ${docId}`;
 
   const chunks = chunkMarkdown(content);
-  if (chunks.length === 0) return;
+  if (!chunks.length) return;
 
-  // Prefix each chunk with the document name for better contextual embedding
-  const textsToEmbed = chunks.map((c) => `${docName}\n\n${c}`);
+  const embeddings = await embed(chunks.map((c) => `${docName}\n\n${c}`), cfg);
+  if (embeddings) await ensureEmbeddingDimension(embeddings[0].length);
 
-  // Batch-embed to minimise API round-trips
-  const allEmbeddings: number[][] = [];
-  for (let i = 0; i < textsToEmbed.length; i += EMBEDDING_BATCH_SIZE) {
-    const batch = textsToEmbed.slice(i, i + EMBEDDING_BATCH_SIZE);
-    const embeddings = await generateEmbeddings(batch, config);
-    allEmbeddings.push(...embeddings);
-  }
-
-  // Detect the actual dimension from the first embedding and ensure the index matches
-  const dims = allEmbeddings[0].length;
-  await ensureEmbeddingDimension(dims);
-
-  // Insert all chunks
   for (let i = 0; i < chunks.length; i++) {
-    const chunkId = `${docId}-${i}`;
-    const embLiteral = `[${allEmbeddings[i].join(",")}]`;
-    await sql`
-      INSERT INTO hyperset_kb_chunks (id, doc_id, chunk_index, content, embedding)
-      VALUES (${chunkId}, ${docId}, ${i}, ${chunks[i]}, ${embLiteral}::vector)
-      ON CONFLICT (id) DO UPDATE
-        SET content = EXCLUDED.content, embedding = EXCLUDED.embedding
-    `;
+    const id = `${docId}-${i}`;
+    if (embeddings?.[i]) {
+      const vec = `[${embeddings[i].join(",")}]`;
+      await sql`
+        INSERT INTO hyperset_kb_chunks (id, doc_id, chunk_index, content, embedding)
+        VALUES (${id}, ${docId}, ${i}, ${chunks[i]}, ${vec}::vector)
+        ON CONFLICT (id) DO UPDATE SET content = EXCLUDED.content, embedding = EXCLUDED.embedding
+      `;
+    } else {
+      await sql`
+        INSERT INTO hyperset_kb_chunks (id, doc_id, chunk_index, content)
+        VALUES (${id}, ${docId}, ${i}, ${chunks[i]})
+        ON CONFLICT (id) DO UPDATE SET content = EXCLUDED.content
+      `;
+    }
   }
 
-  console.log(`[kb] Indexed ${chunks.length} chunks (dim=${dims}) for "${docName}" (${docId})`);
+  console.log(
+    `[kb] Indexed ${chunks.length} chunks for "${docName}"` +
+    (embeddings ? ` (${embeddings[0].length}-dim vectors)` : " (text-only — set Embedding API URL for semantic search)"),
+  );
 }
 
-// ── RAG: Semantic search ──────────────────────────────────────────────────────
-/**
- * Embed the query and return the top-K most similar chunks across all documents.
- */
+// ── Search ────────────────────────────────────────────────────────────────────
 export async function semanticSearch(
   query: string,
   topK: number,
-  config: EmbeddingConfig,
+  cfg: EmbeddingConfig,
 ): Promise<ChunkSearchResult[]> {
   await ensureSchema();
 
-  const [queryEmbedding] = await generateEmbeddings([query], config);
-  const embLiteral = `[${queryEmbedding.join(",")}]`;
+  // 1. Vector search when embedding API is configured
+  const qvec = await embed([query], cfg);
+  if (qvec) {
+    const vec = `[${qvec[0].join(",")}]`;
+    const rows = await sql<{ doc_id: string; doc_name: string; chunk_index: number; content: string; similarity: number }[]>`
+      SELECT c.doc_id, d.name AS doc_name, c.chunk_index, c.content,
+             1 - (c.embedding <=> ${vec}::vector) AS similarity
+      FROM hyperset_kb_chunks c
+      JOIN hyperset_kb_documents d ON d.id = c.doc_id
+      WHERE c.embedding IS NOT NULL
+      ORDER BY c.embedding <=> ${vec}::vector
+      LIMIT ${topK}
+    `;
+    if (rows.length > 0) {
+      return rows.map((r) => ({ docId: r.doc_id, docName: r.doc_name, chunkIndex: r.chunk_index, content: r.content, similarity: r.similarity }));
+    }
+  }
 
-  const rows = await sql<
-    {
-      doc_id: string;
-      doc_name: string;
-      chunk_index: number;
-      content: string;
-      similarity: number;
-    }[]
-  >`
-    SELECT
-      c.doc_id,
-      d.name AS doc_name,
-      c.chunk_index,
-      c.content,
-      1 - (c.embedding <=> ${embLiteral}::vector) AS similarity
+  // 2. FTS fallback — always works, no embedding API needed
+  const rows = await sql<{ doc_id: string; doc_name: string; chunk_index: number; content: string }[]>`
+    SELECT c.doc_id, d.name AS doc_name, c.chunk_index, c.content
     FROM hyperset_kb_chunks c
     JOIN hyperset_kb_documents d ON d.id = c.doc_id
-    WHERE c.embedding IS NOT NULL
-    ORDER BY c.embedding <=> ${embLiteral}::vector
+    WHERE to_tsvector('english', c.content) @@ plainto_tsquery('english', ${query})
+    ORDER BY ts_rank(to_tsvector('english', c.content), plainto_tsquery('english', ${query})) DESC
     LIMIT ${topK}
   `;
-
-  return rows.map((r) => ({
-    docId: r.doc_id,
-    docName: r.doc_name,
-    chunkIndex: r.chunk_index,
-    content: r.content,
-    similarity: r.similarity,
-  }));
+  return rows.map((r) => ({ docId: r.doc_id, docName: r.doc_name, chunkIndex: r.chunk_index, content: r.content, similarity: 0.5 }));
 }
 
-// ── Public API ────────────────────────────────────────────────────────────────
+// ── Document CRUD ─────────────────────────────────────────────────────────────
 
 export async function getKnowledgeDocuments(): Promise<KnowledgeDocument[]> {
   if (_docs !== null) return _docs;
@@ -433,7 +331,6 @@ export async function addKnowledgeDocument(
     size: contentSize,
   };
 
-  // Update caches
   if (_docs !== null) _docs.push(doc);
   _contentCache.set(id, content);
 
@@ -442,7 +339,6 @@ export async function addKnowledgeDocument(
 
 export async function deleteKnowledgeDocument(id: string): Promise<boolean> {
   await ensureSchema();
-  // ON DELETE CASCADE on hyperset_kb_chunks.doc_id removes chunks automatically
   const result = await sql`DELETE FROM hyperset_kb_documents WHERE id = ${id}`;
   if (result.count === 0) return false;
 
@@ -458,11 +354,7 @@ export async function searchKnowledgeBase(
   const docs = await getKnowledgeDocuments();
   const queryLower = query.toLowerCase();
   return docs
-    .filter(
-      (doc) =>
-        doc.name.toLowerCase().includes(queryLower) ||
-        doc.description.toLowerCase().includes(queryLower),
-    )
+    .filter((doc) => doc.name.toLowerCase().includes(queryLower) || doc.description.toLowerCase().includes(queryLower))
     .map((doc) => ({ doc, matches: true }));
 }
 
@@ -477,7 +369,6 @@ export async function getKnowledgeBaseRoutingGuide(): Promise<string> {
 export async function getKnowledgeBaseRoutingContext(): Promise<string> {
   const docs = await getKnowledgeDocuments();
   if (docs.length === 0) return "";
-
   return docs
     .map((doc) => `- **${doc.name}**: ${doc.description || "Company knowledge document"} (${formatBytes(doc.size)})`)
     .join("\n");
@@ -486,8 +377,7 @@ export async function getKnowledgeBaseRoutingContext(): Promise<string> {
 export async function setKnowledgeBaseRoutingGuide(guide: string): Promise<void> {
   await ensureSchema();
   await sql`
-    INSERT INTO hyperset_kb_meta (key, value)
-    VALUES ('routing_guide', ${guide})
+    INSERT INTO hyperset_kb_meta (key, value) VALUES ('routing_guide', ${guide})
     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
   `;
   console.log("[kb] Routing guide updated:", guide.length, "characters");

@@ -24,12 +24,10 @@ export interface LlmSettings {
   cleanupDelayMinutes?: number;
 
   // ── Knowledge base RAG ───────────────────────────────────────────
-  /** Embedding model for knowledge base RAG (default: text-embedding-3-small) */
+  /** Embedding model for semantic search (optional, falls back to FTS if no URL set) */
   embeddingModel?: string;
-  /** Separate API URL for embeddings — falls back to apiUrl if unset */
+  /** Embedding API URL — if unset, full-text search is used instead */
   embeddingApiUrl?: string;
-  /** Separate API key for embeddings — falls back to apiKey if unset */
-  embeddingApiKey?: string;
 }
 
 export interface SessionData {

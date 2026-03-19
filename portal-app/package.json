@@ -9,7 +9,6 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@huggingface/transformers": "^3.5.0",
     "@modelcontextprotocol/sdk": "^1.26.0",
     "iron-session": "^8.0.4",
     "next": "16.1.6",

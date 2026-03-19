@@ -21,16 +21,10 @@ export async function POST(request: NextRequest) {
     await ensureSchema();
 
     const settings = await getAdminSettings();
-    // apiUrl: only fall back to embedding-specific env var, NOT to chat API URL.
-    // Empty string → use local ONNX model (no key needed).
-    const apiUrl  = settings?.embeddingApiUrl ?? process.env.LLM_EMBEDDING_API_URL ?? "";
-    const chatApiKey = settings?.apiKey ?? process.env.LLM_API_KEY ?? "";
-    const apiKey  = settings?.embeddingApiKey ?? process.env.LLM_EMBEDDING_API_KEY ?? chatApiKey;
-    // Only require a key when hitting an external API; local ONNX needs none.
-    if (apiUrl && !apiKey) {
-      return NextResponse.json({ error: "No API key configured — cannot call embedding API" }, { status: 503 });
-    }
+    const apiUrl = settings?.embeddingApiUrl ?? process.env.LLM_EMBEDDING_API_URL ?? "";
+    const apiKey = settings?.embeddingApiKey || process.env.LLM_EMBEDDING_API_KEY || settings?.apiKey || process.env.LLM_API_KEY || "";
     const embeddingModel = settings?.embeddingModel ?? process.env.LLM_EMBEDDING_MODEL ?? DEFAULT_EMBEDDING_MODEL;
+    // Empty apiUrl → indexDocument stores chunks text-only (FTS fallback), no error
     const config = { apiKey, apiUrl, embeddingModel };
 
     // Find documents to re-index

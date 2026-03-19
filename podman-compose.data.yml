@@ -89,7 +89,6 @@ volumes:
   superset_db_data:
   superset_redis_data:
   pages_data:
-  hf_model_cache:
 
 networks:
   hyperset-net:
