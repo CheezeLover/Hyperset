@@ -84,40 +84,12 @@ services:
         echo 'Pages volume initialized'"
     restart: "no"
 
-  # ── Ollama — open-source embedding inference ──────────────────────────────
-  # Serves nomic-embed-text (768-dim) via an OpenAI-compatible /v1/embeddings
-  # endpoint.  Set embedding API URL to http://hyperset-ollama:11434/v1 and
-  # embedding model to nomic-embed-text in Admin Settings → LLM.
-  #
-  # GPU note: add `devices: [nvidia.com/gpu: all]` under this service and set
-  # OLLAMA_NUM_GPU=1 to enable GPU acceleration if available.
-  ollama:
-    image: docker.io/ollama/ollama:latest
-    container_name: hyperset-ollama
-    volumes:
-      - ollama_data:/root/.ollama
-    networks:
-      - hyperset-net
-    # Pull nomic-embed-text on first start (fast, ~274 MB)
-    command: >
-      sh -c "ollama serve &
-             sleep 5 &&
-             ollama pull nomic-embed-text &&
-             wait"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags || exit 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 10
-      start_period: 60s
-    restart: unless-stopped
-
 volumes:
   portal_db_data:
   superset_db_data:
   superset_redis_data:
   pages_data:
-  ollama_data:
+  hf_model_cache:
 
 networks:
   hyperset-net:

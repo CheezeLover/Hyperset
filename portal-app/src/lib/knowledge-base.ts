@@ -19,7 +19,10 @@ const CHUNK_SIZE = 1500;      // target characters per chunk
 const CHUNK_OVERLAP = 200;    // overlap between consecutive chunks
 const EMBEDDING_BATCH_SIZE = 96; // max inputs per embeddings API call
 
-export const DEFAULT_EMBEDDING_MODEL = "nomic-embed-text";
+// Default: runs fully in-process via Transformers.js, no external service needed.
+// 384-dim, ~90 MB quantised download, MIT licensed.
+// To use an API instead: set embeddingApiUrl + embeddingApiKey in Admin Settings.
+export const DEFAULT_EMBEDDING_MODEL = "Xenova/all-MiniLM-L6-v2";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface KnowledgeDocument {
@@ -128,11 +131,58 @@ function chunkMarkdown(content: string): string[] {
   return chunks;
 }
 
+// ── RAG: Local embedding pipeline (Transformers.js / ONNX) ───────────────────
+// Lazy singleton — loaded once per process, kept in memory for fast re-use.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _localPipeline: any | null = null;
+let _localPipelineModel = "";
+
+async function getLocalPipeline(model: string) {
+  if (_localPipeline && _localPipelineModel === model) return _localPipeline;
+
+  // Dynamic import so webpack never bundles this (it's in serverExternalPackages)
+  const { pipeline, env } = await import("@huggingface/transformers");
+
+  // Persist downloaded models across container restarts
+  env.cacheDir = process.env.HF_CACHE_DIR ?? "/app/hf-cache";
+
+  console.log(`[kb] Loading local embedding model "${model}" (first run downloads ~90 MB)…`);
+  _localPipeline = await pipeline("feature-extraction", model, {
+    dtype: "q8", // 8-bit quantised: half the size, negligible quality loss
+  });
+  _localPipelineModel = model;
+  console.log(`[kb] Local embedding model ready`);
+  return _localPipeline;
+}
+
+async function generateLocalEmbeddings(texts: string[], model: string): Promise<number[][]> {
+  const pipe = await getLocalPipeline(model);
+  // Process in batches to avoid OOM on large uploads
+  const results: number[][] = [];
+  for (let i = 0; i < texts.length; i += 32) {
+    const batch = texts.slice(i, i + 32);
+    const output = await pipe(batch, { pooling: "mean", normalize: true });
+    const list: number[][] = output.tolist();
+    results.push(...list);
+  }
+  return results;
+}
+
 // ── RAG: Batch Embedding API ──────────────────────────────────────────────────
+/**
+ * Generate embeddings for a batch of texts.
+ * - If config.apiUrl is empty → runs locally via Transformers.js (no extra service).
+ * - Otherwise → calls the OpenAI-compatible /embeddings endpoint.
+ */
 async function generateEmbeddings(
   texts: string[],
   config: EmbeddingConfig,
 ): Promise<number[][]> {
+  // No API URL configured → use the in-process ONNX model
+  if (!config.apiUrl) {
+    return generateLocalEmbeddings(texts, config.embeddingModel);
+  }
+
   const baseUrl = config.apiUrl.replace(/\/+$/, "");
   const response = await fetch(`${baseUrl}/embeddings`, {
     method: "POST",

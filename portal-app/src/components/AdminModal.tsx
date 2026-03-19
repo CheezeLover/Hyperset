@@ -1239,7 +1239,7 @@ export function AdminModal({ onClose }: AdminModalProps) {
               <span style={labelStyle}>Embedding Model <span style={{ fontWeight: 400, opacity: 0.55 }}>(for knowledge base RAG)</span></span>
               <input type="text" value={settings.embeddingModel}
                 onChange={(e) => setSettings((s) => ({ ...s, embeddingModel: e.target.value }))}
-                placeholder="nomic-embed-text" style={inputStyle} disabled={saving} />
+                placeholder="Xenova/all-MiniLM-L6-v2 (local, default)" style={inputStyle} disabled={saving} />
             </label>
 
             <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
