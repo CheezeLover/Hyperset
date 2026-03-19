@@ -129,13 +129,21 @@ export async function indexDocument(
 }
 
 // ── Full-text search ──────────────────────────────────────────────────────────
+// Two-pass strategy:
+//   Pass 1 — AND match (plainto_tsquery): all query terms must appear.
+//   Pass 2 — OR match (terms joined with |): any query term matches.
+// This ensures short/acronym queries like "OTP airlines" still find chunks that
+// only mention "OTP" without the word "airlines" in the same passage.
 export async function semanticSearch(
   query: string,
   topK: number,
 ): Promise<ChunkSearchResult[]> {
   await ensureSchema();
 
-  const rows = await sql<{ doc_id: string; doc_name: string; chunk_index: number; content: string; rank: number }[]>`
+  type Row = { doc_id: string; doc_name: string; chunk_index: number; content: string; rank: number };
+
+  // Pass 1: AND — all terms must match
+  let rows = await sql<Row[]>`
     SELECT c.doc_id, d.name AS doc_name, c.chunk_index, c.content,
            ts_rank(to_tsvector('english', c.content), plainto_tsquery('english', ${query})) AS rank
     FROM hyperset_kb_chunks c
@@ -144,6 +152,28 @@ export async function semanticSearch(
     ORDER BY rank DESC
     LIMIT ${topK}
   `;
+
+  // Pass 2: OR — any term matches (broader recall fallback)
+  if (rows.length === 0) {
+    // Convert plainto_tsquery AND expression to OR by replacing ' & ' with ' | '
+    // e.g. plainto_tsquery('otp airlines')::text = "'otp' & 'airlin'" → "'otp' | 'airlin'"
+    rows = await sql<Row[]>`
+      SELECT c.doc_id, d.name AS doc_name, c.chunk_index, c.content,
+             ts_rank(to_tsvector('english', c.content),
+               to_tsquery('english',
+                 replace(plainto_tsquery('english', ${query})::text, ' & ', ' | ')
+               )
+             ) AS rank
+      FROM hyperset_kb_chunks c
+      JOIN hyperset_kb_documents d ON d.id = c.doc_id
+      WHERE to_tsvector('english', c.content) @@
+        to_tsquery('english',
+          replace(plainto_tsquery('english', ${query})::text, ' & ', ' | ')
+        )
+      ORDER BY rank DESC
+      LIMIT ${topK}
+    `;
+  }
 
   return rows.map((r) => ({
     docId: r.doc_id,
