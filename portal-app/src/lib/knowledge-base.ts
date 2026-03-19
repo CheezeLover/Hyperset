@@ -1,20 +1,21 @@
 /**
- * Knowledge Base store — PostgreSQL backed.
+ * Knowledge Base — PostgreSQL-backed RAG.
  *
- * Documents (metadata + content) are stored in hyperset_kb_documents.
- * The routing guide is stored as a single key in hyperset_kb_meta.
- *
- * The pre-built context string and per-document content are cached in memory
- * per instance for fast chat reads.  Cache is rebuilt on writes.
+ * Documents are chunked and stored in hyperset_kb_chunks.
+ * Search uses PostgreSQL full-text search (FTS) via tsvector/tsquery.
+ * pgvector extension is available for future semantic search if needed.
  */
 
 import crypto from "crypto";
 import { sql, ensureSchema } from "./db";
+import { formatBytes } from "./utils";
 
 // ── Configuration ─────────────────────────────────────────────────────────────
-const MAX_CONTEXT_LENGTH = 15000;
 const MAX_KB_SIZE_MB = 50;
 const MAX_DOC_SIZE_MB = 10;
+export const DEFAULT_CHUNK_SIZE = 1500;
+export const DEFAULT_CHUNK_OVERLAP = 200;
+const MAX_CONTENT_CACHE = 20; // max full document texts kept in memory per instance
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface KnowledgeDocument {
@@ -26,69 +27,22 @@ export interface KnowledgeDocument {
   size: number;
 }
 
-export interface KnowledgeBaseMetadata {
-  documents: KnowledgeDocument[];
-  totalSize: number;
-  lastUpdated: string;
-  cachedContext?: string;
-  routingGuide?: string;
+export interface ChunkSearchResult {
+  docId: string;
+  docName: string;
+  chunkIndex: number;
+  content: string;
+  similarity: number;
 }
 
-// ── In-memory caches (per-instance) ─────────────────────────────────────────
-let _docs: KnowledgeDocument[] | null = null;          // document list (no content)
-let _contextCache: string | null = null;               // pre-built context string
-const _contentCache = new Map<string, string>();       // docId → content
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return "0 B";
-  const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
-}
+// ── In-memory caches ──────────────────────────────────────────────────────────
+let _docs: KnowledgeDocument[] | null = null;
+const _contentCache = new Map<string, string>();
 
 function generateId(): string {
   return crypto.randomBytes(8).toString("hex");
 }
 
-// ── Context string builder ────────────────────────────────────────────────────
-function buildContextString(
-  docs: KnowledgeDocument[],
-  contentMap: Map<string, string>,
-): string {
-  if (docs.length === 0) return "";
-  const sections: string[] = [];
-  let totalLength = 0;
-  const minSpacePerDoc = 500;
-  const availableForFull = MAX_CONTEXT_LENGTH - docs.length * minSpacePerDoc;
-  const avgSpacePerDoc = Math.max(2000, Math.floor(availableForFull / docs.length));
-
-  for (const doc of docs) {
-    const content = contentMap.get(doc.id) ?? "";
-    if (!content) continue;
-    const header = `--- ${doc.name} ---\n`;
-    const sectionLength = header.length + content.length;
-    const remainingSpace = MAX_CONTEXT_LENGTH - totalLength - header.length - 100;
-
-    if (sectionLength <= avgSpacePerDoc && totalLength + sectionLength <= MAX_CONTEXT_LENGTH) {
-      sections.push(header + content);
-      totalLength += sectionLength;
-    } else if (remainingSpace > minSpacePerDoc) {
-      const excerptLength = Math.min(content.length, remainingSpace - 50);
-      const excerpt = content.slice(0, excerptLength);
-      const isTruncated = excerptLength < content.length;
-      sections.push(header + excerpt + (isTruncated ? "\n[... document continues ...]" : ""));
-      totalLength += header.length + excerpt.length + (isTruncated ? 30 : 0);
-    } else {
-      const description = doc.description || "Company knowledge document";
-      sections.push(header + `[${description}]`);
-      totalLength += header.length + description.length + 2;
-    }
-  }
-  return sections.join("\n\n");
-}
-
-// ── DB row type ───────────────────────────────────────────────────────────────
 interface DbDocRow {
   id: string;
   name: string;
@@ -109,7 +63,133 @@ function rowToDoc(row: DbDocRow): KnowledgeDocument {
   };
 }
 
-// ── Public API ────────────────────────────────────────────────────────────────
+// ── Chunking ──────────────────────────────────────────────────────────────────
+function chunkMarkdown(
+  content: string,
+  chunkSize = DEFAULT_CHUNK_SIZE,
+  chunkOverlap = DEFAULT_CHUNK_OVERLAP,
+): string[] {
+  const chunks: string[] = [];
+  const sections = content.split(/(?=^#{1,3} )/m).filter((s) => s.trim().length > 0);
+
+  for (const section of sections) {
+    if (section.trim().length < 50) continue;
+    if (section.length <= chunkSize) {
+      chunks.push(section.trim());
+    } else {
+      const paragraphs = section.split(/\n\n+/).filter((p) => p.trim().length > 0);
+      let current = "";
+      for (const para of paragraphs) {
+        if (current.length + para.length + 2 <= chunkSize) {
+          current = current ? current + "\n\n" + para : para;
+        } else {
+          if (current.trim().length >= 50) chunks.push(current.trim());
+          const overlap = current.length > chunkOverlap ? current.slice(-chunkOverlap) : current;
+          current = overlap ? overlap + "\n\n" + para : para;
+        }
+      }
+      if (current.trim().length >= 50) chunks.push(current.trim());
+    }
+  }
+
+  if (chunks.length === 0 && content.trim().length >= 50) {
+    for (let i = 0; i < content.length; i += chunkSize - chunkOverlap) {
+      const chunk = content.slice(i, i + chunkSize).trim();
+      if (chunk.length >= 50) chunks.push(chunk);
+    }
+  }
+
+  return chunks;
+}
+
+// ── Index a document ──────────────────────────────────────────────────────────
+export async function indexDocument(
+  docId: string,
+  content: string,
+  docName: string,
+  config?: { chunkSize?: number; chunkOverlap?: number },
+): Promise<number> {
+  await ensureSchema();
+  await sql`DELETE FROM hyperset_kb_chunks WHERE doc_id = ${docId}`;
+
+  const chunks = chunkMarkdown(content, config?.chunkSize, config?.chunkOverlap);
+  if (!chunks.length) return 0;
+
+  const rows = chunks.map((chunk, i) => ({
+    id: `${docId}-${i}`,
+    doc_id: docId,
+    chunk_index: i,
+    content: chunk,
+  }));
+
+  await sql`
+    INSERT INTO hyperset_kb_chunks ${sql(rows, "id", "doc_id", "chunk_index", "content")}
+    ON CONFLICT (id) DO UPDATE SET content = EXCLUDED.content
+  `;
+
+  console.log(`[kb] Indexed ${chunks.length} chunks for "${docName}"`);
+  return chunks.length;
+}
+
+// ── Full-text search ──────────────────────────────────────────────────────────
+// Two-pass strategy:
+//   Pass 1 — AND match (plainto_tsquery): all query terms must appear.
+//   Pass 2 — OR match (terms joined with |): any query term matches.
+// This ensures short/acronym queries like "OTP airlines" still find chunks that
+// only mention "OTP" without the word "airlines" in the same passage.
+export async function semanticSearch(
+  query: string,
+  topK: number,
+): Promise<ChunkSearchResult[]> {
+  await ensureSchema();
+
+  type Row = { doc_id: string; doc_name: string; chunk_index: number; content: string; rank: number };
+
+  // Pass 1: AND — all terms must match
+  let rows: Row[] = await sql<Row[]>`
+    SELECT c.doc_id, d.name AS doc_name, c.chunk_index, c.content,
+           ts_rank(to_tsvector('english', c.content), plainto_tsquery('english', ${query})) AS rank
+    FROM hyperset_kb_chunks c
+    JOIN hyperset_kb_documents d ON d.id = c.doc_id
+    WHERE to_tsvector('english', c.content) @@ plainto_tsquery('english', ${query})
+    ORDER BY rank DESC
+    LIMIT ${topK}
+  `;
+
+  // Pass 2: OR — any term matches (broader recall fallback).
+  // Uses a CTE to compute the OR tsquery once and guard against empty tsquery
+  // (stop-word-only queries like "the a" produce '' which would crash to_tsquery).
+  if (rows.length === 0) {
+    try {
+      rows = await sql<Row[]>`
+        WITH orq AS (
+          SELECT replace(plainto_tsquery('english', ${query})::text, ' & ', ' | ') AS q
+        )
+        SELECT c.doc_id, d.name AS doc_name, c.chunk_index, c.content,
+               ts_rank(to_tsvector('english', c.content), to_tsquery('english', orq.q)) AS rank
+        FROM hyperset_kb_chunks c
+        JOIN hyperset_kb_documents d ON d.id = c.doc_id, orq
+        WHERE orq.q <> ''
+          AND to_tsvector('english', c.content) @@ to_tsquery('english', orq.q)
+        ORDER BY rank DESC
+        LIMIT ${topK}
+      `;
+    } catch {
+      // OR fallback failed (e.g. stop-word-only query) — return empty
+      rows = [];
+    }
+  }
+
+  return rows.map((r) => ({
+    docId: r.doc_id,
+    docName: r.doc_name,
+    chunkIndex: r.chunk_index,
+    content: r.content,
+    similarity: r.rank,
+  }));
+}
+
+// ── Document CRUD ─────────────────────────────────────────────────────────────
 
 export async function getKnowledgeDocuments(): Promise<KnowledgeDocument[]> {
   if (_docs !== null) return _docs;
@@ -123,41 +203,8 @@ export async function getKnowledgeDocuments(): Promise<KnowledgeDocument[]> {
   return _docs;
 }
 
-export async function getKnowledgeBaseContext(): Promise<string> {
-  if (_contextCache !== null) return _contextCache;
-  await ensureSchema();
-  const rows = await sql<(DbDocRow & { content: string })[]>`
-    SELECT id, name, description, created_at, updated_at, size, content
-    FROM hyperset_kb_documents
-    ORDER BY created_at ASC
-  `;
-  const docs = rows.map(rowToDoc);
-  const contentMap = new Map(rows.map((r) => [r.id, r.content]));
-  // Populate content cache
-  for (const [id, content] of contentMap) {
-    _contentCache.set(id, content);
-  }
-  _docs = docs;
-  _contextCache = buildContextString(docs, contentMap);
-  return _contextCache;
-}
-
-export async function getKnowledgeDocumentContent(id: string): Promise<string | null> {
-  if (_contentCache.has(id)) return _contentCache.get(id)!;
-  await ensureSchema();
-  const rows = await sql<{ content: string }[]>`
-    SELECT content FROM hyperset_kb_documents WHERE id = ${id} LIMIT 1
-  `;
-  if (rows.length === 0) return null;
-  _contentCache.set(id, rows[0].content);
-  return rows[0].content;
-}
-
 export async function getKnowledgeDocument(id: string): Promise<KnowledgeDocument | null> {
-  // Check memory cache first
-  if (_docs !== null) {
-    return _docs.find((d) => d.id === id) ?? null;
-  }
+  if (_docs !== null) return _docs.find((d) => d.id === id) ?? null;
   await ensureSchema();
   const rows = await sql<DbDocRow[]>`
     SELECT id, name, description, created_at, updated_at, size
@@ -206,87 +253,58 @@ export async function addKnowledgeDocument(
 
   const id = generateId();
   const now = new Date();
+  const cleanName = name.replace(/\.md$/i, "");
 
   await sql`
     INSERT INTO hyperset_kb_documents (id, name, description, created_at, updated_at, size, content)
-    VALUES (${id}, ${name.replace(/\.md$/i, "")}, ${description}, ${now}, ${now}, ${contentSize}, ${content})
+    VALUES (${id}, ${cleanName}, ${description}, ${now}, ${now}, ${contentSize}, ${content})
   `;
 
   const doc: KnowledgeDocument = {
     id,
-    name: name.replace(/\.md$/i, ""),
+    name: cleanName,
     description,
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
     size: contentSize,
   };
 
-  // Update caches
   if (_docs !== null) _docs.push(doc);
   _contentCache.set(id, content);
-  _contextCache = null; // rebuild on next access
 
   return doc;
 }
 
+export async function getKnowledgeDocumentContent(id: string): Promise<string | null> {
+  if (_contentCache.has(id)) return _contentCache.get(id)!;
+  await ensureSchema();
+  const rows = await sql<{ content: string }[]>`
+    SELECT content FROM hyperset_kb_documents WHERE id = ${id} LIMIT 1
+  `;
+  if (rows.length === 0) return null;
+  if (_contentCache.size >= MAX_CONTENT_CACHE) {
+    // Evict the oldest entry (Maps preserve insertion order)
+    _contentCache.delete(_contentCache.keys().next().value as string);
+  }
+  _contentCache.set(id, rows[0].content);
+  return rows[0].content;
+}
+
 export async function deleteKnowledgeDocument(id: string): Promise<boolean> {
   await ensureSchema();
-  const result = await sql`
-    DELETE FROM hyperset_kb_documents WHERE id = ${id}
-  `;
+  const result = await sql`DELETE FROM hyperset_kb_documents WHERE id = ${id}`;
   if (result.count === 0) return false;
 
-  // Invalidate caches
   if (_docs !== null) _docs = _docs.filter((d) => d.id !== id);
   _contentCache.delete(id);
-  _contextCache = null;
 
   return true;
-}
-
-export async function searchKnowledgeBase(
-  query: string,
-): Promise<Array<{ doc: KnowledgeDocument; matches: boolean }>> {
-  const docs = await getKnowledgeDocuments();
-  const queryLower = query.toLowerCase();
-  return docs
-    .filter(
-      (doc) =>
-        doc.name.toLowerCase().includes(queryLower) ||
-        doc.description.toLowerCase().includes(queryLower),
-    )
-    .map((doc) => ({ doc, matches: true }));
-}
-
-export async function getKnowledgeBaseRoutingGuide(): Promise<string> {
-  await ensureSchema();
-  const rows = await sql<{ value: string }[]>`
-    SELECT value FROM hyperset_kb_meta WHERE key = 'routing_guide' LIMIT 1
-  `;
-  return rows.length > 0 ? rows[0].value : "";
 }
 
 export async function getKnowledgeBaseRoutingContext(): Promise<string> {
   const docs = await getKnowledgeDocuments();
   if (docs.length === 0) return "";
-
-  const docList = docs
-    .map((doc) => `## ${doc.name}\nDescription: ${doc.description}\nSize: ${formatBytes(doc.size)}`)
-    .join("\n\n");
-
-  const routingGuide = await getKnowledgeBaseRoutingGuide();
-  const routingGuideSection = routingGuide ? `\n### Routing Guide:\n${routingGuide}` : "";
-
-  return `${docList}${routingGuideSection}`;
+  return docs
+    .map((doc) => `- **${doc.name}**: ${doc.description || "Company knowledge document"} (${formatBytes(doc.size)})`)
+    .join("\n");
 }
-
-export async function setKnowledgeBaseRoutingGuide(guide: string): Promise<void> {
-  await ensureSchema();
-  await sql`
-    INSERT INTO hyperset_kb_meta (key, value)
-    VALUES ('routing_guide', ${guide})
-    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
-  `;
-  console.log("[kb] Routing guide updated:", guide.length, "characters");
-}
-

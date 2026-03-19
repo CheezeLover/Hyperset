@@ -1,0 +1,65 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getUserFromRequest } from "@/lib/auth";
+import { sql, ensureSchema } from "@/lib/db";
+import { indexDocument } from "@/lib/knowledge-base";
+import { getAdminSettings } from "@/lib/admin-settings";
+
+/**
+ * POST /api/knowledge-base/reindex
+ * Admin-only. Re-indexes documents that have no chunks (e.g. uploaded before RAG).
+ * Pass ?all=true to force re-index every document regardless of chunk status.
+ */
+export async function POST(request: NextRequest) {
+  const user = getUserFromRequest(request);
+  if (!user.isAdmin) {
+    return NextResponse.json({ error: "Forbidden — admin access required" }, { status: 403 });
+  }
+
+  const forceAll = new URL(request.url).searchParams.get("all") === "true";
+
+  try {
+    await ensureSchema();
+    const s = await getAdminSettings();
+
+    // Find documents to re-index
+    const rows = forceAll
+      ? await sql<{ id: string; name: string; content: string }[]>`
+          SELECT id, name, content FROM hyperset_kb_documents ORDER BY created_at ASC
+        `
+      : await sql<{ id: string; name: string; content: string }[]>`
+          SELECT d.id, d.name, d.content
+          FROM hyperset_kb_documents d
+          WHERE NOT EXISTS (SELECT 1 FROM hyperset_kb_chunks c WHERE c.doc_id = d.id)
+          ORDER BY d.created_at ASC
+        `;
+
+    if (rows.length === 0) {
+      return NextResponse.json({ ok: true, indexed: 0, message: "All documents already indexed." });
+    }
+
+    const results: Array<{ name: string; chunks: number; error?: string }> = [];
+
+    for (const row of rows) {
+      try {
+        const count = await indexDocument(row.id, row.content, row.name, {
+          chunkSize: s?.kbChunkSize,
+          chunkOverlap: s?.kbChunkOverlap,
+        });
+        results.push({ name: row.name, chunks: count });
+      } catch (e) {
+        results.push({ name: row.name, chunks: 0, error: e instanceof Error ? e.message : String(e) });
+      }
+    }
+
+    const failed = results.filter((r) => r.error);
+    return NextResponse.json({
+      ok: failed.length === 0,
+      indexed: results.filter((r) => !r.error).length,
+      failed: failed.length,
+      results,
+    });
+  } catch (e) {
+    console.error("[reindex] Error:", e);
+    return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
+  }
+}

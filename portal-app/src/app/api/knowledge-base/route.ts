@@ -3,10 +3,10 @@ import { getUserFromRequest } from "@/lib/auth";
 import {
   getKnowledgeDocuments,
   addKnowledgeDocument,
-  getKnowledgeBaseRoutingGuide,
-  setKnowledgeBaseRoutingGuide,
-  KnowledgeDocument,
+  indexDocument,
 } from "@/lib/knowledge-base";
+import { getAdminSettings } from "@/lib/admin-settings";
+import { checkRateLimit } from "@/lib/utils";
 
 // ── Rate limiters ──────────────────────────────────────────────────────────────
 // Public read access: 30 req / 60 s per user
@@ -18,24 +18,6 @@ const READ_RATE_WINDOW = 60_000;
 const _uploadRateLimitMap = new Map<string, number[]>();
 const UPLOAD_RATE_LIMIT = 10;
 const UPLOAD_RATE_WINDOW = 60_000;
-
-function checkRateLimit(
-  map: Map<string, number[]>,
-  limit: number,
-  windowMs: number,
-  key: string
-): boolean {
-  const now = Date.now();
-  const timestamps = map.get(key) ?? [];
-  const recent = timestamps.filter((t) => now - t < windowMs);
-  if (recent.length >= limit) {
-    map.set(key, recent);
-    return false;
-  }
-  recent.push(now);
-  map.set(key, recent);
-  return true;
-}
 
 function requireAdmin(request: NextRequest) {
   const user = getUserFromRequest(request);
@@ -59,8 +41,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const documents = await getKnowledgeDocuments();
-    const routingGuide = await getKnowledgeBaseRoutingGuide();
-    return NextResponse.json({ documents, routingGuide });
+    return NextResponse.json({ documents });
   } catch (error) {
     console.error("[knowledge-base] Failed to list documents:", error);
     return NextResponse.json({ error: "Failed to retrieve documents" }, { status: 500 });
@@ -156,6 +137,19 @@ export async function POST(request: NextRequest) {
     // Add the document
     const doc = await addKnowledgeDocument(name, description, content);
 
+    // Trigger FTS indexing — non-blocking so the response is returned immediately.
+    void (async () => {
+      try {
+        const s = await getAdminSettings();
+        await indexDocument(doc.id, content, doc.name, {
+          chunkSize: s?.kbChunkSize,
+          chunkOverlap: s?.kbChunkOverlap,
+        });
+      } catch (e) {
+        console.error("[kb] Background indexing failed for", doc.id, ":", e);
+      }
+    })();
+
     return NextResponse.json({ document: doc }, { status: 201 });
   } catch (error) {
     console.error("[knowledge-base] Failed to upload document:", error);
@@ -163,36 +157,3 @@ export async function POST(request: NextRequest) {
   }
 }
 
-/**
- * PUT /api/knowledge-base — Update routing guide (admin-only)
- * Body: JSON with { routingGuide: string }
- */
-export async function PUT(request: NextRequest) {
-  const denied = requireAdmin(request);
-  if (denied) return denied;
-
-  const user = getUserFromRequest(request);
-  if (!checkRateLimit(_uploadRateLimitMap, UPLOAD_RATE_LIMIT, UPLOAD_RATE_WINDOW, user.email!)) {
-    return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
-  }
-
-  try {
-    const body = await request.json();
-    const routingGuide = body.routingGuide;
-
-    if (typeof routingGuide !== "string") {
-      return NextResponse.json({ error: "routingGuide must be a string" }, { status: 400 });
-    }
-
-    await setKnowledgeBaseRoutingGuide(routingGuide);
-
-    return NextResponse.json({ 
-      ok: true, 
-      routingGuide,
-      length: routingGuide.length 
-    });
-  } catch (error) {
-    console.error("[knowledge-base] Failed to update routing guide:", error);
-    return NextResponse.json({ error: "Failed to update routing guide" }, { status: 500 });
-  }
-}

@@ -42,6 +42,8 @@ export function ensureSchema(): Promise<void> {
 }
 
 async function _runMigrations(): Promise<void> {
+  await sql`CREATE EXTENSION IF NOT EXISTS vector`;
+
   await sql`
     CREATE TABLE IF NOT EXISTS hyperset_admin_settings (
       key   TEXT PRIMARY KEY,
@@ -73,6 +75,32 @@ async function _runMigrations(): Promise<void> {
       key   TEXT PRIMARY KEY,
       value TEXT NOT NULL
     )
+  `;
+
+  // Dimensionless vector column — dimension is determined at runtime by the
+  // embedding model and managed by knowledge-base.ts (ensureEmbeddingDimension).
+  await sql`
+    CREATE TABLE IF NOT EXISTS hyperset_kb_chunks (
+      id          TEXT  PRIMARY KEY,
+      doc_id      TEXT  NOT NULL REFERENCES hyperset_kb_documents(id) ON DELETE CASCADE,
+      chunk_index INT   NOT NULL,
+      content     TEXT  NOT NULL,
+      embedding   vector
+    )
+  `;
+
+  // Migrate any existing fixed-dimension column (e.g. vector(1536)) to dimensionless.
+  // This is a no-op when the column is already dimensionless.
+  await sql`
+    ALTER TABLE hyperset_kb_chunks
+      ALTER COLUMN embedding TYPE vector
+      USING embedding::text::vector
+  `.catch(() => {/* already dimensionless or table just created */});
+
+  // GIN index for full-text search — avoids sequential tsvector recomputation on every query.
+  await sql`
+    CREATE INDEX IF NOT EXISTS hyperset_kb_chunks_content_fts_idx
+      ON hyperset_kb_chunks USING GIN (to_tsvector('english', content))
   `;
 
   console.log("[db] Schema ready");

@@ -1,10 +1,12 @@
 # ── Builder stage ──────────────────────────────────────────────
-FROM node:20-alpine AS builder
+# node:20-slim (Debian) required — onnxruntime-node ships glibc binaries
+# that cannot run on Alpine (musl).
+FROM node:20-slim AS builder
 WORKDIR /app
 
 # Copy package files
 COPY portal-app/package*.json ./
-RUN npm ci
+RUN npm install
 
 # Copy source files
 COPY portal-app/ ./
@@ -21,7 +23,7 @@ ENV NODE_OPTIONS="--max-old-space-size=1536"
 RUN npm run build
 
 # ── Runtime stage ──────────────────────────────────────────────
-FROM node:20-alpine AS runner
+FROM node:20-slim AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production

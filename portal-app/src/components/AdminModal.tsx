@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import { formatBytes } from "@/lib/utils";
 
 const spinKeyframes = `
   @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -21,6 +22,9 @@ interface LlmSettings {
   maxToolResultChars: number;
   maxHistoryMessages: number;
   cleanupDelayMinutes: number;
+  kbTopK: number;
+  kbChunkSize: number;
+  kbChunkOverlap: number;
 }
 
 interface AdminSettingsResponse extends LlmSettings {
@@ -52,14 +56,6 @@ interface PageInfo {
 }
 
 type Tab = "llm" | "knowledge" | "additional";
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return "0 B";
-  const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
-}
 
 function formatDate(isoString: string): string {
   const date = new Date(isoString);
@@ -107,9 +103,8 @@ function KnowledgeBaseTab() {
   const [textContent, setTextContent] = useState("");
   const [textName, setTextName] = useState("");
   const [uploadMode, setUploadMode] = useState<"file" | "text">("file");
-  const [routingGuide, setRoutingGuide] = useState("");
-  const [routingGuideSaving, setRoutingGuideSaving] = useState(false);
-  const [routingGuideSaved, setRoutingGuideSaved] = useState(false);
+  const [reindexing, setReindexing] = useState(false);
+  const [reindexResult, setReindexResult] = useState<string>("");
 
   const loadDocuments = useCallback(async () => {
     try {
@@ -117,7 +112,6 @@ function KnowledgeBaseTab() {
       if (!res.ok) throw new Error("Failed to load documents");
       const data = await res.json();
       setDocuments(data.documents || []);
-      setRoutingGuide(data.routingGuide || "");
       setError("");
     } catch (e) {
       setError("Failed to load documents");
@@ -210,6 +204,33 @@ function KnowledgeBaseTab() {
       setError("Failed to delete document");
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleReindex = async () => {
+    setReindexing(true);
+    setReindexResult("");
+    setError("");
+    try {
+      const res = await fetch("/api/knowledge-base/reindex?all=true", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Reindex failed");
+      if (data.failed > 0) {
+        const errs = (data.results as Array<{ name: string; chunks: number; error?: string }>)
+          .filter((r) => r.error)
+          .map((r) => `${r.name}: ${r.error}`)
+          .join("\n");
+        throw new Error(`${data.failed} document(s) failed:\n${errs}`);
+      } else if (data.indexed === 0) {
+        setReindexResult("All documents already indexed.");
+      } else {
+        const totalChunks = (data.results as Array<{ chunks: number }>).reduce((s, r) => s + r.chunks, 0);
+        setReindexResult(`Indexed ${data.indexed} doc${data.indexed !== 1 ? "s" : ""} → ${totalChunks} chunks.`);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Reindex failed");
+    } finally {
+      setReindexing(false);
     }
   };
 
@@ -354,7 +375,23 @@ function KnowledgeBaseTab() {
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
           <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#4caf50" }} />
           <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--md-on-surface)", margin: 0 }}>Knowledge Base Documents ({documents.length})</h3>
+          <button
+            onClick={handleReindex}
+            disabled={reindexing || documents.length === 0}
+            title="Generate embeddings for documents not yet indexed"
+            style={{
+              marginLeft: "auto", padding: "5px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600,
+              cursor: reindexing || documents.length === 0 ? "default" : "pointer",
+              border: "1px solid var(--md-outline)", background: "var(--md-surface-cont)",
+              color: "var(--md-on-surface)", opacity: reindexing || documents.length === 0 ? 0.5 : 1,
+            }}
+          >
+            {reindexing ? "Indexing..." : "Re-index"}
+          </button>
         </div>
+        {reindexResult && (
+          <p style={{ fontSize: 12, color: "#4caf50", margin: "0 0 12px", opacity: 0.85 }}>{reindexResult}</p>
+        )}
 
         {loading ? (
           <p style={{ opacity: 0.6, fontSize: 13 }}>Loading documents...</p>
@@ -413,71 +450,9 @@ function KnowledgeBaseTab() {
         )}
       </section>
 
-      {/* Routing Guide Editor */}
-      <section style={{
-        background: "var(--md-surface)", borderRadius: 16, padding: 20,
-        border: "1px solid var(--md-outline-var)",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#9c27b0" }} />
-          <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--md-on-surface)", margin: 0 }}>Routing Guide</h3>
-          <span style={{ fontSize: 11, opacity: 0.5, marginLeft: "auto" }}>
-            {routingGuide.length} chars
-          </span>
-        </div>
-        <p style={{ fontSize: 12, opacity: 0.6, margin: "0 0 12px", lineHeight: 1.5 }}>
-          Explain to the AI which document to use for different topics. Be specific about routing decisions.
-        </p>
-        <textarea
-          value={routingGuide}
-          onChange={(e) => setRoutingGuide(e.target.value)}
-          placeholder={`Example routing guide:
-
-- For financial metrics and KPIs → Use "airline-metrics.md"
-- For safety procedures and regulations → Use "regulatory-compliance.md"  
-- For company procedures and operations → Use "company-overview.md"
-- For terminology and definitions → Use "airline-terminology.md"
-
-When user asks about "revenue", "costs", "profits" → Check airline-metrics.md first
-When user asks about "delays", "on-time performance" → Check company-overview.md first
-When user mentions abbreviations like "OTP", "RASM", "CASM" → Check airline-terminology.md`}
-          rows={10}
-          style={{ ...inputStyle, resize: "vertical", fontFamily: "monospace", fontSize: 12, lineHeight: 1.5, marginBottom: 12 }}
-        />
-        <button
-          onClick={async () => {
-            setRoutingGuideSaving(true);
-            setError("");
-            try {
-              const res = await fetch("/api/knowledge-base", {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ routingGuide }),
-              });
-              if (!res.ok) throw new Error("Failed to save routing guide");
-              setRoutingGuideSaved(true);
-              setTimeout(() => setRoutingGuideSaved(false), 2000);
-            } catch (e) {
-              setError("Failed to save routing guide");
-            } finally {
-              setRoutingGuideSaving(false);
-            }
-          }}
-          disabled={routingGuideSaving}
-          style={{ 
-            ...primaryBtnStyle, alignSelf: "flex-start", 
-            padding: "12px 24px",
-            boxShadow: routingGuideSaved ? "none" : "0 4px 12px rgba(211, 84, 0, 0.3)",
-            ...(routingGuideSaved ? { background: "#4caf50", boxShadow: "0 4px 12px rgba(76, 175, 80, 0.3)" } : {}),
-          }}
-        >
-          {routingGuideSaved ? "✓ Saved" : routingGuideSaving ? "Saving..." : "Save Routing Guide"}
-        </button>
-      </section>
-
       {error && (
         <div style={{ padding: "12px 16px", borderRadius: 12, background: "rgba(211,47,47,0.1)", border: "1px solid rgba(211,47,47,0.25)" }}>
-          <span style={{ color: "#ef5350", fontSize: 13 }}>{error}</span>
+          <span style={{ color: "#ef5350", fontSize: 13, whiteSpace: "pre-wrap" }}>{error}</span>
         </div>
       )}
     </div>
@@ -977,6 +952,7 @@ export function AdminModal({ onClose }: AdminModalProps) {
     apiUrl: "", apiKey: "", model: "", systemPrompt: "", modelParams: "", isCustom: false,
     maxTurns: 40, maxToolResultChars: 3000, maxHistoryMessages: 20,
     cleanupDelayMinutes: 120,
+    kbTopK: 6, kbChunkSize: 1500, kbChunkOverlap: 200,
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -1037,6 +1013,9 @@ export function AdminModal({ onClose }: AdminModalProps) {
           maxToolResultChars: settings.maxToolResultChars,
           maxHistoryMessages: settings.maxHistoryMessages,
           cleanupDelayMinutes: settings.cleanupDelayMinutes,
+          kbTopK: settings.kbTopK,
+          kbChunkSize: settings.kbChunkSize,
+          kbChunkOverlap: settings.kbChunkOverlap,
         }),
       });
       if (!res.ok) throw new Error("Save failed");
@@ -1189,6 +1168,8 @@ export function AdminModal({ onClose }: AdminModalProps) {
                 onChange={(e) => setSettings((s) => ({ ...s, model: e.target.value }))}
                 placeholder="ministral-3b-2512" style={inputStyle} disabled={saving} />
             </label>
+
+
 
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <button onClick={handleTest}
@@ -1366,7 +1347,51 @@ export function AdminModal({ onClose }: AdminModalProps) {
             </div>
           </div>
         ) : activeTab === "knowledge" ? (
-          <KnowledgeBaseTab />
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            {/* ── RAG search settings ── */}
+            <section style={{
+              background: "var(--md-surface)", borderRadius: 16, padding: 20,
+              border: "1px solid var(--md-outline-var)",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#2196f3" }} />
+                <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--md-on-surface)", margin: 0 }}>Search Settings</h3>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <span style={labelStyle}>Top K <span style={{ fontWeight: 400, opacity: 0.55 }}>(chunks per query)</span></span>
+                  <input type="number" min={1} max={20} value={settings.kbTopK}
+                    onChange={(e) => setSettings((s) => ({ ...s, kbTopK: Math.max(1, Math.min(20, Number(e.target.value))) }))}
+                    style={inputStyle} disabled={saving} />
+                </label>
+                <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <span style={labelStyle}>Chunk Size <span style={{ fontWeight: 400, opacity: 0.55 }}>(chars — re-index)</span></span>
+                  <input type="number" min={200} max={8000} step={100} value={settings.kbChunkSize}
+                    onChange={(e) => setSettings((s) => ({ ...s, kbChunkSize: Math.max(200, Math.min(8000, Number(e.target.value))) }))}
+                    style={inputStyle} disabled={saving} />
+                </label>
+                <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <span style={labelStyle}>Chunk Overlap <span style={{ fontWeight: 400, opacity: 0.55 }}>(chars — re-index)</span></span>
+                  <input type="number" min={0} max={1000} step={50} value={settings.kbChunkOverlap}
+                    onChange={(e) => setSettings((s) => ({ ...s, kbChunkOverlap: Math.max(0, Math.min(1000, Number(e.target.value))) }))}
+                    style={inputStyle} disabled={saving} />
+                </label>
+              </div>
+              <div style={{ marginTop: 16, display: "flex", gap: 10, alignItems: "center" }}>
+                <button onClick={handleSave} disabled={saving} style={{
+                  ...primaryBtnStyle,
+                  padding: "10px 24px",
+                  boxShadow: saved ? "none" : "0 4px 12px rgba(33, 150, 243, 0.3)",
+                  ...(saved ? { background: "#4caf50", boxShadow: "0 4px 12px rgba(76, 175, 80, 0.3)" } : {}),
+                }}>
+                  {saved ? "✓ Saved" : saving ? "Saving…" : "Save"}
+                </button>
+                {saveError && <span style={{ color: "#ef5350", fontSize: 12 }}>{saveError}</span>}
+                <span style={{ fontSize: 11, opacity: 0.5, marginLeft: 4 }}>Top K applies immediately · Chunk Size/Overlap require Re-index</span>
+              </div>
+            </section>
+            <KnowledgeBaseTab />
+          </div>
         ) : (
           <PagesTab />
         )}

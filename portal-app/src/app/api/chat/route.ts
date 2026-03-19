@@ -4,39 +4,18 @@ import OpenAI from "openai";
 import { getAdminSettings } from "@/lib/admin-settings";
 import { getUserFromRequest } from "@/lib/auth";
 import { DEFAULT_SYSTEM_PROMPT } from "@/lib/default-system-prompt";
-import { 
-  getKnowledgeBaseRoutingContext, 
+import {
+  getKnowledgeBaseRoutingContext,
   getKnowledgeDocuments,
   getKnowledgeBaseStats,
-  searchKnowledgeBase,
-  getKnowledgeBaseRoutingGuide,
-  getKnowledgeDocumentContent
+  semanticSearch,
 } from "@/lib/knowledge-base";
 
-// ── Helper functions ───────────────────────────────────────────────────────
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return "0 B";
-  const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
-}
-const _rateLimitMap = new Map<string, number[]>();
-const RATE_LIMIT      = 20;
-const RATE_WINDOW_MS  = 60_000;
+import { formatBytes, checkRateLimit } from "@/lib/utils";
 
-function checkRateLimit(email: string): boolean {
-  const now = Date.now();
-  const timestamps = _rateLimitMap.get(email) ?? [];
-  const recent = timestamps.filter((t) => now - t < RATE_WINDOW_MS);
-  if (recent.length >= RATE_LIMIT) {
-    _rateLimitMap.set(email, recent);
-    return false;
-  }
-  recent.push(now);
-  _rateLimitMap.set(email, recent);
-  return true;
-}
+const _rateLimitMap = new Map<string, number[]>();
+const RATE_LIMIT     = 20;
+const RATE_WINDOW_MS = 60_000;
 
 // ── Message history normalisation ───────────────────────────────────────────
 // ChatPanel strips tool_calls when building the history it sends to the server,
@@ -200,7 +179,7 @@ export const POST = async (req: NextRequest) => {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!checkRateLimit(requestUser.email)) {
+  if (!checkRateLimit(_rateLimitMap, RATE_LIMIT, RATE_WINDOW_MS, requestUser.email)) {
     return NextResponse.json({ error: "Rate limit exceeded. Please wait before sending more messages." }, { status: 429 });
   }
 
@@ -321,33 +300,16 @@ export const POST = async (req: NextRequest) => {
       type: "function",
       function: {
         name: "knowledge_base_search",
-        description: "Search for documents by name or description. Provide keywords to find relevant documents. Returns matching document names.",
+        description: "Semantically search the company knowledge base. Returns the most relevant text passages matching the query by meaning — not just keywords. Use this for any company-specific question before answering from memory.",
         parameters: {
           type: "object",
           properties: {
-            query: { 
-              type: "string", 
-              description: "Search keywords (e.g., 'safety', 'metrics', 'procedures')" 
+            query: {
+              type: "string",
+              description: "The question or topic to search for (e.g., 'Q3 revenue metrics', 'safety procedures for night operations')",
             },
           },
           required: ["query"],
-        },
-      },
-    },
-    {
-      type: "function",
-      function: {
-        name: "knowledge_base_get",
-        description: "Get the full content of a specific document by its ID. Use this after finding the document ID from knowledge_base_search or knowledge_base_list.",
-        parameters: {
-          type: "object",
-          properties: {
-            id: { 
-              type: "string", 
-              description: "The document ID (e.g., '01abc123')" 
-            },
-          },
-          required: ["id"],
         },
       },
     },
@@ -374,7 +336,6 @@ export const POST = async (req: NextRequest) => {
       "navigate_superset_chart",
       "knowledge_base_list",
       "knowledge_base_search",
-      "knowledge_base_get",
       "superset_dashboard_list",
       "superset_chart_list",
       "superset_dataset_list",
@@ -447,10 +408,8 @@ export const POST = async (req: NextRequest) => {
   const isMistral = /ministral|mistral/i.test(model);
   const activeTools = filterToolsForContext(tools, userMessages);
 
-  // Load routing context only (LLM will use tools to fetch document content)
   const routingContext = await getKnowledgeBaseRoutingContext();
   const kbStats = await getKnowledgeBaseStats();
-  const routingGuide = await getKnowledgeBaseRoutingGuide();
   
   const knowledgeBaseSection = routingContext || kbStats.documentCount > 0
     ? `
@@ -475,17 +434,11 @@ The following documents are your **BIBLE** — your absolute, definitive, and on
 ### 📖 AVAILABLE DOCUMENTS:
 ${routingContext || "No documents configured."}
 
-### 🧭 ROUTING GUIDE:${routingGuide ? "\n" + routingGuide : "\nUse documents based on their names and descriptions."}
-
 ### 🔧 HOW TO USE KNOWLEDGE BASE (REQUIRED - Follow these exact steps):
-1. **Use knowledge_base_search** with relevant keywords to find documents (e.g., "safety", "metrics", "policy")
+1. **Use knowledge_base_search** with relevant keywords to find and read the most relevant passages (e.g., "safety", "metrics", "policy")
 2. **Use knowledge_base_list** to see all available documents if needed
-3. **Use knowledge_base_get with the document ID** to fetch the FULL content of relevant documents
-4. **READ the full document content** before answering - never answer from search results alone!
-5. **Cite sources** with document name for every fact (e.g., "Per employee-handbook.md...")
-6. If KB doesn't cover the topic, admit it — don't improvise
-
-⚠️ **IMPORTANT**: You MUST call knowledge_base_get after finding a relevant document. The search results only show titles/descriptions - the actual content is in the document file!
+3. **Cite sources** with document name for every fact (e.g., "Per employee-handbook.md...")
+4. If KB doesn't cover the topic, admit it — don't improvise
 
 ### 🚫 FORBIDDEN:
 - Using training data when KB has the answer
@@ -701,46 +654,36 @@ Administrators can upload documents through the Admin Settings > Knowledge Base 
                   result = `Knowledge Base Status: Empty (${stats.documentCount} documents, ${stats.totalSizeFormatted} / ${stats.maxSizeFormatted} used)\n\nNo company-specific documents have been uploaded yet. Administrators can add documents through Admin Settings > Knowledge Base.`;
                 } else {
                   const docList = docs.map(d => `- **${d.name}** (ID: ${d.id}, ${formatBytes(d.size)}): ${d.description || 'No description'}`).join('\n');
-                  result = `Knowledge Base Status: ${stats.documentCount} documents, ${stats.totalSizeFormatted} / ${stats.maxSizeFormatted} used (${stats.utilizationPercent}%)\n\nAvailable documents:\n${docList}\n\nTo get document content, use knowledge_base_get with the document ID.`;
+                  result = `Knowledge Base Status: ${stats.documentCount} documents, ${stats.totalSizeFormatted} / ${stats.maxSizeFormatted} used (${stats.utilizationPercent}%)\n\nAvailable documents:\n${docList}\n\nUse knowledge_base_search to find relevant content.`;
                 }
               } catch (e) {
                 result = `Error accessing knowledge base: ${e instanceof Error ? e.message : String(e)}`;
               }
             } else if (tc.name === "knowledge_base_search") {
-              // Knowledge base search - simple name/description only
-              try {
-                const searchQuery = args.query as string;
-                if (!searchQuery) {
-                  result = "Error: No search query provided.";
-                } else {
-                  const matches = await searchKnowledgeBase(searchQuery);
-                  if (matches.length === 0) {
-                    result = `No documents found matching "${searchQuery}".`;
+              // Full-text search (FTS) over knowledge base chunks
+              const searchQuery = args.query as string;
+              if (!searchQuery) {
+                result = "Error: No search query provided.";
+              } else {
+                try {
+                  const chunks = await semanticSearch(searchQuery, s?.kbTopK ?? 6);
+                  if (chunks.length === 0) {
+                    result = `No relevant content found for "${searchQuery}". The knowledge base may not cover this topic.`;
                   } else {
-                    const docList = matches.map(m => `- ${m.doc.name} (ID: ${m.doc.id}): ${m.doc.description || 'No description'}`).join('\n');
-                    result = `Found ${matches.length} document(s) matching "${searchQuery}":\n${docList}\n\nUse knowledge_base_get with the document ID to fetch full content.`;
+                    // Group chunks by source document, preserving relevance order
+                    const seen = new Map<string, { name: string; contents: string[] }>();
+                    for (const chunk of chunks) {
+                      if (!seen.has(chunk.docId)) seen.set(chunk.docId, { name: chunk.docName, contents: [] });
+                      seen.get(chunk.docId)!.contents.push(chunk.content);
+                    }
+                    const sections = [...seen.values()].map(({ name, contents }) =>
+                      `### Source: ${name}\n\n${contents.join("\n\n---\n\n")}`
+                    );
+                    result = `Relevant knowledge base content for "${searchQuery}":\n\n${sections.join("\n\n---\n\n")}`;
                   }
+                } catch (e) {
+                  result = `Error searching knowledge base: ${e instanceof Error ? e.message : String(e)}`;
                 }
-              } catch (e) {
-                result = `Error: ${e instanceof Error ? e.message : String(e)}`;
-              }
-            } else if (tc.name === "knowledge_base_get") {
-              // Get full document content by ID
-              try {
-                const docId = args.id as string;
-                if (!docId) {
-                  result = "Error: No document ID provided.";
-                } else {
-                  const content = await getKnowledgeDocumentContent(docId);
-                  if (!content) {
-                    result = `Document not found: ${docId}`;
-                  } else {
-                    const doc = (await getKnowledgeDocuments()).find(d => d.id === docId);
-                    result = `--- ${doc?.name || docId} ---\n\n${content}`;
-                  }
-                }
-              } catch (e) {
-                result = `Error: ${e instanceof Error ? e.message : String(e)}`;
               }
             } else {
               try {
