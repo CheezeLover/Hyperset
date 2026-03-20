@@ -27,6 +27,13 @@ export interface SqlData {
   rowcount: number;
 }
 
+export interface SqlRefLoc {
+  queryIndex: number;
+  rowIndex: number;
+  colName: string;
+  value: string;
+}
+
 interface ChatEvent {
   type: "delta" | "tool_call" | "tool_result" | "done" | "error" | "followup_suggestions" | "sql_data";
   content?: string;
@@ -295,6 +302,8 @@ function renderMarkdown(
   text: string,
   supersetUrl: string,
   onSupersetLinkClick?: (url: string) => void,
+  valueMap?: Map<string, SqlRefLoc>,
+  onRef?: (loc: SqlRefLoc) => void,
 ): React.ReactNode {
   // Build a domain-check helper (same logic as the iframe whitelist) and a
   // bound inlineRender so every call site automatically gets the callbacks.
@@ -310,7 +319,7 @@ function renderMarkdown(
     } catch { return false; }
   };
   // Convenience wrapper — keeps all call sites below identical in shape
-  const ir = (t: string) => inlineRender(t, onSupersetLinkClick, isSupersetUrl);
+  const ir = (t: string) => inlineRender(t, onSupersetLinkClick, isSupersetUrl, valueMap, onRef);
 
   // Pre-process: normalise [iframe] tokens so the block-level renderer always
   // sees them on their own bare line.
@@ -542,7 +551,7 @@ function renderMarkdown(
             {summaryText || "Details"}
           </summary>
           <div style={{ padding: "0 14px 12px", borderTop: "1px solid var(--md-outline-var)" }}>
-            {renderMarkdown(bodyLines.join("\n"), supersetUrl, onSupersetLinkClick)}
+            {renderMarkdown(bodyLines.join("\n"), supersetUrl, onSupersetLinkClick, valueMap, onRef)}
           </div>
         </details>
       );
@@ -691,17 +700,83 @@ function renderMarkdown(
   return <>{nodes}</>;
 }
 
+// ── SQL value reference utilities ─────────────────────────────────
+
+const EXCLUDE_WORDS = new Set(["true", "false", "null", "yes", "no", "n/a", "none"]);
+
+function buildSqlValueMap(sqlRefs: SqlData[]): Map<string, SqlRefLoc> {
+  const map = new Map<string, SqlRefLoc>();
+  sqlRefs.forEach((query, qi) => {
+    query.rows.forEach((row, ri) => {
+      query.columns.forEach((col) => {
+        const val = row[col];
+        if (val !== null && val !== undefined) {
+          const str = String(val);
+          if (str.length >= 2 && !EXCLUDE_WORDS.has(str.toLowerCase()) && !map.has(str)) {
+            map.set(str, { queryIndex: qi, rowIndex: ri, colName: col, value: str });
+          }
+        }
+      });
+    });
+  });
+  return map;
+}
+
+function applyValueRefs(
+  text: string,
+  valueMap: Map<string, SqlRefLoc> | undefined,
+  onRef: ((loc: SqlRefLoc) => void) | undefined,
+  getKey: () => number,
+): React.ReactNode[] {
+  if (!valueMap || valueMap.size === 0 || !onRef || text.length === 0) return [text];
+  const values = [...valueMap.keys()].sort((a, b) => b.length - a.length);
+  const escaped = values.map(v => v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const pattern = new RegExp(`(?<![\\w.])(${escaped.join("|")})(?![\\w.])`, "g");
+  const nodes: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(text)) !== null) {
+    if (match.index > lastIndex) nodes.push(text.slice(lastIndex, match.index));
+    const loc = valueMap.get(match[1])!;
+    const isNum = !isNaN(Number(match[1]));
+    nodes.push(
+      <span
+        key={getKey()}
+        onClick={() => onRef(loc)}
+        title={`DB · Query ${loc.queryIndex + 1} · ${loc.colName.replace(/_/g, " ")}`}
+        style={{
+          cursor: "pointer",
+          borderBottom: "2px dashed var(--md-primary)",
+          fontWeight: isNum ? 600 : "inherit",
+          borderRadius: "2px",
+          transition: "background 0.15s",
+        }}
+        onMouseOver={e => { e.currentTarget.style.background = "var(--md-primary-cont)"; }}
+        onMouseOut={e => { e.currentTarget.style.background = "transparent"; }}
+      >
+        {match[1]}
+      </span>
+    );
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < text.length) nodes.push(text.slice(lastIndex));
+  return nodes.length > 0 ? nodes : [text];
+}
+
 function inlineRender(
   text: string,
   onSupersetLink?: (url: string) => void,
   isSupersetUrlFn?: (url: string) => boolean,
+  valueMap?: Map<string, SqlRefLoc>,
+  onRef?: (loc: SqlRefLoc) => void,
 ): React.ReactNode {
   // Handles **bold**, *italic*, `code`, and [text](url) links.
   // [text](url) links pointing to the Superset domain open in the Superset
   // iframe panel instead of a new browser tab.
   const parts: React.ReactNode[] = [];
   let remaining = text;
-  let k = 0;
+  let kIdx = 0;
+  const getKey = () => kIdx++;
 
   while (remaining.length > 0) {
     const boldIdx  = remaining.indexOf("**");
@@ -719,13 +794,13 @@ function inlineRender(
     const minIdx = Math.min(...candidates);
 
     if (minIdx === Infinity) {
-      parts.push(remaining);
+      parts.push(...applyValueRefs(remaining, valueMap, onRef, getKey));
       break;
     }
 
     // Text before the marker
     if (minIdx > 0) {
-      parts.push(remaining.slice(0, minIdx));
+      parts.push(...applyValueRefs(remaining.slice(0, minIdx), valueMap, onRef, getKey));
       remaining = remaining.slice(minIdx);
       continue;
     }
@@ -734,7 +809,7 @@ function inlineRender(
     if (remaining.startsWith("**")) {
       const end = remaining.indexOf("**", 2);
       if (end !== -1) {
-        parts.push(<strong key={k++}>{remaining.slice(2, end)}</strong>);
+        parts.push(<strong key={getKey()}>{applyValueRefs(remaining.slice(2, end), valueMap, onRef, getKey)}</strong>);
         remaining = remaining.slice(end + 2);
         continue;
       }
@@ -744,7 +819,7 @@ function inlineRender(
     if (remaining.startsWith("*") && !remaining.startsWith("**")) {
       const end = remaining.indexOf("*", 1);
       if (end !== -1) {
-        parts.push(<em key={k++}>{remaining.slice(1, end)}</em>);
+        parts.push(<em key={getKey()}>{applyValueRefs(remaining.slice(1, end), valueMap, onRef, getKey)}</em>);
         remaining = remaining.slice(end + 1);
         continue;
       }
@@ -755,7 +830,7 @@ function inlineRender(
       const end = remaining.indexOf("`", 1);
       if (end !== -1) {
         parts.push(
-          <code key={k++} style={{
+          <code key={getKey()} style={{
             background: "var(--md-surface-cont-hi)",
             borderRadius: "6px",
             padding: "2px 6px",
@@ -785,7 +860,7 @@ function inlineRender(
           // Convert [iframe](url) to embedded iframe
           const iframeTitle = linkText.replace(/^iframe(-ai:\d+)?/i, "").trim() || "Chart";
           parts.push(
-            <div key={k++} style={{ margin: "12px 0" }}>
+            <div key={getKey()} style={{ margin: "12px 0" }}>
               <div style={{
                 border: "1px solid var(--md-outline-var)",
                 borderRadius: "12px",
@@ -812,7 +887,7 @@ function inlineRender(
           // Open in the Superset iframe panel instead of a new tab
           parts.push(
             <button
-              key={k++}
+              key={getKey()}
               onClick={() => onSupersetLink(linkUrl)}
               title="Open in Superset panel"
               style={{
@@ -833,7 +908,7 @@ function inlineRender(
         } else {
           parts.push(
             <a
-              key={k++}
+              key={getKey()}
               href={linkUrl}
               target="_blank"
               rel="noopener noreferrer"
@@ -863,8 +938,9 @@ function isSqlDataEvent(e: ChatEvent): e is ChatEvent & Required<Pick<ChatEvent,
 }
 
 // ── SQL Result sub-block (used inside SqlResultsZone) ────────────
-function SqlResultCard({ data, index }: { data: SqlData; index: number }) {
+function SqlResultCard({ data, index, highlightedRef }: { data: SqlData; index: number; highlightedRef?: SqlRefLoc | null }) {
   const [open, setOpen] = useState(false);
+  useEffect(() => { if (highlightedRef != null) setOpen(true); }, [highlightedRef]);
   const visibleRows = useMemo(() => (open ? data.rows.slice(0, SQL_CARD_MAX_ROWS) : []), [open, data.rows]);
   const truncated = data.rowcount > SQL_CARD_MAX_ROWS;
   const label = `Query ${index + 1}`;
@@ -938,6 +1014,7 @@ function SqlResultCard({ data, index }: { data: SqlData; index: number }) {
                   {data.columns.map((col, ci) => {
                     const val = row[col];
                     const isNum = typeof val === "number";
+                    const isHighlighted = highlightedRef?.rowIndex === ri && highlightedRef?.colName === col;
                     return (
                       <td key={ci} style={{
                         padding: "5px 12px",
@@ -947,6 +1024,10 @@ function SqlResultCard({ data, index }: { data: SqlData; index: number }) {
                         borderRight: ci < data.columns.length - 1 ? "1px solid var(--md-outline-var)" : "none",
                         borderBottom: "1px solid var(--md-outline-var)",
                         whiteSpace: "nowrap",
+                        background: isHighlighted ? "var(--md-primary-cont)" : undefined,
+                        outline: isHighlighted ? "2px solid var(--md-primary)" : undefined,
+                        outlineOffset: "-2px",
+                        transition: "background 0.3s ease, outline 0.3s ease",
                       }}>
                         {val === null || val === undefined
                           ? <span style={{ opacity: 0.35, fontStyle: "italic" }}>null</span>
@@ -977,8 +1058,9 @@ function SqlResultCard({ data, index }: { data: SqlData; index: number }) {
 }
 
 // ── SQL Results Zone (groups all SQL results in one collapsible) ──
-function SqlResultsZone({ sqlRefs }: { sqlRefs: SqlData[] }) {
+function SqlResultsZone({ sqlRefs, highlightedRef }: { sqlRefs: SqlData[]; highlightedRef?: SqlRefLoc | null }) {
   const [open, setOpen] = useState(false);
+  useEffect(() => { if (highlightedRef != null) setOpen(true); }, [highlightedRef]);
   if (sqlRefs.length === 0) return null;
 
   const totalRows = sqlRefs.reduce((s, d) => s + d.rowcount, 0);
@@ -1026,7 +1108,7 @@ function SqlResultsZone({ sqlRefs }: { sqlRefs: SqlData[] }) {
           {sqlRefs.map((data, i) => (
             <React.Fragment key={i}>
               {i > 0 && <div style={{ height: "1px", background: "var(--md-outline-var)", opacity: 0.5, margin: "0 14px" }} />}
-              <SqlResultCard data={data} index={i} />
+              <SqlResultCard data={data} index={i} highlightedRef={i === highlightedRef?.queryIndex ? highlightedRef : null} />
             </React.Fragment>
           ))}
           <div style={{
@@ -1199,7 +1281,12 @@ function MessageBubble({ msg, supersetUrl, onSuggestionClick, onSupersetLinkClic
 }) {
   const isUser = msg.role === "user";
   const isAssistant = msg.role === "assistant";
-  
+  const [highlightedRef, setHighlightedRef] = useState<SqlRefLoc | null>(null);
+  const valueMap = useMemo(
+    () => (msg.sqlRefs && msg.sqlRefs.length > 0 ? buildSqlValueMap(msg.sqlRefs) : undefined),
+    [msg.sqlRefs],
+  );
+
   return (
     <div style={{
       display: "flex",
@@ -1213,7 +1300,7 @@ function MessageBubble({ msg, supersetUrl, onSuggestionClick, onSupersetLinkClic
       )}
 
       {msg.sqlRefs && msg.sqlRefs.length > 0 && (
-        <SqlResultsZone sqlRefs={msg.sqlRefs} />
+        <SqlResultsZone sqlRefs={msg.sqlRefs} highlightedRef={highlightedRef} />
       )}
 
       {msg.content && (
@@ -1229,7 +1316,7 @@ function MessageBubble({ msg, supersetUrl, onSuggestionClick, onSupersetLinkClic
           boxShadow: isUser ? "0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04)" : "none",
           transition: "transform 0.2s ease, box-shadow 0.2s ease",
         }}>
-          {isUser ? msg.content : renderMarkdown(msg.content, supersetUrl, onSupersetLinkClick)}
+          {isUser ? msg.content : renderMarkdown(msg.content, supersetUrl, onSupersetLinkClick, valueMap, setHighlightedRef)}
           {msg.streaming && (
             <span style={{
               display: "inline-block",
