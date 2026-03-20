@@ -31,7 +31,6 @@ export interface SqlRefLoc {
   queryIndex: number;
   rowIndex: number;
   colName: string;
-  value: string;
 }
 
 interface ChatEvent {
@@ -302,8 +301,7 @@ function renderMarkdown(
   text: string,
   supersetUrl: string,
   onSupersetLinkClick?: (url: string) => void,
-  valueMap?: Map<string, SqlRefLoc[]>,
-  onRef?: (locs: SqlRefLoc[]) => void,
+  refIndex?: SqlRefIndex,
 ): React.ReactNode {
   // Build a domain-check helper (same logic as the iframe whitelist) and a
   // bound inlineRender so every call site automatically gets the callbacks.
@@ -319,7 +317,7 @@ function renderMarkdown(
     } catch { return false; }
   };
   // Convenience wrapper — keeps all call sites below identical in shape
-  const ir = (t: string) => inlineRender(t, onSupersetLinkClick, isSupersetUrl, valueMap, onRef);
+  const ir = (t: string) => inlineRender(t, onSupersetLinkClick, isSupersetUrl, refIndex);
 
   // Pre-process: normalise [iframe] tokens so the block-level renderer always
   // sees them on their own bare line.
@@ -551,7 +549,7 @@ function renderMarkdown(
             {summaryText || "Details"}
           </summary>
           <div style={{ padding: "0 14px 12px", borderTop: "1px solid var(--md-outline-var)" }}>
-            {renderMarkdown(bodyLines.join("\n"), supersetUrl, onSupersetLinkClick, valueMap, onRef)}
+            {renderMarkdown(bodyLines.join("\n"), supersetUrl, onSupersetLinkClick, refIndex)}
           </div>
         </details>
       );
@@ -704,6 +702,9 @@ function renderMarkdown(
 
 const EXCLUDE_WORDS = new Set(["true", "false", "null", "yes", "no", "n/a", "none"]);
 
+const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const snakeToLabel = (s: string) => s.replace(/_/g, " ");
+
 /**
  * Generate all common regional reformats the LLM might apply to a numeric string.
  * Covers: US (7,081.50), EU (7.081,50), FR/CH (7 081,50), plain (7081.50),
@@ -769,7 +770,7 @@ function buildSqlValueMap(sqlRefs: SqlData[]): Map<string, SqlRefLoc[]> {
         if (val !== null && val !== undefined) {
           const str = String(val);
           if (str.length < 2 || EXCLUDE_WORDS.has(str.toLowerCase())) return;
-          addLoc(str, { queryIndex: qi, rowIndex: ri, colName: col, value: str });
+          addLoc(str, { queryIndex: qi, rowIndex: ri, colName: col });
         }
       });
     });
@@ -785,29 +786,42 @@ function buildSqlValueMap(sqlRefs: SqlData[]): Map<string, SqlRefLoc[]> {
   return map;
 }
 
+/** Pre-compiled index: map + regex compiled once, reused across all text segments. */
+interface SqlRefIndex {
+  map: Map<string, SqlRefLoc[]>;
+  pattern: RegExp;
+  onRef: (locs: SqlRefLoc[]) => void;
+}
+
+function buildSqlRefIndex(sqlRefs: SqlData[], onRef: (locs: SqlRefLoc[]) => void): SqlRefIndex | undefined {
+  const map = buildSqlValueMap(sqlRefs);
+  if (map.size === 0) return undefined;
+  const values = [...map.keys()].sort((a, b) => b.length - a.length);
+  const pattern = new RegExp(`(?<![\\w.])(${values.map(escapeRegExp).join("|")})(?![\\w.])`, "g");
+  return { map, pattern, onRef };
+}
+
 function applyValueRefs(
   text: string,
-  valueMap: Map<string, SqlRefLoc[]> | undefined,
-  onRef: ((locs: SqlRefLoc[]) => void) | undefined,
+  refIndex: SqlRefIndex | undefined,
   getKey: () => number,
 ): React.ReactNode[] {
-  if (!valueMap || valueMap.size === 0 || !onRef || text.length === 0) return [text];
-  const values = [...valueMap.keys()].sort((a, b) => b.length - a.length);
-  const escaped = values.map(v => v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-  const pattern = new RegExp(`(?<![\\w.])(${escaped.join("|")})(?![\\w.])`, "g");
+  if (!refIndex || text.length === 0) return [text];
+  refIndex.pattern.lastIndex = 0; // reset: `g` flag makes regex stateful across calls
+  const { map, pattern, onRef } = refIndex;
   const nodes: React.ReactNode[] = [];
   let lastIndex = 0;
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(text)) !== null) {
     if (match.index > lastIndex) nodes.push(text.slice(lastIndex, match.index));
-    const locs = valueMap.get(match[1])!;
+    const locs = map.get(match[1])!;
     const isNum = !isNaN(Number(match[1].replace(/[,. ]/g, "")));
     // Build tooltip: list all matching cells (deduped by query+col)
     const seen = new Set<string>();
     const tipParts: string[] = [];
     for (const loc of locs) {
       const k = `${loc.queryIndex}|${loc.colName}`;
-      if (!seen.has(k)) { seen.add(k); tipParts.push(`Q${loc.queryIndex + 1} · ${loc.colName.replace(/_/g, " ")}`); }
+      if (!seen.has(k)) { seen.add(k); tipParts.push(`Q${loc.queryIndex + 1} · ${snakeToLabel(loc.colName)}`); }
     }
     nodes.push(
       <span
@@ -837,8 +851,7 @@ function inlineRender(
   text: string,
   onSupersetLink?: (url: string) => void,
   isSupersetUrlFn?: (url: string) => boolean,
-  valueMap?: Map<string, SqlRefLoc[]>,
-  onRef?: (locs: SqlRefLoc[]) => void,
+  refIndex?: SqlRefIndex,
 ): React.ReactNode {
   // Handles **bold**, *italic*, `code`, and [text](url) links.
   // [text](url) links pointing to the Superset domain open in the Superset
@@ -864,13 +877,13 @@ function inlineRender(
     const minIdx = Math.min(...candidates);
 
     if (minIdx === Infinity) {
-      parts.push(...applyValueRefs(remaining, valueMap, onRef, getKey));
+      parts.push(...applyValueRefs(remaining, refIndex, getKey));
       break;
     }
 
     // Text before the marker
     if (minIdx > 0) {
-      parts.push(...applyValueRefs(remaining.slice(0, minIdx), valueMap, onRef, getKey));
+      parts.push(...applyValueRefs(remaining.slice(0, minIdx), refIndex, getKey));
       remaining = remaining.slice(minIdx);
       continue;
     }
@@ -879,7 +892,7 @@ function inlineRender(
     if (remaining.startsWith("**")) {
       const end = remaining.indexOf("**", 2);
       if (end !== -1) {
-        parts.push(<strong key={getKey()}>{applyValueRefs(remaining.slice(2, end), valueMap, onRef, getKey)}</strong>);
+        parts.push(<strong key={getKey()}>{applyValueRefs(remaining.slice(2, end), refIndex, getKey)}</strong>);
         remaining = remaining.slice(end + 2);
         continue;
       }
@@ -889,7 +902,7 @@ function inlineRender(
     if (remaining.startsWith("*") && !remaining.startsWith("**")) {
       const end = remaining.indexOf("*", 1);
       if (end !== -1) {
-        parts.push(<em key={getKey()}>{applyValueRefs(remaining.slice(1, end), valueMap, onRef, getKey)}</em>);
+        parts.push(<em key={getKey()}>{applyValueRefs(remaining.slice(1, end), refIndex, getKey)}</em>);
         remaining = remaining.slice(end + 1);
         continue;
       }
@@ -1010,7 +1023,7 @@ function isSqlDataEvent(e: ChatEvent): e is ChatEvent & Required<Pick<ChatEvent,
 // ── SQL Result sub-block (used inside SqlResultsZone) ────────────
 function SqlResultCard({ data, index, highlightedRef }: { data: SqlData; index: number; highlightedRef?: SqlRefLoc[] | null }) {
   const [open, setOpen] = useState(false);
-  useEffect(() => { if (highlightedRef && highlightedRef.length > 0) setOpen(true); }, [highlightedRef]);
+  useEffect(() => { if (highlightedRef?.length) setOpen(true); }, [highlightedRef]);
   const visibleRows = useMemo(() => (open ? data.rows.slice(0, SQL_CARD_MAX_ROWS) : []), [open, data.rows]);
   const truncated = data.rowcount > SQL_CARD_MAX_ROWS;
   const label = `Query ${index + 1}`;
@@ -1073,7 +1086,7 @@ function SqlResultCard({ data, index, highlightedRef }: { data: SqlData; index: 
                     borderRight: ci < data.columns.length - 1 ? "1px solid var(--md-outline-var)" : "none",
                     borderBottom: "1px solid var(--md-outline-var)",
                   }}>
-                    {col.replace(/_/g, " ")}
+                    {snakeToLabel(col)}
                   </th>
                 ))}
               </tr>
@@ -1130,7 +1143,12 @@ function SqlResultCard({ data, index, highlightedRef }: { data: SqlData; index: 
 // ── SQL Results Zone (groups all SQL results in one collapsible) ──
 function SqlResultsZone({ sqlRefs, highlightedRef }: { sqlRefs: SqlData[]; highlightedRef?: SqlRefLoc[] | null }) {
   const [open, setOpen] = useState(false);
-  useEffect(() => { if (highlightedRef && highlightedRef.length > 0) setOpen(true); }, [highlightedRef]);
+  useEffect(() => { if (highlightedRef?.length) setOpen(true); }, [highlightedRef]);
+  // Pre-filter per card index so children get stable null instead of a fresh [] each render
+  const cardRefs = useMemo(
+    () => sqlRefs.map((_, i) => highlightedRef?.filter(r => r.queryIndex === i) || null),
+    [sqlRefs, highlightedRef],
+  );
   if (sqlRefs.length === 0) return null;
 
   const totalRows = sqlRefs.reduce((s, d) => s + d.rowcount, 0);
@@ -1178,7 +1196,7 @@ function SqlResultsZone({ sqlRefs, highlightedRef }: { sqlRefs: SqlData[]; highl
           {sqlRefs.map((data, i) => (
             <React.Fragment key={i}>
               {i > 0 && <div style={{ height: "1px", background: "var(--md-outline-var)", opacity: 0.5, margin: "0 14px" }} />}
-              <SqlResultCard data={data} index={i} highlightedRef={highlightedRef?.filter(r => r.queryIndex === i) ?? null} />
+              <SqlResultCard data={data} index={i} highlightedRef={cardRefs[i]} />
             </React.Fragment>
           ))}
           <div style={{
@@ -1237,12 +1255,12 @@ function ToolStep({ tc }: { tc: ToolCall }) {
               animation: "spin 0.8s linear infinite",
               flexShrink: 0,
             }} />
-            <span style={{ opacity: 0.75 }}>{tc.name.replace(/_/g, " ")}</span>
+            <span style={{ opacity: 0.75 }}>{snakeToLabel(tc.name)}</span>
           </>
         ) : isNav ? (
           <span>↗ {tc.name === "navigate_superset_dashboard" ? `Dashboard ${tc.args.dashboardId ?? ""}` : `Chart ${tc.args.chartId ?? ""}`}</span>
         ) : (
-          <span>✓ {tc.name.replace(/_/g, " ")}</span>
+          <span>✓ {snakeToLabel(tc.name)}</span>
         )}
         <span style={{ fontSize: 11, opacity: 0.5, marginLeft: "auto", flexShrink: 0, transition: "transform 0.2s" }}>{open ? "▴" : "▾"}</span>
       </button>
@@ -1352,9 +1370,9 @@ function MessageBubble({ msg, supersetUrl, onSuggestionClick, onSupersetLinkClic
   const isUser = msg.role === "user";
   const isAssistant = msg.role === "assistant";
   const [highlightedRef, setHighlightedRef] = useState<SqlRefLoc[] | null>(null);
-  const valueMap = useMemo(
-    () => (msg.sqlRefs && msg.sqlRefs.length > 0 ? buildSqlValueMap(msg.sqlRefs) : undefined),
-    [msg.sqlRefs],
+  const refIndex = useMemo(
+    () => (msg.sqlRefs?.length ? buildSqlRefIndex(msg.sqlRefs, setHighlightedRef) : undefined),
+    [msg.sqlRefs], // setHighlightedRef is a stable React setter — safe to omit
   );
 
   return (
@@ -1386,7 +1404,7 @@ function MessageBubble({ msg, supersetUrl, onSuggestionClick, onSupersetLinkClic
           boxShadow: isUser ? "0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04)" : "none",
           transition: "transform 0.2s ease, box-shadow 0.2s ease",
         }}>
-          {isUser ? msg.content : renderMarkdown(msg.content, supersetUrl, onSupersetLinkClick, valueMap, setHighlightedRef)}
+          {isUser ? msg.content : renderMarkdown(msg.content, supersetUrl, onSupersetLinkClick, refIndex)}
           {msg.streaming && (
             <span style={{
               display: "inline-block",
