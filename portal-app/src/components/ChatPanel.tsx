@@ -704,17 +704,64 @@ function renderMarkdown(
 
 const EXCLUDE_WORDS = new Set(["true", "false", "null", "yes", "no", "n/a", "none"]);
 
+/**
+ * Generate all common regional reformats the LLM might apply to a numeric string.
+ * Covers: US (7,081.50), EU (7.081,50), FR/CH (7 081,50), plain (7081.50),
+ * plus up to 3 extra trailing decimal zeros.
+ */
+function numericVariants(str: string): string[] {
+  const num = parseFloat(str);
+  if (isNaN(num) || !isFinite(num)) return [];
+
+  const variants = new Set<string>();
+  const dotIdx = str.indexOf(".");
+  const origDecimals = dotIdx >= 0 ? str.length - dotIdx - 1 : 0;
+  const abs = Math.abs(num);
+  const sign = num < 0 ? "-" : "";
+
+  // Format integer part with a given thousands separator
+  const fmtInt = (sep: string): string => {
+    const s = String(Math.trunc(abs));
+    if (s.length <= 3 || sep === "") return s;
+    return s.replace(/\B(?=(\d{3})+(?!\d))/g, sep);
+  };
+
+  // Thousands sep × decimal sep × decimal precision combinations
+  const SEP_PAIRS: [string, string][] = [
+    [",", "."],  // US/UK:  7,081.50
+    [".", ","],  // EU:     7.081,50
+    [" ", ","],  // FR/CH:  7 081,50
+    [" ", "."],  // intl:   7 081.50
+    ["",  "."],  // plain period decimal
+    ["",  ","],  // plain comma decimal
+  ];
+
+  for (let d = origDecimals; d <= origDecimals + 3; d++) {
+    const decStr = abs.toFixed(d).split(".")[1] ?? "";
+    for (const [tSep, dSep] of SEP_PAIRS) {
+      if (tSep === dSep && tSep !== "") continue; // avoid ambiguous "7,081,50"
+      const intPart = fmtInt(tSep);
+      variants.add(sign + (d === 0 ? intPart : intPart + dSep + decStr));
+    }
+  }
+
+  variants.delete(str); // original is already in the map
+  return [...variants].filter(v => v.length >= 2);
+}
+
 function buildSqlValueMap(sqlRefs: SqlData[]): Map<string, SqlRefLoc> {
   const map = new Map<string, SqlRefLoc>();
+  const tryAdd = (str: string, loc: SqlRefLoc) => { if (!map.has(str)) map.set(str, loc); };
   sqlRefs.forEach((query, qi) => {
     query.rows.forEach((row, ri) => {
       query.columns.forEach((col) => {
         const val = row[col];
         if (val !== null && val !== undefined) {
           const str = String(val);
-          if (str.length >= 2 && !EXCLUDE_WORDS.has(str.toLowerCase()) && !map.has(str)) {
-            map.set(str, { queryIndex: qi, rowIndex: ri, colName: col, value: str });
-          }
+          if (str.length < 2 || EXCLUDE_WORDS.has(str.toLowerCase())) return;
+          const loc: SqlRefLoc = { queryIndex: qi, rowIndex: ri, colName: col, value: str };
+          tryAdd(str, loc);
+          for (const v of numericVariants(str)) tryAdd(v, loc);
         }
       });
     });
