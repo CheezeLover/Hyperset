@@ -66,7 +66,7 @@
             url: url,
             reason: reason || "unknown",
           },
-          "*" 
+          PORTAL_ORIGIN
         );
       }, 50);
     }
@@ -137,7 +137,10 @@
 
   // ── Listen for commands from the portal ────────────────────────
   window.addEventListener("message", function (event) {
-    PORTAL_ORIGIN = event.origin; // Update to exact origin (e.g. including correct dev port)
+    if (!isPortalOrigin(event.origin)) return;
+    // Refine PORTAL_ORIGIN to the exact origin (e.g. including correct dev port),
+    // safe to do now that we've validated the sender is the trusted portal host.
+    PORTAL_ORIGIN = event.origin;
 
     const msg = event.data;
     if (!msg || !msg.type) return;
@@ -155,10 +158,10 @@
           url: getBestCurrentUrl(),
           reason: "requested",
         },
-        "*"
+        event.origin
       );
     } else if (msg.type === "ping") {
-      window.parent.postMessage({ type: "pong" }, "*");
+      window.parent.postMessage({ type: "pong" }, event.origin);
     }
   });
 
@@ -312,8 +315,7 @@
     };
 
     if (window.parent && window.parent !== window) {
-      // Temporarily use * for targetOrigin to ensure delivery
-      window.parent.postMessage(payload, "*");
+      window.parent.postMessage(payload, PORTAL_ORIGIN);
     }
   }
 
@@ -334,7 +336,7 @@
 
   // Signal to portal that bridge is ready — scoped to PORTAL_ORIGIN only.
   if (window.parent && window.parent !== window) {
-    window.parent.postMessage({ type: "ready" }, "*");
+    window.parent.postMessage({ type: "ready" }, PORTAL_ORIGIN);
     notifyLocation("ready");
   }
 
