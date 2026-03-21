@@ -1,9 +1,3 @@
-# Hyperset
-
-A self-hosted analytics portal that brings your tools together under one roof — one domain, one login, one clean interface.
-
-It runs entirely in containers (Podman), requires no cloud services, and is designed to be extended without touching any shared code.
-
 ![Hyperset](docs/hero.svg)
 
 ---
@@ -70,8 +64,6 @@ chmod +x setup_podman.sh
 - Always use `https://superset.your-domain.internal`
 - Access through Caddy for automatic SSO login
 - **Do NOT** use direct port access - it bypasses authentication
-
-![Hyperset Architecture](docs/architecture.svg)
 
 ![Stack Overview](docs/stack-overview.svg)
 
