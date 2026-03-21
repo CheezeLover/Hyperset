@@ -23,7 +23,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
-PAGES_DIR = Path("/pages")
+PAGES_DIR = Path(os.environ.get("PAGES_DIR", "/pages"))
 log = logging.getLogger("hyperset-pages")
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(name)s  %(message)s")
 
