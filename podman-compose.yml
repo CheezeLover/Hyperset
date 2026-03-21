@@ -2,6 +2,9 @@
 # All stateless application services (Superset, portal, Caddy, MCP, pages).
 # Stateful backends (portal-db, superset-db, superset-redis) live in podman-compose.data.yml.
 #
+# File-based state (pages, Superset home, Caddy certs/config) is consolidated
+# into the single hyperset_data volume under /hyperset/ subfolders.
+#
 # Start both files together so depends_on resolves across files:
 #
 #   podman-compose -f podman-compose.data.yml -f podman-compose.yml up -d
@@ -46,6 +49,8 @@ services:
       - SECRET_KEY=${SUPERSET_SECRET_KEY:-CHANGE_ME_RUN_openssl_rand_base64_42}
       # Config file location (MUST be set for custom config to load)
       - SUPERSET_CONFIG_PATH=/app/pythonpath/superset_config_docker.py
+      # Superset home directory inside the shared file volume
+      - SUPERSET_HOME=/hyperset/superset-home
       # Hyperset integration
       - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
       - HYPERSET_ORIGIN=https://${HYPERSET_DOMAIN}
@@ -62,7 +67,7 @@ services:
       - ./Superset-Instance/superset_config_docker.py:/app/pythonpath/superset_config_docker.py:Z
       - ./theme.json:/app/pythonpath/theme.json:Z
       - ./logos/hyperset-logo.png:/app/superset/static/assets/images/superset-logo-horiz.png:Z
-      - superset_home:/app/superset_home
+      - hyperset_data:/hyperset
     networks:
       - hyperset-net
     # NOTE: No port binding here - Superset is accessed only through Caddy proxy
@@ -110,6 +115,7 @@ services:
       - REDIS_RESULTS_DB=1
       - SECRET_KEY=${SUPERSET_SECRET_KEY:-CHANGE_ME_RUN_openssl_rand_base64_42}
       - SUPERSET_CONFIG_PATH=/app/pythonpath/superset_config_docker.py
+      - SUPERSET_HOME=/hyperset/superset-home
       - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
       - HYPERSET_ORIGIN=https://${HYPERSET_DOMAIN}
       - HYPERSET_ADMIN_ROLE_HEADER=hyperset/admin
@@ -119,7 +125,7 @@ services:
     volumes:
       - ./Superset-Instance/superset_config_docker.py:/app/pythonpath/superset_config_docker.py:Z
       - ./theme.json:/app/pythonpath/theme.json:Z
-      - superset_home:/app/superset_home
+      - hyperset_data:/hyperset
     networks:
       - hyperset-net
     depends_on:
@@ -137,7 +143,7 @@ services:
 
   # ---------------------------------------------------------------------------
   # Superset Celery beat (scheduler)
-  # Schedule file written to superset_home volume (writable by the superset user)
+  # Schedule file written to superset-home subfolder (shared via hyperset_data volume)
   # ---------------------------------------------------------------------------
   superset-beat:
     build:
@@ -145,7 +151,7 @@ services:
       dockerfile: Dockerfile
     image: localhost/hyperset-superset:latest
     container_name: hyperset-superset-beat
-    command: ["celery", "--app=superset.tasks.celery_app:app", "beat", "-l", "WARNING", "--schedule", "/app/superset_home/celerybeat-schedule"]
+    command: ["celery", "--app=superset.tasks.celery_app:app", "beat", "-l", "WARNING", "--schedule", "/hyperset/superset-home/celerybeat-schedule"]
     environment:
       - DATABASE_DIALECT=postgresql
       - DATABASE_USER=superset
@@ -164,6 +170,7 @@ services:
       - REDIS_RESULTS_DB=1
       - SECRET_KEY=${SUPERSET_SECRET_KEY:-CHANGE_ME_RUN_openssl_rand_base64_42}
       - SUPERSET_CONFIG_PATH=/app/pythonpath/superset_config_docker.py
+      - SUPERSET_HOME=/hyperset/superset-home
       - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
       - HYPERSET_ORIGIN=https://${HYPERSET_DOMAIN}
       - HYPERSET_ADMIN_ROLE_HEADER=hyperset/admin
@@ -173,7 +180,7 @@ services:
     volumes:
       - ./Superset-Instance/superset_config_docker.py:/app/pythonpath/superset_config_docker.py:Z
       - ./theme.json:/app/pythonpath/theme.json:Z
-      - superset_home:/app/superset_home
+      - hyperset_data:/hyperset
     networks:
       - hyperset-net
     depends_on:
@@ -229,12 +236,13 @@ services:
       - REDIS_RESULTS_DB=1
       - SECRET_KEY=${SUPERSET_SECRET_KEY:-CHANGE_ME_RUN_openssl_rand_base64_42}
       - SUPERSET_CONFIG_PATH=/app/pythonpath/superset_config_docker.py
+      - SUPERSET_HOME=/hyperset/superset-home
     env_file:
       - ./.env
     volumes:
       - ./Superset-Instance/superset_config_docker.py:/app/pythonpath/superset_config_docker.py:Z
       - ./theme.json:/app/pythonpath/theme.json:Z
-      - superset_home:/app/superset_home
+      - hyperset_data:/hyperset
     networks:
       - hyperset-net
     depends_on:
@@ -258,6 +266,9 @@ services:
       - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
       - AUTH_CRYPTO_KEY=${AUTH_CRYPTO_KEY}
       - SUPERSET_UPSTREAM=http://hyperset-superset:8088
+      # Redirect Caddy's XDG dirs into the shared file volume subfolders
+      - XDG_DATA_HOME=/hyperset/caddy-data
+      - XDG_CONFIG_HOME=/hyperset/caddy-config
     env_file:
       - ./.env
     volumes:
@@ -266,8 +277,7 @@ services:
       - ./Caddy/bridge.js:/Caddy/bridge.js:Z
       - ./theme.json:/Caddy/theme.json:Z
       - ./logos:/Caddy/logos:Z
-      - caddy_data:/data/caddy
-      - caddy_config:/config
+      - hyperset_data:/hyperset
     networks:
       - hyperset-net
     restart: unless-stopped
@@ -281,8 +291,9 @@ services:
     container_name: hyperset-pages
     environment:
       - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
+      - PAGES_DIR=/hyperset/pages
     volumes:
-      - pages_data:/pages:Z
+      - hyperset_data:/hyperset
     networks:
       - hyperset-net
     restart: unless-stopped
@@ -323,7 +334,7 @@ services:
     environment:
       - MCP_SERVICE_SECRET=${MCP_SERVICE_SECRET}
       - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
-      - PAGES_DIR=/app/pages
+      - PAGES_DIR=/hyperset/pages
       - SUPERSET_MCP_URL=http://hyperset-superset-mcp:8000/mcp
       # LLM API (any OpenAI-compatible endpoint; overridable at runtime via the settings UI)
       - LLM_API_URL=${LLM_API_URL:-https://api.openai.com/v1}
@@ -336,7 +347,7 @@ services:
       - NODE_ENV=production
     volumes:
       - ./theme.json:/app/theme.json:Z
-      - pages_data:/app/pages:Z
+      - hyperset_data:/hyperset
     depends_on:
       portal-db:
         condition: service_healthy
@@ -349,8 +360,6 @@ services:
     networks:
       - hyperset-net
     restart: unless-stopped
-
-volumes: {}
 
 networks:
   hyperset-net:

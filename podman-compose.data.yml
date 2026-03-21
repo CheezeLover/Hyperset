@@ -3,6 +3,16 @@
 # All portal instances and Superset services share these backends, making the
 # rest of the stack fully stateless and horizontally scalable.
 #
+# Volume layout:
+#   portal_db_data   — portal PostgreSQL data
+#   superset_db_data — Superset PostgreSQL data
+#   superset_redis_data — Redis AOF / RDB snapshots
+#   hyperset_data    — all file-based state under /hyperset/:
+#     /hyperset/pages/        static pages content
+#     /hyperset/superset-home/ Superset home dir (celerybeat schedule, etc.)
+#     /hyperset/caddy-data/   Caddy TLS certificates (XDG_DATA_HOME)
+#     /hyperset/caddy-config/ Caddy config cache (XDG_CONFIG_HOME)
+#
 # Start order:
 #   podman-compose -f podman-compose.data.yml -f podman-compose.yml up -d
 
@@ -68,16 +78,17 @@ services:
     image: docker.io/library/busybox:latest
     container_name: hyperset-pages-volume-init
     volumes:
-      - pages_data:/data
+      - hyperset_data:/hyperset
       - ./Pages:/source/pages:ro,Z
     command: >
       sh -c "
-        chmod 755 /data && 
+        mkdir -p /hyperset/pages &&
+        chmod 755 /hyperset/pages &&
         if [ -d /source/pages ] && [ \"\$(ls -A /source/pages)\" ]; then
           echo 'Copying existing pages from ./Pages to shared volume...' &&
-          cp -r /source/pages/* /data/ &&
+          cp -r /source/pages/* /hyperset/pages/ &&
           echo 'Copied pages:' &&
-          ls -la /data/;
+          ls -la /hyperset/pages/;
         else
           echo 'No existing pages found in ./Pages';
         fi &&
@@ -88,10 +99,7 @@ volumes:
   portal_db_data:
   superset_db_data:
   superset_redis_data:
-  pages_data:
-  superset_home:
-  caddy_data:
-  caddy_config:
+  hyperset_data:
 
 networks:
   hyperset-net:
