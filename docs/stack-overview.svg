@@ -40,11 +40,16 @@
 <text x="440" y="200" text-anchor="middle" font-size="10" fill="#475569">Reverse proxy · TLS termination · JWT auth · SSO header injection</text>
 <text x="440" y="213" text-anchor="middle" font-size="9" fill="#94A3B8">Only container with host ports (:80, :443)</text>
 
-<!-- Arrows: Caddy → 4 services -->
-<line x1="320" y1="222" x2="147" y2="248" stroke="#93C5FD" stroke-width="1.5" marker-end="url(#ab)"/>
-<line x1="390" y1="222" x2="322" y2="248" stroke="#93C5FD" stroke-width="1.5" marker-end="url(#ab)"/>
-<line x1="490" y1="222" x2="557" y2="248" stroke="#93C5FD" stroke-width="1.5" marker-end="url(#ab)"/>
-<line x1="560" y1="222" x2="732" y2="248" stroke="#93C5FD" stroke-width="1.5" marker-end="url(#ab)"/>
+<!-- Caddy → services: T-bar distribution -->
+<!-- Vertical stem from Caddy bottom -->
+<line x1="440" y1="222" x2="440" y2="234" stroke="#93C5FD" stroke-width="1.5"/>
+<!-- Horizontal rail spanning all service centres -->
+<line x1="140" y1="234" x2="755" y2="234" stroke="#93C5FD" stroke-width="1.5"/>
+<!-- Vertical drops to each service box -->
+<line x1="140" y1="234" x2="140" y2="246" stroke="#93C5FD" stroke-width="1.5" marker-end="url(#ab)"/>
+<line x1="350" y1="234" x2="350" y2="246" stroke="#93C5FD" stroke-width="1.5" marker-end="url(#ab)"/>
+<line x1="560" y1="234" x2="560" y2="246" stroke="#93C5FD" stroke-width="1.5" marker-end="url(#ab)"/>
+<line x1="755" y1="234" x2="755" y2="246" stroke="#93C5FD" stroke-width="1.5" marker-end="url(#ab)"/>
 
 <!-- Service boxes: x=40,215,390,645 w=160 -->
 <!-- Portal -->
@@ -71,11 +76,11 @@
 <text x="755" y="281" text-anchor="middle" font-size="10" fill="#475569">LLM bridge · :8000</text>
 <text x="755" y="297" text-anchor="middle" font-size="9" font-weight="600" fill="#16A34A">No local state</text>
 
-<!-- Dashed arrows to stateful layer -->
+<!-- Dashed arrows to stateful layer (straight vertical) -->
 <line x1="140" y1="308" x2="140" y2="338" stroke="#94A3B8" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#ad)"/>
 <line x1="350" y1="308" x2="350" y2="338" stroke="#94A3B8" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#ad)"/>
-<line x1="560" y1="308" x2="658" y2="338" stroke="#94A3B8" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#ad)"/>
-<line x1="755" y1="308" x2="532" y2="338" stroke="#94A3B8" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#ad)"/>
+<line x1="560" y1="308" x2="560" y2="338" stroke="#94A3B8" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#ad)"/>
+<line x1="755" y1="308" x2="755" y2="338" stroke="#94A3B8" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#ad)"/>
 
 <!-- ═══ STATEFUL BAND ═══ -->
 <rect x="20" y="340" width="840" height="122" rx="10" fill="#FFFBEB" stroke="#D97706" stroke-width="2"/>
