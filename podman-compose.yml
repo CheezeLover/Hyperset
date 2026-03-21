@@ -350,10 +350,7 @@ services:
       - hyperset-net
     restart: unless-stopped
 
-volumes:
-  superset_home:
-  caddy_data:
-  caddy_config:
+volumes: {}
 
 networks:
   hyperset-net:

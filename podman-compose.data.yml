@@ -89,6 +89,9 @@ volumes:
   superset_db_data:
   superset_redis_data:
   pages_data:
+  superset_home:
+  caddy_data:
+  caddy_config:
 
 networks:
   hyperset-net:
