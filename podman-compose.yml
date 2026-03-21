@@ -77,6 +77,10 @@ services:
         condition: service_healthy
       superset-redis:
         condition: service_healthy
+      pages-volume-init:
+        condition: service_completed_successfully
+      pages-volume-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8088/health"]
       interval: 10s
@@ -133,6 +137,8 @@ services:
         condition: service_healthy
       superset-redis:
         condition: service_healthy
+      pages-volume-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "celery --app=superset.tasks.celery_app:app inspect ping -d celery@$$HOSTNAME"]
       interval: 30s
@@ -188,6 +194,8 @@ services:
         condition: service_healthy
       superset-redis:
         condition: service_healthy
+      pages-volume-init:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
@@ -250,6 +258,8 @@ services:
         condition: service_healthy
       superset-redis:
         condition: service_healthy
+      pages-volume-init:
+        condition: service_completed_successfully
     restart: "no"
 
   # ---------------------------------------------------------------------------
@@ -280,6 +290,9 @@ services:
       - hyperset_data:/hyperset
     networks:
       - hyperset-net
+    depends_on:
+      pages-volume-init:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
@@ -296,6 +309,9 @@ services:
       - hyperset_data:/hyperset
     networks:
       - hyperset-net
+    depends_on:
+      pages-volume-init:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
@@ -351,6 +367,8 @@ services:
     depends_on:
       portal-db:
         condition: service_healthy
+      pages-volume-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/config"]
       interval: 10s

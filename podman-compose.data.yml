@@ -71,9 +71,10 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # ── Shared pages volume initializer ───────────────────────────────────────
-  # Copies any existing pages from ./Pages into the shared volume on first run.
-  # This service exits immediately after initialization.
+  # ── Shared volume initializer ─────────────────────────────────────────────
+  # Runs as root (busybox default) to pre-create all hyperset_data subfolders
+  # with open permissions so unprivileged service containers can write to them.
+  # Also seeds pages from ./Pages on first run. Exits immediately after.
   pages-volume-init:
     image: docker.io/library/busybox:latest
     container_name: hyperset-pages-volume-init
@@ -82,8 +83,9 @@ services:
       - ./Pages:/source/pages:ro,Z
     command: >
       sh -c "
-        mkdir -p /hyperset/pages &&
-        chmod 755 /hyperset/pages &&
+        echo 'Creating hyperset_data subfolders...' &&
+        mkdir -p /hyperset/pages /hyperset/superset-home /hyperset/caddy-data /hyperset/caddy-config &&
+        chmod 777 /hyperset/pages /hyperset/superset-home /hyperset/caddy-data /hyperset/caddy-config &&
         if [ -d /source/pages ] && [ \"\$(ls -A /source/pages)\" ]; then
           echo 'Copying existing pages from ./Pages to shared volume...' &&
           cp -r /source/pages/* /hyperset/pages/ &&
@@ -92,7 +94,7 @@ services:
         else
           echo 'No existing pages found in ./Pages';
         fi &&
-        echo 'Pages volume initialized'"
+        echo 'Volume initialized'"
     restart: "no"
 
 volumes:
