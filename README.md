@@ -104,6 +104,26 @@ chmod +x setup_podman.sh
 - **All inter-service traffic stays on the internal network** (hyperset-net)
 - **Superset isolation:** Superset and its dependencies (PostgreSQL, Redis) are isolated within the podman network
 - **Security:** Header-based authentication with zero trust for direct Superset access
+- **Two-file compose split:** `podman-compose.data.yml` holds all stateful services; `podman-compose.yml` holds all stateless services that can be freely restarted or scaled
+
+### Volume Layout
+
+| Volume | File | Purpose | Cloud equivalent |
+|--------|------|---------|-----------------|
+| `portal_db_data` | `data.yml` | Portal PostgreSQL data | Managed DB (RDS, Cloud SQL…) |
+| `superset_db_data` | `data.yml` | Superset PostgreSQL data | Managed DB |
+| `superset_redis_data` | `data.yml` | Redis snapshots / AOF | Managed Redis (ElastiCache…) |
+| `hyperset_data` | `data.yml` | All file-based state (see below) | Object storage (S3, Blob…) |
+
+`hyperset_data` is a single volume shared by all stateless services, using subfolders:
+
+```
+/hyperset/
+├── pages/          ← static page content (portal + pages service)
+├── superset-home/  ← Superset home dir, Celery beat schedule
+├── caddy-data/     ← TLS certificates (XDG_DATA_HOME)
+└── caddy-config/   ← Caddy config cache (XDG_CONFIG_HOME)
+```
 
 ### Authentication Flow
 
@@ -264,10 +284,30 @@ cd Superset-Instance
 **Superset Database:**
 ```bash
 # Backup
-podman exec superset_db pg_dump -U superset superset > superset_backup.sql
+podman exec hyperset-superset-db pg_dump -U superset superset > superset_backup.sql
 
 # Restore
-cat superset_backup.sql | podman exec -i superset_db psql -U superset superset
+cat superset_backup.sql | podman exec -i hyperset-superset-db psql -U superset superset
+```
+
+**Portal Database:**
+```bash
+# Backup
+podman exec hyperset-portal-db pg_dump -U portal portal > portal_backup.sql
+
+# Restore
+cat portal_backup.sql | podman exec -i hyperset-portal-db psql -U portal portal
+```
+
+**File State (pages, TLS certs, Superset home):**
+```bash
+# Backup the entire hyperset_data volume
+podman run --rm -v hyperset_data:/hyperset -v $(pwd):/backup \
+  busybox tar czf /backup/hyperset_data_backup.tar.gz -C /hyperset .
+
+# Restore
+podman run --rm -v hyperset_data:/hyperset -v $(pwd):/backup \
+  busybox tar xzf /backup/hyperset_data_backup.tar.gz -C /hyperset
 ```
 
 **Caddy Users:**
@@ -277,7 +317,7 @@ cp Caddy/users.json users_backup.json
 
 # Restore
 cp users_backup.json Caddy/users.json
-podman-compose restart caddy
+podman-compose -f podman-compose.data.yml -f podman-compose.yml restart caddy
 ```
 
 ---
