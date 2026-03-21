@@ -69,6 +69,8 @@ chmod +x setup_podman.sh
 - Access through Caddy for automatic SSO login
 - **Do NOT** use direct port access - it bypasses authentication
 
+![Hyperset Architecture](architecture.svg)
+
 **6. Create your admin user:**
 
 ```
