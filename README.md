@@ -4,6 +4,8 @@ A self-hosted analytics portal that brings your tools together under one roof �
 
 It runs entirely in containers (Podman), requires no cloud services, and is designed to be extended without touching any shared code.
 
+![Hyperset](docs/hero.svg)
+
 ---
 
 ## 🚀 Quick Start
@@ -69,33 +71,9 @@ chmod +x setup_podman.sh
 - Access through Caddy for automatic SSO login
 - **Do NOT** use direct port access - it bypasses authentication
 
-![Hyperset Architecture](architecture.svg)
+![Hyperset Architecture](docs/architecture.svg)
 
-**6. Create your admin user:**
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        Hyperset Stack (Podman)                           │
-│                                                                          │
-│  Browser → Caddy (HTTPS, 80/443)  ←── ONLY external port exposed          │
-│                │                                                         │
-│                ├─► Portal (Next.js, :3000)                                │
-│                │       └─► Superset MCP (:8000)                           │
-│                │                                                         │
-│                ├─► Superset App (:8088) ←┐   Internal only               │
-│                │    (Apache Superset 6.0.0)│   (no external port)         │
-│                │                          │                               │
-│                ├─► Pages Service (:8001)   │                               │
-│                │                          │                               │
-│                └─► Auth Portal (caddy-security)                            │
-│                                           │                               │
-│  Internal Network: hyperset-net           │                               │
-│  ├─ hyperset-superset-db (PostgreSQL 15) ◄┘                               │
-│  ├─ hyperset-superset-redis (Redis 7)                                    │
-│  ├─ hyperset-superset-worker (Celery)                                    │
-│  └─ hyperset-superset-beat (Scheduler)                                   │
-└─────────────────────────────────────────────────────────────────────────┘
-```
+![Stack Overview](docs/stack-overview.svg)
 
 **Important:** Superset is NOT exposed on port 8088 externally. It can only be accessed through Caddy at `https://superset.your-domain.com` with SSO headers.
 
@@ -129,11 +107,7 @@ chmod +x setup_podman.sh
 
 ### Authentication Flow
 
-```
-User Browser → Caddy (HTTPS) → injects X-Token-User-* headers → Portal / Services
-                                                              ↓
-                            Caddy also injects X-Webauth-* headers → Superset (AUTH_REMOTE_USER)
-```
+![Authentication Flow](docs/auth-flow.svg)
 
 **Critical security rule:** Superset must **not** be directly internet-accessible. Only Caddy should reach it — it trusts the `X-Webauth-User` header unconditionally.
 

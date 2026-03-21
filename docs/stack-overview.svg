@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 480" font-family="'Segoe UI', system-ui, -apple-system, sans-serif">
+
+<defs>
+  <marker id="ag" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+    <polygon points="0 0, 8 3, 0 6" fill="#94A3B8"/>
+  </marker>
+  <marker id="ab" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+    <polygon points="0 0, 8 3, 0 6" fill="#93C5FD"/>
+  </marker>
+  <marker id="ad" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+    <polygon points="0 0, 8 3, 0 6" fill="#94A3B8"/>
+  </marker>
+</defs>
+
+<!-- Background -->
+<rect width="880" height="480" fill="#F8FAFC"/>
+
+<!-- Title -->
+<text x="440" y="28" text-anchor="middle" font-size="17" font-weight="700" fill="#0F172A">Hyperset — Service Map</text>
+<text x="440" y="46" text-anchor="middle" font-size="11" fill="#64748B">Caddy is the only container with host ports — all other services communicate on the internal network</text>
+
+<!-- Browser -->
+<rect x="340" y="60" width="200" height="44" rx="8" fill="white" stroke="#CBD5E1" stroke-width="1.5"/>
+<text x="440" y="78" text-anchor="middle" font-size="12" font-weight="600" fill="#334155">Browser / Client</text>
+<text x="440" y="95" text-anchor="middle" font-size="10" fill="#94A3B8">HTTPS · port 80 / 443</text>
+
+<!-- Arrow: Browser → Caddy -->
+<line x1="440" y1="104" x2="440" y2="122" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#ag)"/>
+
+<!-- ═══ STATELESS BAND ═══ -->
+<rect x="20" y="124" width="840" height="196" rx="10" fill="#EFF6FF" stroke="#3B82F6" stroke-width="2"/>
+<rect x="20" y="124" width="840" height="30" rx="10" fill="#3B82F6"/>
+<rect x="20" y="140" width="840" height="14" fill="#3B82F6"/>
+<text x="42" y="144" font-size="10" font-weight="700" fill="white" letter-spacing="1.5">STATELESS</text>
+<text x="440" y="144" text-anchor="middle" font-size="10" fill="#BFDBFE">podman-compose.yml  ·  restart or replace any container safely</text>
+
+<!-- Caddy -->
+<rect x="270" y="166" width="340" height="56" rx="7" fill="white" stroke="#3B82F6" stroke-width="2"/>
+<text x="440" y="186" text-anchor="middle" font-size="13" font-weight="700" fill="#1D4ED8">Caddy</text>
+<text x="440" y="200" text-anchor="middle" font-size="10" fill="#475569">Reverse proxy · TLS termination · JWT auth · SSO header injection</text>
+<text x="440" y="213" text-anchor="middle" font-size="9" fill="#94A3B8">Only container with host ports (:80, :443)</text>
+
+<!-- Arrows: Caddy → 4 services -->
+<line x1="320" y1="222" x2="147" y2="248" stroke="#93C5FD" stroke-width="1.5" marker-end="url(#ab)"/>
+<line x1="390" y1="222" x2="322" y2="248" stroke="#93C5FD" stroke-width="1.5" marker-end="url(#ab)"/>
+<line x1="490" y1="222" x2="557" y2="248" stroke="#93C5FD" stroke-width="1.5" marker-end="url(#ab)"/>
+<line x1="560" y1="222" x2="732" y2="248" stroke="#93C5FD" stroke-width="1.5" marker-end="url(#ab)"/>
+
+<!-- Service boxes: x=40,215,390,645 w=160 -->
+<!-- Portal -->
+<rect x="40" y="248" width="200" height="60" rx="6" fill="white" stroke="#BFDBFE" stroke-width="1.5"/>
+<text x="140" y="267" text-anchor="middle" font-size="12" font-weight="600" fill="#1E40AF">Portal</text>
+<text x="140" y="281" text-anchor="middle" font-size="10" fill="#475569">Next.js · :3000</text>
+<text x="140" y="297" text-anchor="middle" font-size="9" font-weight="600" fill="#16A34A">No local state</text>
+
+<!-- Superset -->
+<rect x="250" y="248" width="200" height="60" rx="6" fill="white" stroke="#BFDBFE" stroke-width="1.5"/>
+<text x="350" y="267" text-anchor="middle" font-size="12" font-weight="600" fill="#1E40AF">Superset</text>
+<text x="350" y="281" text-anchor="middle" font-size="10" fill="#475569">App · Worker · Beat · :8088</text>
+<text x="350" y="297" text-anchor="middle" font-size="9" font-weight="600" fill="#16A34A">No local state</text>
+
+<!-- Pages -->
+<rect x="460" y="248" width="200" height="60" rx="6" fill="white" stroke="#BFDBFE" stroke-width="1.5"/>
+<text x="560" y="267" text-anchor="middle" font-size="12" font-weight="600" fill="#1E40AF">Pages Service</text>
+<text x="560" y="281" text-anchor="middle" font-size="10" fill="#475569">FastAPI · :8001</text>
+<text x="560" y="297" text-anchor="middle" font-size="9" font-weight="600" fill="#16A34A">No local state</text>
+
+<!-- MCP -->
+<rect x="670" y="248" width="170" height="60" rx="6" fill="white" stroke="#BFDBFE" stroke-width="1.5"/>
+<text x="755" y="267" text-anchor="middle" font-size="12" font-weight="600" fill="#1E40AF">Superset MCP</text>
+<text x="755" y="281" text-anchor="middle" font-size="10" fill="#475569">LLM bridge · :8000</text>
+<text x="755" y="297" text-anchor="middle" font-size="9" font-weight="600" fill="#16A34A">No local state</text>
+
+<!-- Dashed arrows to stateful layer -->
+<line x1="140" y1="308" x2="140" y2="338" stroke="#94A3B8" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#ad)"/>
+<line x1="350" y1="308" x2="350" y2="338" stroke="#94A3B8" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#ad)"/>
+<line x1="560" y1="308" x2="658" y2="338" stroke="#94A3B8" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#ad)"/>
+<line x1="755" y1="308" x2="532" y2="338" stroke="#94A3B8" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#ad)"/>
+
+<!-- ═══ STATEFUL BAND ═══ -->
+<rect x="20" y="340" width="840" height="122" rx="10" fill="#FFFBEB" stroke="#D97706" stroke-width="2"/>
+<rect x="20" y="340" width="840" height="30" rx="10" fill="#D97706"/>
+<rect x="20" y="356" width="840" height="14" fill="#D97706"/>
+<text x="42" y="360" font-size="10" font-weight="700" fill="white" letter-spacing="1.5">STATEFUL</text>
+<text x="440" y="360" text-anchor="middle" font-size="10" fill="#FEF3C7">podman-compose.data.yml  ·  single source of truth  ·  survives any container restart</text>
+
+<!-- Data boxes: same x as services above -->
+<!-- portal-db -->
+<rect x="40" y="378" width="200" height="70" rx="6" fill="white" stroke="#FCD34D" stroke-width="1.5"/>
+<text x="140" y="397" text-anchor="middle" font-size="11" font-weight="700" fill="#92400E">portal-db</text>
+<text x="140" y="411" text-anchor="middle" font-size="10" fill="#475569">PostgreSQL 15 + pgvector</text>
+<text x="140" y="425" text-anchor="middle" font-size="9" fill="#D97706" font-style="italic">portal_db_data</text>
+<text x="140" y="440" text-anchor="middle" font-size="9" font-weight="600" fill="#16A34A">→ Managed DB</text>
+
+<!-- superset-db -->
+<rect x="250" y="378" width="200" height="70" rx="6" fill="white" stroke="#FCD34D" stroke-width="1.5"/>
+<text x="350" y="397" text-anchor="middle" font-size="11" font-weight="700" fill="#92400E">superset-db + redis</text>
+<text x="350" y="411" text-anchor="middle" font-size="10" fill="#475569">PostgreSQL 15 · Redis 7</text>
+<text x="350" y="425" text-anchor="middle" font-size="9" fill="#D97706" font-style="italic">superset_db_data · superset_redis_data</text>
+<text x="350" y="440" text-anchor="middle" font-size="9" font-weight="600" fill="#16A34A">→ Managed DB + Redis</text>
+
+<!-- hyperset_data -->
+<rect x="460" y="378" width="380" height="70" rx="6" fill="white" stroke="#FCD34D" stroke-width="1.5"/>
+<text x="650" y="397" text-anchor="middle" font-size="11" font-weight="700" fill="#92400E">hyperset_data</text>
+<text x="650" y="411" text-anchor="middle" font-size="10" fill="#475569">/pages · /superset-home · /caddy-data · /caddy-config</text>
+<text x="650" y="425" text-anchor="middle" font-size="9" fill="#D97706" font-style="italic">single shared volume — all stateless services mount /hyperset</text>
+<text x="650" y="440" text-anchor="middle" font-size="9" font-weight="600" fill="#16A34A">→ S3 / Object Storage</text>
+
+<!-- Caption -->
+<text x="440" y="472" text-anchor="middle" font-size="10" fill="#94A3B8" font-style="italic">Rebuild or restart any service in the stateless layer — no data is lost</text>
+
+</svg>
