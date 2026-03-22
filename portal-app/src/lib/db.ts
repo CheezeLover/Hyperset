@@ -42,7 +42,18 @@ export function ensureSchema(): Promise<void> {
 }
 
 async function _runMigrations(): Promise<void> {
-  await sql`CREATE EXTENSION IF NOT EXISTS vector`;
+  // The vector extension is created by the DB init script as the superuser.
+  // IF NOT EXISTS makes this a no-op when it already exists (no privilege check).
+  // The catch handles the rare case where the portal user lacks CREATE privilege
+  // and the extension was somehow not pre-created.
+  await sql`CREATE EXTENSION IF NOT EXISTS vector`.catch((err: unknown) => {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/permission denied|must be superuser/i.test(msg)) {
+      console.warn("[db] vector extension not available — embedding features disabled:", msg);
+    } else {
+      throw err;
+    }
+  });
 
   await sql`
     CREATE TABLE IF NOT EXISTS hyperset_admin_settings (

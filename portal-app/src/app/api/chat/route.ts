@@ -60,7 +60,20 @@ const ALLOWED_MODEL_PARAMS = new Set([
 
 // ── GET: health / config check ───────────────────────────────────
 export const GET = async (req: NextRequest) => {
-  const s = await getAdminSettings();
+  let s: Awaited<ReturnType<typeof getAdminSettings>> = null;
+  try {
+    s = await getAdminSettings();
+  } catch (err) {
+    console.error("[chat] getAdminSettings failed:", err);
+    return NextResponse.json(
+      {
+        error: "Database unavailable",
+        detail: "The portal database is not reachable. Check that the DB container is running and PORTAL_DATABASE_URL is correct.",
+      },
+      { status: 503 }
+    );
+  }
+
   const apiKey = s?.apiKey ?? process.env.LLM_API_KEY ?? "";
 
   if (!apiKey) {
@@ -185,7 +198,13 @@ export const POST = async (req: NextRequest) => {
     return NextResponse.json({ error: "Rate limit exceeded. Please wait before sending more messages." }, { status: 429 });
   }
 
-  const s = await getAdminSettings();
+  let s: Awaited<ReturnType<typeof getAdminSettings>> = null;
+  try {
+    s = await getAdminSettings();
+  } catch (err) {
+    console.error("[chat] getAdminSettings failed:", err);
+    return NextResponse.json({ error: "Database unavailable" }, { status: 503 });
+  }
   const apiUrl      = s?.apiUrl       ?? process.env.LLM_API_URL       ?? "https://api.openai.com/v1";
   const apiKey      = s?.apiKey       ?? process.env.LLM_API_KEY       ?? "";
   const model       = s?.model        ?? process.env.LLM_MODEL        ?? "gpt-4o";
