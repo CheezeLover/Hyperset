@@ -4,10 +4,9 @@
 # rest of the stack fully stateless and horizontally scalable.
 #
 # Volume layout:
-#   portal_db_data   — portal PostgreSQL data
-#   superset_db_data — Superset PostgreSQL data
+#   hyperset_db_data    — single PostgreSQL instance (schemas: portal, superset)
 #   superset_redis_data — Redis AOF / RDB snapshots
-#   hyperset_data    — all file-based state under /hyperset/:
+#   hyperset_data       — all file-based state under /hyperset/:
 #     /hyperset/pages/        static pages content
 #     /hyperset/superset-home/ Superset home dir (celerybeat schedule, etc.)
 #     /hyperset/caddy-data/   Caddy TLS certificates (XDG_DATA_HOME)
@@ -17,40 +16,30 @@
 #   podman-compose -f podman-compose.data.yml -f podman-compose.yml up -d
 
 services:
-  # ── Portal application database ──────────────────────────────────────────
-  # Stores admin settings, page settings, and knowledge-base documents.
-  portal-db:
+  # ── Shared PostgreSQL instance ────────────────────────────────────────────
+  # Hosts two isolated schemas:
+  #   portal   — admin settings, page settings, knowledge-base documents
+  #   superset — Superset metadata (dashboards, charts, users, …)
+  # Each schema has its own dedicated user with search_path set accordingly.
+  # The db-init/01-init.sh script bootstraps schemas, users and privileges on
+  # first start via /docker-entrypoint-initdb.d.
+  db:
     image: docker.io/pgvector/pgvector:pg15
-    container_name: hyperset-portal-db
+    container_name: hyperset-db
     environment:
-      - POSTGRES_USER=portal
-      - POSTGRES_PASSWORD=${PORTAL_DATABASE_PASSWORD:?PORTAL_DATABASE_PASSWORD must be set in .env}
-      - POSTGRES_DB=portal
-    volumes:
-      - portal_db_data:/var/lib/postgresql/data
-    networks:
-      - hyperset-net
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U portal -d portal"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
-  # ── Superset metadata database ────────────────────────────────────────────
-  superset-db:
-    image: docker.io/library/postgres:15-alpine
-    container_name: hyperset-superset-db
-    environment:
-      - POSTGRES_USER=superset
+      - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
-      - POSTGRES_DB=superset
+      - POSTGRES_DB=hyperset
+      # Passed through so the init script can create the two app users
+      - PORTAL_DATABASE_PASSWORD=${PORTAL_DATABASE_PASSWORD:?PORTAL_DATABASE_PASSWORD must be set in .env}
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD}
     volumes:
-      - superset_db_data:/var/lib/postgresql/data
+      - hyperset_db_data:/var/lib/postgresql/data
+      - ./db-init:/docker-entrypoint-initdb.d:ro,Z
     networks:
       - hyperset-net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U superset -d superset"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d hyperset"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -98,8 +87,7 @@ services:
     restart: "no"
 
 volumes:
-  portal_db_data:
-  superset_db_data:
+  hyperset_db_data:
   superset_redis_data:
   hyperset_data:
 

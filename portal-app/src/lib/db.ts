@@ -22,7 +22,7 @@ export const sql: SqlClient =
   globalThis.__pgSql ??
   postgres(
     process.env.PORTAL_DATABASE_URL ??
-      "postgresql://portal:portal@hyperset-portal-db:5432/portal",
+      "postgresql://portal:portal@hyperset-db:5432/hyperset",
     { max: 10 },
   );
 
