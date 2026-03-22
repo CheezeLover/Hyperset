@@ -1,6 +1,6 @@
 # podman-compose.yml
 # All stateless application services (Superset, portal, Caddy, MCP, pages).
-# Stateful backends (db, superset-redis) live in podman-compose.data.yml.
+# Stateful backends (portal-db, superset-db, superset-redis) live in podman-compose.data.yml.
 #
 # File-based state (pages, Superset home, Caddy certs/config) is consolidated
 # into the single hyperset_data volume under /hyperset/ subfolders.
@@ -25,21 +25,21 @@ services:
       - DATABASE_DIALECT=postgresql
       - DATABASE_USER=superset
       - DATABASE_PASSWORD=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
-      - DATABASE_HOST=hyperset-db
+      - DATABASE_HOST=hyperset-superset-db
       - DATABASE_PORT=5432
-      - DATABASE_DB=hyperset
+      - DATABASE_DB=superset
       # Also set DB_* vars for compatibility
-      - DB_HOST=hyperset-db
+      - DB_HOST=hyperset-superset-db
       - DB_PORT=5432
-      - DB_NAME=hyperset
+      - DB_NAME=superset
       - DB_USER=superset
       - DB_PASS=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
       # Examples database (same as main for integrated deployment)
       - EXAMPLES_USER=superset
       - EXAMPLES_PASSWORD=superset
-      - EXAMPLES_HOST=hyperset-db
+      - EXAMPLES_HOST=hyperset-superset-db
       - EXAMPLES_PORT=5432
-      - EXAMPLES_DB=hyperset
+      - EXAMPLES_DB=superset
       # Redis configuration
       - REDIS_HOST=hyperset-superset-redis
       - REDIS_PORT=6379
@@ -73,10 +73,12 @@ services:
     # NOTE: No port binding here - Superset is accessed only through Caddy proxy
     # at https://superset.${HYPERSET_DOMAIN} with SSO headers
     depends_on:
-      db:
+      superset-db:
         condition: service_healthy
       superset-redis:
         condition: service_healthy
+      pages-volume-init:
+        condition: service_completed_successfully
       pages-volume-init:
         condition: service_completed_successfully
     healthcheck:
@@ -103,12 +105,12 @@ services:
       - DATABASE_DIALECT=postgresql
       - DATABASE_USER=superset
       - DATABASE_PASSWORD=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
-      - DATABASE_HOST=hyperset-db
+      - DATABASE_HOST=hyperset-superset-db
       - DATABASE_PORT=5432
-      - DATABASE_DB=hyperset
-      - DB_HOST=hyperset-db
+      - DATABASE_DB=superset
+      - DB_HOST=hyperset-superset-db
       - DB_PORT=5432
-      - DB_NAME=hyperset
+      - DB_NAME=superset
       - DB_USER=superset
       - DB_PASS=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
       - REDIS_HOST=hyperset-superset-redis
@@ -131,7 +133,7 @@ services:
     networks:
       - hyperset-net
     depends_on:
-      db:
+      superset-db:
         condition: service_healthy
       superset-redis:
         condition: service_healthy
@@ -160,12 +162,12 @@ services:
       - DATABASE_DIALECT=postgresql
       - DATABASE_USER=superset
       - DATABASE_PASSWORD=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
-      - DATABASE_HOST=hyperset-db
+      - DATABASE_HOST=hyperset-superset-db
       - DATABASE_PORT=5432
-      - DATABASE_DB=hyperset
-      - DB_HOST=hyperset-db
+      - DATABASE_DB=superset
+      - DB_HOST=hyperset-superset-db
       - DB_PORT=5432
-      - DB_NAME=hyperset
+      - DB_NAME=superset
       - DB_USER=superset
       - DB_PASS=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
       - REDIS_HOST=hyperset-superset-redis
@@ -188,7 +190,7 @@ services:
     networks:
       - hyperset-net
     depends_on:
-      db:
+      superset-db:
         condition: service_healthy
       superset-redis:
         condition: service_healthy
@@ -228,12 +230,12 @@ services:
       - DATABASE_DIALECT=postgresql
       - DATABASE_USER=superset
       - DATABASE_PASSWORD=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
-      - DATABASE_HOST=hyperset-db
+      - DATABASE_HOST=hyperset-superset-db
       - DATABASE_PORT=5432
-      - DATABASE_DB=hyperset
-      - DB_HOST=hyperset-db
+      - DATABASE_DB=superset
+      - DB_HOST=hyperset-superset-db
       - DB_PORT=5432
-      - DB_NAME=hyperset
+      - DB_NAME=superset
       - DB_USER=superset
       - DB_PASS=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
       - REDIS_HOST=hyperset-superset-redis
@@ -252,7 +254,7 @@ services:
     networks:
       - hyperset-net
     depends_on:
-      db:
+      superset-db:
         condition: service_healthy
       superset-redis:
         condition: service_healthy
@@ -357,13 +359,13 @@ services:
       # Session encryption key for admin settings storage
       - SESSION_SECRET=${SESSION_SECRET}
       # Portal application database (admin settings, page settings, knowledge base)
-      - PORTAL_DATABASE_URL=postgresql://portal:${PORTAL_DATABASE_PASSWORD:?PORTAL_DATABASE_PASSWORD must be set in .env}@hyperset-db:5432/hyperset
+      - PORTAL_DATABASE_URL=postgresql://portal:${PORTAL_DATABASE_PASSWORD:?PORTAL_DATABASE_PASSWORD must be set in .env}@hyperset-portal-db:5432/portal
       - NODE_ENV=production
     volumes:
       - ./theme.json:/app/theme.json:Z
       - hyperset_data:/hyperset
     depends_on:
-      db:
+      portal-db:
         condition: service_healthy
       pages-volume-init:
         condition: service_completed_successfully
