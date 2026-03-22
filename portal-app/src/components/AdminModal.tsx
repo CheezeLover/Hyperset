@@ -1018,10 +1018,13 @@ export function AdminModal({ onClose }: AdminModalProps) {
           kbChunkOverlap: settings.kbChunkOverlap,
         }),
       });
-      if (!res.ok) throw new Error("Save failed");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(data.error ?? "Save failed");
+      }
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-    } catch { setSaveError("Failed to save settings"); }
+    } catch (err) { setSaveError(err instanceof Error ? err.message : "Failed to save settings"); }
     finally { setSaving(false); }
   };
 
