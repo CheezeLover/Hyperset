@@ -42,7 +42,13 @@ export function ensureSchema(): Promise<void> {
 }
 
 async function _runMigrations(): Promise<void> {
-  await sql`CREATE EXTENSION IF NOT EXISTS vector`;
+  // pgvector is installed by the superset-db init script (init-portal-schema.sh)
+  // running as superuser. The portal role has no CREATE EXTENSION privilege, so
+  // this is a best-effort call that succeeds on fresh DBs where the portal user
+  // has been granted superuser rights, and silently skips on integrated deploys.
+  await sql`CREATE EXTENSION IF NOT EXISTS vector`.catch(() => {
+    /* extension already exists or portal role lacks privilege — init script handles it */
+  });
 
   await sql`
     CREATE TABLE IF NOT EXISTS hyperset_admin_settings (

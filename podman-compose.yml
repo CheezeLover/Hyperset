@@ -358,14 +358,14 @@ services:
       - LLM_MODEL=${LLM_MODEL:-gpt-4o}
       # Session encryption key for admin settings storage
       - SESSION_SECRET=${SESSION_SECRET}
-      # Portal application database (admin settings, page settings, knowledge base)
-      - PORTAL_DATABASE_URL=postgresql://portal:${PORTAL_DATABASE_PASSWORD:?PORTAL_DATABASE_PASSWORD must be set in .env}@hyperset-portal-db:5432/portal
+      # Portal application database — portal schema inside the superset PG instance
+      - PORTAL_DATABASE_URL=postgresql://portal:${PORTAL_DATABASE_PASSWORD:?PORTAL_DATABASE_PASSWORD must be set in .env}@hyperset-superset-db:5432/superset
       - NODE_ENV=production
     volumes:
       - ./theme.json:/app/theme.json:Z
       - hyperset_data:/hyperset
     depends_on:
-      portal-db:
+      superset-db:
         condition: service_healthy
       pages-volume-init:
         condition: service_completed_successfully
