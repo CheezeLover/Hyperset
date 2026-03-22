@@ -7,6 +7,12 @@
  *
  * Schema migrations run once on first use — CREATE TABLE IF NOT EXISTS is
  * idempotent so multiple instances starting in parallel is safe.
+ *
+ * Privileged one-time setup (pgvector extension, portal role & schema) is
+ * handled by _runSetup(), which opens a short-lived admin connection using
+ * PORTAL_SETUP_DATABASE_URL.  When that variable is absent the step is
+ * skipped — useful for cloud deployments where provisioning is done externally
+ * (RDS, Cloud SQL, Supabase, etc.).  No shell script required.
  */
 
 import postgres from "postgres";
@@ -22,12 +28,12 @@ export const sql: SqlClient =
   globalThis.__pgSql ??
   postgres(
     process.env.PORTAL_DATABASE_URL ??
-      "postgresql://portal:portal@hyperset-portal-db:5432/portal",
+      "postgresql://portal:portal@hyperset-superset-db:5432/superset",
     {
       max: 10,
       // Include public in the search_path so that objects installed there by the
-      // superuser (e.g. the pgvector `vector` type) are visible to the portal role,
-      // which only owns the `portal` schema.
+      // superuser (e.g. the pgvector `vector` type from pgvector) are visible to
+      // the portal role, which only owns the `portal` schema.
       connection: { search_path: '"$user", public' },
     },
   );
@@ -47,14 +53,72 @@ export function ensureSchema(): Promise<void> {
   return _schemaInit;
 }
 
+/**
+ * Privileged one-time setup: install pgvector, create the `portal` role and
+ * schema, and grant the necessary permissions — all idempotently.
+ *
+ * Requires a DB admin connection string in PORTAL_SETUP_DATABASE_URL
+ * (e.g. the superset superuser).  When the variable is absent the function
+ * returns immediately, which is the right behaviour for cloud providers where
+ * the DBA provisions these objects out-of-band.
+ *
+ * The connection is opened for this function only and closed before returning.
+ */
+async function _runSetup(): Promise<void> {
+  const adminUrl = process.env.PORTAL_SETUP_DATABASE_URL;
+  if (!adminUrl) {
+    console.log("[db] PORTAL_SETUP_DATABASE_URL not set — skipping privileged setup");
+    return;
+  }
+
+  // Derive the portal role password from PORTAL_DATABASE_URL so we don't need
+  // a separate env var for it.
+  const portalUrl =
+    process.env.PORTAL_DATABASE_URL ??
+    "postgresql://portal:portal@hyperset-superset-db:5432/superset";
+  const portalPassword = new URL(portalUrl).password || "portal";
+
+  const admin = postgres(adminUrl, { max: 1 });
+  try {
+    console.log("[db] Running privileged setup via PORTAL_SETUP_DATABASE_URL…");
+
+    // ── pgvector extension ────────────────────────────────────────────────────
+    await admin`CREATE EXTENSION IF NOT EXISTS vector`.catch(() => {
+      /* already installed by a prior run or by the cloud provider */
+    });
+
+    // ── portal role ──────────────────────────────────────────────────────────
+    // Check first so we can use a parameterised CREATE (DO blocks can't take
+    // query parameters, which would force unsafe string interpolation).
+    const [{ exists: roleExists }] = await admin<[{ exists: boolean }]>`
+      SELECT EXISTS (
+        SELECT FROM pg_catalog.pg_roles WHERE rolname = 'portal'
+      ) AS exists
+    `;
+    if (!roleExists) {
+      await admin`CREATE ROLE portal WITH LOGIN PASSWORD ${portalPassword}`;
+      console.log("[db] Created portal role");
+    }
+
+    // ── portal schema ─────────────────────────────────────────────────────────
+    await admin`CREATE SCHEMA IF NOT EXISTS portal AUTHORIZATION portal`;
+    await admin`GRANT USAGE  ON SCHEMA portal TO portal`;
+    await admin`GRANT CREATE ON SCHEMA portal TO portal`;
+
+    // Default search_path for the role: portal first (owns the tables), then
+    // public (where pgvector registers its `vector` type).
+    await admin`ALTER ROLE portal SET search_path = portal, public`;
+
+    console.log("[db] Privileged setup complete");
+  } finally {
+    await admin.end();
+  }
+}
+
 async function _runMigrations(): Promise<void> {
-  // pgvector is installed by the superset-db init script (init-portal-schema.sh)
-  // running as superuser. The portal role has no CREATE EXTENSION privilege, so
-  // this is a best-effort call that succeeds on fresh DBs where the portal user
-  // has been granted superuser rights, and silently skips on integrated deploys.
-  await sql`CREATE EXTENSION IF NOT EXISTS vector`.catch(() => {
-    /* extension already exists or portal role lacks privilege — init script handles it */
-  });
+  // Privileged setup (extension + role + schema) — no-op when
+  // PORTAL_SETUP_DATABASE_URL is absent.
+  await _runSetup();
 
   await sql`
     CREATE TABLE IF NOT EXISTS hyperset_admin_settings (

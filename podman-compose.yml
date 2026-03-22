@@ -358,8 +358,13 @@ services:
       - LLM_MODEL=${LLM_MODEL:-gpt-4o}
       # Session encryption key for admin settings storage
       - SESSION_SECRET=${SESSION_SECRET}
-      # Portal application database — portal schema inside the superset PG instance
+      # Portal application database — portal schema inside the superset PG instance.
+      # PORTAL_SETUP_DATABASE_URL uses the DB admin (superset) credentials so the
+      # portal app can self-provision the extension, role, and schema on first boot
+      # without any shell init script.  Works identically on cloud providers: just
+      # point it at your admin/master connection string (RDS, Cloud SQL, Supabase…).
       - PORTAL_DATABASE_URL=postgresql://portal:${PORTAL_DATABASE_PASSWORD:?PORTAL_DATABASE_PASSWORD must be set in .env}@hyperset-superset-db:5432/superset
+      - PORTAL_SETUP_DATABASE_URL=postgresql://superset:${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}@hyperset-superset-db:5432/superset
       - NODE_ENV=production
     volumes:
       - ./theme.json:/app/theme.json:Z

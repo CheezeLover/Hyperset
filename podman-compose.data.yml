@@ -37,11 +37,10 @@ services:
       - POSTGRES_USER=superset
       - POSTGRES_PASSWORD=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
       - POSTGRES_DB=superset
-      # Forwarded so the init script can set the portal role password
-      - PORTAL_DATABASE_PASSWORD=${PORTAL_DATABASE_PASSWORD:?PORTAL_DATABASE_PASSWORD must be set in .env}
+      # Note: portal role/schema/extension setup is handled by the portal app
+      # itself on first boot via PORTAL_SETUP_DATABASE_URL — no init script needed.
     volumes:
       - superset_db_data:/var/lib/postgresql/data
-      - ./Superset-Instance/init-portal-schema.sh:/docker-entrypoint-initdb.d/init-portal-schema.sh:ro,Z
     networks:
       - hyperset-net
     healthcheck:
