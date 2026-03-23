@@ -17,6 +17,6 @@ RUN SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])") &
 
 # Verify installation
 RUN python -c "import psycopg2; print('psycopg2 OK:', psycopg2.__version__)"
-RUN python -c "import redbeat; print('redbeat OK:', redbeat.__version__)"
+RUN python -c "import redbeat; print('redbeat OK')"
 
 USER superset
