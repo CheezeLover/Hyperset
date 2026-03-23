@@ -10,7 +10,7 @@
  * tools/list and one POST per tool call.
  */
 
-const MCP_URL = process.env.SUPERSET_MCP_URL ?? "";
+const MCP_URL = process.env.SUPERSET_MCP_URL;
 if (!MCP_URL) throw new Error("SUPERSET_MCP_URL environment variable is required");
 
 // Required by the MCP Streamable HTTP spec
