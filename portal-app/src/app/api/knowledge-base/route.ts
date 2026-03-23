@@ -6,16 +6,14 @@ import {
   indexDocument,
 } from "@/lib/knowledge-base";
 import { getAdminSettings } from "@/lib/admin-settings";
-import { checkRateLimit } from "@/lib/utils";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 // ── Rate limiters ──────────────────────────────────────────────────────────────
 // Public read access: 30 req / 60 s per user
-const _readRateLimitMap = new Map<string, number[]>();
 const READ_RATE_LIMIT = 30;
 const READ_RATE_WINDOW = 60_000;
 
 // Upload (admin-only): 10 req / 60 s per user
-const _uploadRateLimitMap = new Map<string, number[]>();
 const UPLOAD_RATE_LIMIT = 10;
 const UPLOAD_RATE_WINDOW = 60_000;
 
@@ -35,7 +33,7 @@ export async function GET(request: NextRequest) {
   const user = getUserFromRequest(request);
   const email = user.email ?? "anonymous";
 
-  if (!checkRateLimit(_readRateLimitMap, READ_RATE_LIMIT, READ_RATE_WINDOW, email)) {
+  if (!await checkRateLimit("kb-read", READ_RATE_LIMIT, READ_RATE_WINDOW, email)) {
     return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
 
@@ -63,7 +61,7 @@ export async function POST(request: NextRequest) {
   if (denied) return denied;
 
   const user = getUserFromRequest(request);
-  if (!checkRateLimit(_uploadRateLimitMap, UPLOAD_RATE_LIMIT, UPLOAD_RATE_WINDOW, user.email!)) {
+  if (!await checkRateLimit("kb-upload", UPLOAD_RATE_LIMIT, UPLOAD_RATE_WINDOW, user.email!)) {
     return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
 

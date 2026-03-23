@@ -5,16 +5,14 @@ import {
   getKnowledgeDocumentContent,
   deleteKnowledgeDocument,
 } from "@/lib/knowledge-base";
-import { checkRateLimit } from "@/lib/utils";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 // ── Rate limiters ──────────────────────────────────────────────────────────────
 // Public read access: 30 req / 60 s per user
-const _readRateLimitMap = new Map<string, number[]>();
 const READ_RATE_LIMIT = 30;
 const READ_RATE_WINDOW = 60_000;
 
 // Delete (admin-only): 10 req / 60 s per user
-const _deleteRateLimitMap = new Map<string, number[]>();
 const DELETE_RATE_LIMIT = 10;
 const DELETE_RATE_WINDOW = 60_000;
 
@@ -37,7 +35,7 @@ export async function GET(
   const user = getUserFromRequest(request);
   const email = user.email ?? "anonymous";
 
-  if (!checkRateLimit(_readRateLimitMap, READ_RATE_LIMIT, READ_RATE_WINDOW, email)) {
+  if (!await checkRateLimit("kb-read", READ_RATE_LIMIT, READ_RATE_WINDOW, email)) {
     return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
 
@@ -71,7 +69,7 @@ export async function DELETE(
   if (denied) return denied;
 
   const user = getUserFromRequest(request);
-  if (!checkRateLimit(_deleteRateLimitMap, DELETE_RATE_LIMIT, DELETE_RATE_WINDOW, user.email!)) {
+  if (!await checkRateLimit("kb-delete", DELETE_RATE_LIMIT, DELETE_RATE_WINDOW, user.email!)) {
     return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
 
