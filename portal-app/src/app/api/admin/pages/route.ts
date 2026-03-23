@@ -6,8 +6,9 @@ import path from "path";
 
 const PAGES_DIR = process.env.PAGES_DIR ?? path.join(process.cwd(), "pages");
 
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit } from "@/lib/utils";
 
+const _rateLimitMap = new Map<string, number[]>();
 const RATE_LIMIT = 20;
 const RATE_WINDOW = 60_000;
 
@@ -52,7 +53,7 @@ export async function GET(request: NextRequest) {
   if (denied) return denied;
 
   const { email } = getUserFromRequest(request);
-  if (!await checkRateLimit("admin-pages", RATE_LIMIT, RATE_WINDOW, email)) {
+  if (!checkRateLimit(_rateLimitMap, RATE_LIMIT, RATE_WINDOW, email)) {
     return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
 
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
   if (denied) return denied;
 
   const { email } = getUserFromRequest(request);
-  if (!await checkRateLimit("admin-pages", RATE_LIMIT, RATE_WINDOW, email)) {
+  if (!checkRateLimit(_rateLimitMap, RATE_LIMIT, RATE_WINDOW, email)) {
     return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
 
@@ -144,7 +145,7 @@ export async function PUT(request: NextRequest) {
   if (denied) return denied;
 
   const { email } = getUserFromRequest(request);
-  if (!await checkRateLimit("admin-pages", RATE_LIMIT, RATE_WINDOW, email)) {
+  if (!checkRateLimit(_rateLimitMap, RATE_LIMIT, RATE_WINDOW, email)) {
     return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
 
@@ -198,7 +199,7 @@ export async function PATCH(request: NextRequest) {
   if (denied) return denied;
 
   const { email } = getUserFromRequest(request);
-  if (!await checkRateLimit("admin-pages", RATE_LIMIT, RATE_WINDOW, email)) {
+  if (!checkRateLimit(_rateLimitMap, RATE_LIMIT, RATE_WINDOW, email)) {
     return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
 
@@ -244,7 +245,7 @@ export async function DELETE(request: NextRequest) {
   if (denied) return denied;
 
   const { email } = getUserFromRequest(request);
-  if (!await checkRateLimit("admin-pages", RATE_LIMIT, RATE_WINDOW, email)) {
+  if (!checkRateLimit(_rateLimitMap, RATE_LIMIT, RATE_WINDOW, email)) {
     return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
 
