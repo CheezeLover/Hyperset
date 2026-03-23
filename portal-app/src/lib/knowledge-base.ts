@@ -15,7 +15,6 @@ const MAX_KB_SIZE_MB = 50;
 const MAX_DOC_SIZE_MB = 10;
 export const DEFAULT_CHUNK_SIZE = 1500;
 export const DEFAULT_CHUNK_OVERLAP = 200;
-const MAX_CONTENT_CACHE = 20; // max full document texts kept in memory per instance
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface KnowledgeDocument {
@@ -34,10 +33,6 @@ export interface ChunkSearchResult {
   content: string;
   similarity: number;
 }
-
-// ── In-memory caches ──────────────────────────────────────────────────────────
-let _docs: KnowledgeDocument[] | null = null;
-const _contentCache = new Map<string, string>();
 
 function generateId(): string {
   return crypto.randomBytes(8).toString("hex");
@@ -192,19 +187,16 @@ export async function semanticSearch(
 // ── Document CRUD ─────────────────────────────────────────────────────────────
 
 export async function getKnowledgeDocuments(): Promise<KnowledgeDocument[]> {
-  if (_docs !== null) return _docs;
   await ensureSchema();
   const rows = await sql<DbDocRow[]>`
     SELECT id, name, description, created_at, updated_at, size
     FROM hyperset_kb_documents
     ORDER BY created_at ASC
   `;
-  _docs = rows.map(rowToDoc);
-  return _docs;
+  return rows.map(rowToDoc);
 }
 
 export async function getKnowledgeDocument(id: string): Promise<KnowledgeDocument | null> {
-  if (_docs !== null) return _docs.find((d) => d.id === id) ?? null;
   await ensureSchema();
   const rows = await sql<DbDocRow[]>`
     SELECT id, name, description, created_at, updated_at, size
@@ -269,35 +261,21 @@ export async function addKnowledgeDocument(
     size: contentSize,
   };
 
-  if (_docs !== null) _docs.push(doc);
-  _contentCache.set(id, content);
-
   return doc;
 }
 
 export async function getKnowledgeDocumentContent(id: string): Promise<string | null> {
-  if (_contentCache.has(id)) return _contentCache.get(id)!;
   await ensureSchema();
   const rows = await sql<{ content: string }[]>`
     SELECT content FROM hyperset_kb_documents WHERE id = ${id} LIMIT 1
   `;
-  if (rows.length === 0) return null;
-  if (_contentCache.size >= MAX_CONTENT_CACHE) {
-    // Evict the oldest entry (Maps preserve insertion order)
-    _contentCache.delete(_contentCache.keys().next().value as string);
-  }
-  _contentCache.set(id, rows[0].content);
-  return rows[0].content;
+  return rows.length > 0 ? rows[0].content : null;
 }
 
 export async function deleteKnowledgeDocument(id: string): Promise<boolean> {
   await ensureSchema();
   const result = await sql`DELETE FROM hyperset_kb_documents WHERE id = ${id}`;
   if (result.count === 0) return false;
-
-  if (_docs !== null) _docs = _docs.filter((d) => d.id !== id);
-  _contentCache.delete(id);
-
   return true;
 }
 

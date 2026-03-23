@@ -21,7 +21,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from watchdog.events import FileSystemEventHandler
-from watchdog.observers import Observer
+from watchdog.observers.polling import PollingObserver as Observer
 
 PAGES_DIR = Path(os.environ.get("PAGES_DIR", "/pages"))
 log = logging.getLogger("hyperset-pages")
