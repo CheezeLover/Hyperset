@@ -74,7 +74,7 @@ chmod +x setup_podman.sh
 - **Caddy is the ONLY container with host port bindings** (80, 443)
 - **Port 8088 is NOT exposed** — all access goes through Caddy with SSO
 - **All inter-service traffic stays on the internal network** (hyperset-net)
-- **Superset isolation:** Superset and its dependencies (PostgreSQL, Redis) are isolated within the podman network
+- **Single PostgreSQL instance:** One PostgreSQL 15 + pgvector container hosts both Superset metadata (the `superset` database) and all portal data (the `portal` schema). The portal role has limited privileges — it only owns its own schema.
 - **Security:** Header-based authentication with zero trust for direct Superset access
 - **Two-file compose split:** `podman-compose.data.yml` holds all stateful services; `podman-compose.yml` holds all stateless services that can be freely restarted or scaled
 
@@ -82,8 +82,7 @@ chmod +x setup_podman.sh
 
 | Volume | File | Purpose | Cloud equivalent |
 |--------|------|---------|-----------------|
-| `portal_db_data` | `data.yml` | Portal PostgreSQL data | Managed DB (RDS, Cloud SQL…) |
-| `superset_db_data` | `data.yml` | Superset PostgreSQL data | Managed DB |
+| `superset_db_data` | `data.yml` | PostgreSQL 15 — Superset metadata **and** portal schema (admin settings, pages, knowledge base) | Managed DB (RDS, Cloud SQL…) |
 | `superset_redis_data` | `data.yml` | Redis snapshots / AOF | Managed Redis (ElastiCache…) |
 | `hyperset_data` | `data.yml` | All file-based state (see below) | Object storage (S3, Blob…) |
 
@@ -136,6 +135,16 @@ All variables live in the root `.env` file and are shared across containers via 
 | `AUTH_CRYPTO_KEY` | ✅ | — | 32-byte hex key for JWT signing and auth cookie encryption. Generate: `openssl rand -hex 32` |
 | `SESSION_SECRET` | ✅ | — | Min-32-char secret for iron-session cookie encryption (admin settings). Generate: `openssl rand -base64 32` |
 | `MCP_SERVICE_SECRET` | ✅ | — | Min-32-char HMAC secret shared between the portal and the MCP server for token signing. Generate: `openssl rand -hex 32` |
+
+### Database
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `DATABASE_PASSWORD` | ✅ | — | Password for the `superset` PostgreSQL superuser. Also used internally to provision the portal role. Generate: `openssl rand -hex 32` |
+| `PORTAL_DATABASE_PASSWORD` | ✅ | — | Password for the `portal` PostgreSQL role (limited privileges, owns only the `portal` schema). Generate: `openssl rand -hex 32` |
+| `SUPERSET_ADMIN_PASSWORD` | ✅ | — | Password for the Superset `admin` web UI account created by `superset-init`. |
+
+> **Self-provisioning:** On first boot the portal app automatically creates the `vector` extension, the `portal` role, and the `portal` schema inside the shared PostgreSQL instance using the `superset` superuser credentials (`PORTAL_SETUP_DATABASE_URL` is derived from `DATABASE_PASSWORD` automatically in the compose file). On cloud providers where this provisioning is done externally (RDS, Cloud SQL, Supabase…) simply leave `PORTAL_SETUP_DATABASE_URL` unset — the portal will skip setup and connect directly with `PORTAL_DATABASE_URL`.
 
 ### Superset Integration
 
@@ -201,7 +210,8 @@ These are only needed if you run the MCP server outside of podman-compose or nee
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `ADMIN_SETTINGS_PATH` | — | _(in-memory)_ | File path for persisting admin runtime settings across portal restarts. If unset, settings reset on restart. |
+| `PORTAL_DATABASE_URL` | — | _(derived from compose)_ | Full connection string for the portal role: `postgresql://portal:<PORTAL_DATABASE_PASSWORD>@hyperset-superset-db:5432/superset`. Set explicitly for cloud deployments. |
+| `PORTAL_SETUP_DATABASE_URL` | — | _(derived from compose)_ | Admin connection string used **once on first boot** to provision the pgvector extension, `portal` role, and `portal` schema. Omit when provisioning is done externally (RDS, Cloud SQL, Supabase). |
 
 ---
 
@@ -243,8 +253,8 @@ podman-compose up --build -d superset-mcp
 
 **Superset:**
 ```bash
-cd Superset-Instance
-./standalone-setup.sh  # Uses pinned version 6.0.0
+podman rm -f hyperset-superset hyperset-superset-worker hyperset-superset-beat
+podman-compose -f podman-compose.data.yml -f podman-compose.yml up --build -d superset-app superset-worker superset-beat
 ```
 
 ### Backup & Restore
@@ -258,13 +268,13 @@ podman exec hyperset-superset-db pg_dump -U superset superset > superset_backup.
 cat superset_backup.sql | podman exec -i hyperset-superset-db psql -U superset superset
 ```
 
-**Portal Database:**
+**Portal Data (portal schema inside superset-db):**
 ```bash
-# Backup
-podman exec hyperset-portal-db pg_dump -U portal portal > portal_backup.sql
+# Backup — dumps only the portal schema
+podman exec hyperset-superset-db pg_dump -U superset -n portal superset > portal_backup.sql
 
 # Restore
-cat portal_backup.sql | podman exec -i hyperset-portal-db psql -U portal portal
+cat portal_backup.sql | podman exec -i hyperset-superset-db psql -U superset superset
 ```
 
 **File State (pages, TLS certs, Superset home):**

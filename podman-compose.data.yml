@@ -4,10 +4,11 @@
 # rest of the stack fully stateless and horizontally scalable.
 #
 # Volume layout:
-#   portal_db_data   — portal PostgreSQL data
-#   superset_db_data — Superset PostgreSQL data
+#   superset_db_data    — single PostgreSQL 15 (pgvector) instance
+#                         • superset database  — Superset metadata
+#                         • portal schema      — portal admin settings, pages, knowledge base
 #   superset_redis_data — Redis AOF / RDB snapshots
-#   hyperset_data    — all file-based state under /hyperset/:
+#   hyperset_data       — all file-based state under /hyperset/:
 #     /hyperset/pages/        static pages content
 #     /hyperset/superset-home/ Superset home dir (celerybeat schedule, etc.)
 #     /hyperset/caddy-data/   Caddy TLS certificates (XDG_DATA_HOME)
@@ -17,36 +18,30 @@
 #   podman-compose -f podman-compose.data.yml -f podman-compose.yml up -d
 
 services:
-  # ── Portal application database ──────────────────────────────────────────
-  # Stores admin settings, page settings, and knowledge-base documents.
-  portal-db:
-    image: docker.io/pgvector/pgvector:pg15
-    container_name: hyperset-portal-db
-    environment:
-      - POSTGRES_USER=portal
-      - POSTGRES_PASSWORD=${PORTAL_DATABASE_PASSWORD:?PORTAL_DATABASE_PASSWORD must be set in .env}
-      - POSTGRES_DB=portal
-    volumes:
-      - portal_db_data:/var/lib/postgresql/data
-    networks:
-      - hyperset-net
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U portal -d portal"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
-  # ── Superset metadata database ────────────────────────────────────────────
+  # ── Superset metadata database + portal schema ───────────────────────────
+  # Single PostgreSQL 15 instance (pgvector image) that hosts:
+  #   • superset database  — Superset metadata tables
+  #   • portal schema      — portal app tables (admin settings, pages, knowledge base)
+  #
+  # The init-portal-schema.sh script (docker-entrypoint-initdb.d) creates
+  # the 'portal' role and schema on first boot.  It only runs once (when the
+  # data volume is empty); existing deployments must run it manually:
+  #
+  #   podman exec hyperset-superset-db \
+  #     psql -U superset -d superset \
+  #     -f /docker-entrypoint-initdb.d/init-portal-schema.sh
   superset-db:
-    image: docker.io/library/postgres:15-alpine
+    image: docker.io/pgvector/pgvector:pg15
     container_name: hyperset-superset-db
     environment:
       - POSTGRES_USER=superset
       - POSTGRES_PASSWORD=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
       - POSTGRES_DB=superset
+      # Forwarded so the init script can set the portal role password
+      - PORTAL_DATABASE_PASSWORD=${PORTAL_DATABASE_PASSWORD:?PORTAL_DATABASE_PASSWORD must be set in .env}
     volumes:
       - superset_db_data:/var/lib/postgresql/data
+      - ./Superset-Instance/init-portal-schema.sh:/docker-entrypoint-initdb.d/init-portal-schema.sh:ro,Z
     networks:
       - hyperset-net
     healthcheck:
@@ -98,7 +93,6 @@ services:
     restart: "no"
 
 volumes:
-  portal_db_data:
   superset_db_data:
   superset_redis_data:
   hyperset_data:

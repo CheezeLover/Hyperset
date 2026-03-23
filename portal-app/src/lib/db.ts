@@ -23,7 +23,13 @@ export const sql: SqlClient =
   postgres(
     process.env.PORTAL_DATABASE_URL ??
       "postgresql://portal:portal@hyperset-portal-db:5432/portal",
-    { max: 10 },
+    {
+      max: 10,
+      // Include public in the search_path so that objects installed there by the
+      // superuser (e.g. the pgvector `vector` type) are visible to the portal role,
+      // which only owns the `portal` schema.
+      connection: { search_path: '"$user", public' },
+    },
   );
 
 if (process.env.NODE_ENV !== "production") globalThis.__pgSql = sql;
@@ -42,7 +48,13 @@ export function ensureSchema(): Promise<void> {
 }
 
 async function _runMigrations(): Promise<void> {
-  await sql`CREATE EXTENSION IF NOT EXISTS vector`;
+  // pgvector is installed by the superset-db init script (init-portal-schema.sh)
+  // running as superuser. The portal role has no CREATE EXTENSION privilege, so
+  // this is a best-effort call that succeeds on fresh DBs where the portal user
+  // has been granted superuser rights, and silently skips on integrated deploys.
+  await sql`CREATE EXTENSION IF NOT EXISTS vector`.catch(() => {
+    /* extension already exists or portal role lacks privilege — init script handles it */
+  });
 
   await sql`
     CREATE TABLE IF NOT EXISTS hyperset_admin_settings (

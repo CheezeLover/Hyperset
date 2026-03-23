@@ -170,20 +170,26 @@ export async function POST(request: NextRequest) {
   };
 
   console.log("[admin/api] Calling setAdminSettings...");
-  await setAdminSettings({
-    apiUrl:             body.apiUrl             !== undefined ? body.apiUrl             : prev.apiUrl,
-    apiKey:             body.apiKey && body.apiKey !== "***" ? body.apiKey              : prev.apiKey,
-    model:              body.model              !== undefined ? body.model              : prev.model,
-    systemPrompt:       body.systemPrompt       !== undefined ? body.systemPrompt       : prev.systemPrompt,
-    modelParams:        body.modelParams        !== undefined ? body.modelParams        : prev.modelParams,
-    maxTurns:           body.maxTurns           !== undefined ? clamp(body.maxTurns,          1, 200,   40) : prev.maxTurns,
-    maxToolResultChars: body.maxToolResultChars !== undefined ? clamp(body.maxToolResultChars, 500, 50000, 3000) : prev.maxToolResultChars,
-    maxHistoryMessages: body.maxHistoryMessages !== undefined ? clamp(body.maxHistoryMessages, 4, 200,   20) : prev.maxHistoryMessages,
-    cleanupDelayMinutes: body.cleanupDelayMinutes !== undefined ? clampMinutes(body.cleanupDelayMinutes, 120) : prev.cleanupDelayMinutes,
-    kbTopK:              body.kbTopK             !== undefined ? clamp(body.kbTopK,        1, 20,   6)    : prev.kbTopK,
-    kbChunkSize:         body.kbChunkSize        !== undefined ? clamp(body.kbChunkSize,   200, 8000, 1500) : prev.kbChunkSize,
-    kbChunkOverlap:      body.kbChunkOverlap     !== undefined ? clamp(body.kbChunkOverlap, 0, 1000, 200)  : prev.kbChunkOverlap,
-  });
+  try {
+    await setAdminSettings({
+      apiUrl:             body.apiUrl             !== undefined ? body.apiUrl             : prev.apiUrl,
+      apiKey:             body.apiKey && body.apiKey !== "***" ? body.apiKey              : prev.apiKey,
+      model:              body.model              !== undefined ? body.model              : prev.model,
+      systemPrompt:       body.systemPrompt       !== undefined ? body.systemPrompt       : prev.systemPrompt,
+      modelParams:        body.modelParams        !== undefined ? body.modelParams        : prev.modelParams,
+      maxTurns:           body.maxTurns           !== undefined ? clamp(body.maxTurns,          1, 200,   40) : prev.maxTurns,
+      maxToolResultChars: body.maxToolResultChars !== undefined ? clamp(body.maxToolResultChars, 500, 50000, 3000) : prev.maxToolResultChars,
+      maxHistoryMessages: body.maxHistoryMessages !== undefined ? clamp(body.maxHistoryMessages, 4, 200,   20) : prev.maxHistoryMessages,
+      cleanupDelayMinutes: body.cleanupDelayMinutes !== undefined ? clampMinutes(body.cleanupDelayMinutes, 120) : prev.cleanupDelayMinutes,
+      kbTopK:              body.kbTopK             !== undefined ? clamp(body.kbTopK,        1, 20,   6)    : prev.kbTopK,
+      kbChunkSize:         body.kbChunkSize        !== undefined ? clamp(body.kbChunkSize,   200, 8000, 1500) : prev.kbChunkSize,
+      kbChunkOverlap:      body.kbChunkOverlap     !== undefined ? clamp(body.kbChunkOverlap, 0, 1000, 200)  : prev.kbChunkOverlap,
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[admin/api] Failed to save settings:", msg);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
   console.log("[admin/api] Save completed successfully");
 
   return NextResponse.json({ ok: true });
