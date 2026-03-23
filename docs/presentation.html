@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hyperset — AI-Powered Analytics Portal</title>
+  <style>
+    /* ── Reset & Base ─────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --primary:       #FF6B35;
+      --primary-dark:  #D35400;
+      --primary-light: #FF8A5C;
+      --primary-ghost: rgba(255,107,53,.10);
+      --primary-ghost2:rgba(255,107,53,.06);
+      --surface:       #ffffff;
+      --surface-alt:   #f7f5f2;
+      --border:        #e8e4df;
+      --text:          #1c1b1f;
+      --text-muted:    #6b6672;
+      --tag-bg:        #fff0ea;
+      --tag-text:      #c0440c;
+      --radius-sm:     8px;
+      --radius:        14px;
+      --radius-lg:     20px;
+      --shadow-sm:     0 1px 4px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.05);
+      --shadow:        0 4px 24px rgba(0,0,0,.09), 0 1px 4px rgba(0,0,0,.05);
+      --shadow-lg:     0 8px 48px rgba(0,0,0,.12);
+      --max-w:         1120px;
+      --transition:    .2s cubic-bezier(.4,0,.2,1);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --primary:       #FF8A5C;
+        --primary-dark:  #FF6B35;
+        --primary-light: #FFAB84;
+        --primary-ghost: rgba(255,138,92,.12);
+        --primary-ghost2:rgba(255,138,92,.07);
+        --surface:       #1e1c1a;
+        --surface-alt:   #16140f;
+        --border:        #2e2b26;
+        --text:          #ece8e3;
+        --text-muted:    #948e87;
+        --tag-bg:        rgba(255,107,53,.15);
+        --tag-text:      #FF8A5C;
+        --shadow-sm:     0 1px 4px rgba(0,0,0,.3), 0 4px 16px rgba(0,0,0,.2);
+        --shadow:        0 4px 24px rgba(0,0,0,.35);
+        --shadow-lg:     0 8px 48px rgba(0,0,0,.45);
+      }
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--surface-alt);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Layout helpers ───────────────────────────────────────── */
+    .container { max-width: var(--max-w); margin: 0 auto; padding: 0 24px; }
+    .section    { padding: 96px 0; }
+    .section--alt { background: var(--surface); }
+
+    /* ── Typography ───────────────────────────────────────────── */
+    h1, h2, h3, h4 { font-weight: 700; line-height: 1.2; letter-spacing: -.02em; }
+    h1 { font-size: clamp(2.4rem, 6vw, 4rem); }
+    h2 { font-size: clamp(1.75rem, 4vw, 2.5rem); }
+    h3 { font-size: 1.25rem; font-weight: 600; }
+    h4 { font-size: 1rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--primary); }
+    p  { color: var(--text-muted); line-height: 1.75; }
+
+    .eyebrow {
+      display: inline-block; font-size: .8rem; font-weight: 700; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--primary); margin-bottom: 12px;
+      padding: 4px 10px; background: var(--primary-ghost); border-radius: 999px;
+    }
+    .lead {
+      font-size: 1.2rem; color: var(--text-muted); max-width: 640px;
+      margin-top: 16px; line-height: 1.8;
+    }
+
+    /* ── Nav ──────────────────────────────────────────────────── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(255,255,255,.82);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 0;
+      transition: background var(--transition);
+    }
+    @media (prefers-color-scheme: dark) {
+      nav { background: rgba(30,28,26,.85); }
+    }
+    .nav-inner {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 16px;
+    }
+    .nav-logo {
+      display: flex; align-items: center; gap: 10px;
+      text-decoration: none; color: var(--text); font-weight: 700; font-size: 1.1rem;
+    }
+    .nav-logo svg { width: 32px; height: 32px; flex-shrink: 0; }
+    .nav-links {
+      display: flex; gap: 8px; list-style: none;
+      flex-wrap: wrap;
+    }
+    .nav-links a {
+      text-decoration: none; color: var(--text-muted); font-size: .875rem;
+      padding: 6px 14px; border-radius: 999px;
+      transition: background var(--transition), color var(--transition);
+    }
+    .nav-links a:hover {
+      background: var(--primary-ghost); color: var(--primary);
+    }
+    .btn-nav {
+      background: var(--primary); color: #fff !important;
+      border-radius: 999px; padding: 6px 18px !important;
+      font-weight: 600 !important;
+    }
+    .btn-nav:hover { background: var(--primary-dark) !important; }
+
+    /* ── Hero ─────────────────────────────────────────────────── */
+    .hero {
+      padding: 120px 0 96px;
+      background:
+        radial-gradient(ellipse 900px 560px at 60% 40%, rgba(255,107,53,.09) 0%, transparent 70%),
+        var(--surface-alt);
+      overflow: hidden; position: relative;
+    }
+    .hero-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center;
+    }
+    @media (max-width: 768px) { .hero-grid { grid-template-columns: 1fr; gap: 48px; } }
+
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--primary-ghost); color: var(--primary);
+      padding: 6px 14px; border-radius: 999px; font-size: .85rem; font-weight: 600;
+      margin-bottom: 24px; border: 1px solid rgba(255,107,53,.2);
+    }
+    .hero-badge::before { content: ''; width: 8px; height: 8px; background: var(--primary); border-radius: 50%; flex-shrink: 0; }
+
+    .hero h1 { margin-bottom: 20px; }
+    .hero h1 span { color: var(--primary); }
+    .hero-cta { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 36px; }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 12px 28px; border-radius: 999px; font-weight: 600; font-size: .95rem;
+      text-decoration: none; transition: all var(--transition); cursor: pointer; border: none;
+    }
+    .btn-primary { background: var(--primary); color: #fff; box-shadow: 0 4px 20px rgba(255,107,53,.35); }
+    .btn-primary:hover { background: var(--primary-dark); transform: translateY(-2px); box-shadow: 0 6px 28px rgba(255,107,53,.4); }
+    .btn-outline { background: transparent; color: var(--text); border: 1.5px solid var(--border); }
+    .btn-outline:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-ghost); }
+
+    /* Mock UI card in hero */
+    .hero-visual {
+      background: var(--surface); border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg); overflow: hidden; border: 1px solid var(--border);
+    }
+    .mock-topbar {
+      display: flex; align-items: center; gap: 8px; padding: 12px 16px;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+    }
+    .mock-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .mock-dot.r { background: #FF5F57; }
+    .mock-dot.y { background: #FEBC2E; }
+    .mock-dot.g { background: #28C840; }
+    .mock-url {
+      flex: 1; background: var(--surface-alt); border-radius: 6px;
+      padding: 4px 10px; font-size: .75rem; color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
+    .mock-body { display: flex; height: 260px; }
+    .mock-sidebar {
+      width: 48px; background: var(--surface-alt); border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; align-items: center; padding: 12px 0; gap: 12px;
+    }
+    .mock-icon { width: 28px; height: 28px; border-radius: 8px; background: var(--primary-ghost); }
+    .mock-icon.active { background: var(--primary); }
+    .mock-main { flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+    .mock-chart-row { display: flex; gap: 8px; }
+    .mock-chart {
+      flex: 1; background: var(--surface-alt); border-radius: 8px;
+      border: 1px solid var(--border); height: 80px;
+      display: flex; align-items: flex-end; padding: 8px; gap: 3px; overflow: hidden;
+    }
+    .mock-bar {
+      flex: 1; border-radius: 3px 3px 0 0; background: var(--primary); opacity: .7;
+    }
+    .mock-chat {
+      flex: 1; background: var(--surface-alt); border-radius: 8px;
+      border: 1px solid var(--border); padding: 10px; display: flex; flex-direction: column; gap: 6px;
+    }
+    .mock-msg { height: 8px; border-radius: 4px; }
+    .mock-msg.user { background: var(--primary); opacity: .6; width: 55%; margin-left: auto; }
+    .mock-msg.ai   { background: var(--border); width: 70%; }
+    .mock-msg.ai2  { background: var(--border); width: 45%; }
+    .mock-stats { display: flex; gap: 8px; }
+    .mock-stat {
+      flex: 1; background: var(--surface-alt); border-radius: 8px;
+      border: 1px solid var(--border); height: 52px; padding: 8px;
+      display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .mock-stat-val { height: 12px; border-radius: 4px; background: var(--primary); opacity: .5; width: 50%; }
+    .mock-stat-lbl { height: 8px; border-radius: 4px; background: var(--border); width: 70%; }
+
+    /* ── Stats strip ──────────────────────────────────────────── */
+    .stats-strip {
+      background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+      padding: 48px 0;
+    }
+    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; }
+    @media (max-width: 640px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
+    .stat-item {
+      text-align: center; padding: 16px;
+      border-right: 1px solid var(--border);
+    }
+    .stat-item:last-child { border-right: none; }
+    .stat-num { font-size: 2.25rem; font-weight: 800; color: var(--primary); letter-spacing: -.03em; }
+    .stat-lbl { font-size: .875rem; color: var(--text-muted); margin-top: 4px; }
+
+    /* ── Feature grid ─────────────────────────────────────────── */
+    .features-intro { text-align: center; margin-bottom: 64px; }
+    .features-intro h2 { max-width: 600px; margin: 0 auto 16px; }
+    .features-intro p  { max-width: 540px; margin: 0 auto; }
+
+    .feat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    @media (max-width: 900px) { .feat-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 560px) { .feat-grid { grid-template-columns: 1fr; } }
+
+    .feat-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 28px;
+      box-shadow: var(--shadow-sm);
+      transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition);
+    }
+    .feat-card:hover {
+      transform: translateY(-4px); box-shadow: var(--shadow);
+      border-color: rgba(255,107,53,.3);
+    }
+    .feat-icon {
+      width: 44px; height: 44px; border-radius: var(--radius-sm);
+      background: var(--primary-ghost); display: flex; align-items: center; justify-content: center;
+      font-size: 1.3rem; margin-bottom: 16px; flex-shrink: 0;
+    }
+    .feat-card h3 { margin-bottom: 8px; font-size: 1.05rem; }
+    .feat-card p  { font-size: .875rem; line-height: 1.65; }
+
+    /* ── How it works ─────────────────────────────────────────── */
+    .steps { display: flex; flex-direction: column; gap: 0; max-width: 720px; margin: 0 auto; }
+    .step {
+      display: flex; gap: 32px; position: relative; padding-bottom: 48px;
+    }
+    .step:last-child { padding-bottom: 0; }
+    .step-left { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+    .step-num {
+      width: 44px; height: 44px; border-radius: 50%;
+      background: var(--primary); color: #fff; font-weight: 800; font-size: 1rem;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; box-shadow: 0 4px 16px rgba(255,107,53,.4);
+    }
+    .step-line {
+      width: 2px; flex: 1; background: linear-gradient(to bottom, var(--primary), transparent);
+      margin-top: 8px; opacity: .4;
+    }
+    .step:last-child .step-line { display: none; }
+    .step-content { padding-top: 8px; }
+    .step-content h3 { margin-bottom: 6px; }
+    .step-content p  { font-size: .9rem; }
+
+    /* ── Architecture ─────────────────────────────────────────── */
+    .arch-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 28px; margin-top: 48px; }
+    @media (max-width: 640px) { .arch-grid { grid-template-columns: 1fr; } }
+
+    .arch-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow-sm);
+    }
+    .arch-card-header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+    .arch-badge {
+      font-size: .7rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+      padding: 3px 8px; border-radius: 4px; background: var(--tag-bg); color: var(--tag-text);
+    }
+    .arch-stack { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+    .chip {
+      font-size: .75rem; padding: 3px 10px; border-radius: 999px;
+      background: var(--surface-alt); border: 1px solid var(--border); color: var(--text-muted);
+    }
+
+    /* ── Security ─────────────────────────────────────────────── */
+    .security-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+    @media (max-width: 640px) { .security-grid { grid-template-columns: 1fr; } }
+
+    .sec-item {
+      display: flex; gap: 16px; align-items: flex-start;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 22px; box-shadow: var(--shadow-sm);
+    }
+    .sec-icon {
+      width: 40px; height: 40px; border-radius: var(--radius-sm);
+      background: var(--primary-ghost); display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem; flex-shrink: 0;
+    }
+    .sec-item h3 { font-size: .95rem; margin-bottom: 4px; }
+    .sec-item p  { font-size: .825rem; }
+
+    /* ── Privacy CTA banner ───────────────────────────────────── */
+    .privacy-banner {
+      background: linear-gradient(135deg, #FF6B35 0%, #D35400 100%);
+      border-radius: var(--radius-lg); padding: 56px 48px;
+      display: flex; align-items: center; justify-content: space-between; gap: 32px;
+      flex-wrap: wrap;
+      box-shadow: 0 8px 48px rgba(255,107,53,.35);
+    }
+    .privacy-banner h2 { color: #fff; }
+    .privacy-banner p  { color: rgba(255,255,255,.8); margin-top: 8px; max-width: 480px; }
+    .btn-white { background: #fff; color: var(--primary-dark); }
+    .btn-white:hover { background: rgba(255,255,255,.9); transform: translateY(-2px); }
+
+    /* ── Footer ───────────────────────────────────────────────── */
+    footer {
+      background: var(--surface); border-top: 1px solid var(--border);
+      padding: 40px 0 32px;
+    }
+    .footer-inner {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      flex-wrap: wrap;
+    }
+    .footer-logo { display: flex; align-items: center; gap: 10px; font-weight: 700; }
+    .footer-logo svg { width: 28px; height: 28px; }
+    .footer-tagline { font-size: .85rem; color: var(--text-muted); }
+    .footer-links { display: flex; gap: 20px; }
+    .footer-links a { font-size: .85rem; color: var(--text-muted); text-decoration: none; transition: color var(--transition); }
+    .footer-links a:hover { color: var(--primary); }
+
+    /* ── Tag chips in features ────────────────────────────────── */
+    .tag { display: inline-block; font-size: .7rem; font-weight: 600; padding: 2px 8px; border-radius: 4px; background: var(--tag-bg); color: var(--tag-text); margin-top: 8px; }
+
+    /* ── Section heading layout ───────────────────────────────── */
+    .section-head { margin-bottom: 56px; }
+    .section-head.center { text-align: center; }
+    .section-head.center p { max-width: 540px; margin: 12px auto 0; }
+    .section-head p { margin-top: 12px; max-width: 600px; }
+
+    /* scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════ NAV -->
+<nav>
+  <div class="container">
+    <div class="nav-inner">
+      <a class="nav-logo" href="#hero">
+        <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="14" cy="20" r="9" fill="#FF6B35"/>
+          <circle cx="26" cy="20" r="9" fill="#FF8A5C" opacity=".75"/>
+          <line x1="14" y1="20" x2="26" y2="20" stroke="#FF6B35" stroke-width="2.5"/>
+        </svg>
+        Hyperset
+      </a>
+      <ul class="nav-links">
+        <li><a href="#features">Features</a></li>
+        <li><a href="#how-it-works">How it works</a></li>
+        <li><a href="#architecture">Architecture</a></li>
+        <li><a href="#security">Security</a></li>
+        <li><a href="https://github.com/CheezeLover/Hyperset" class="btn-nav">GitHub</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════════ HERO -->
+<section class="hero" id="hero">
+  <div class="container">
+    <div class="hero-grid">
+      <div>
+        <div class="hero-badge">Self-hosted · Privacy-first · Open source</div>
+        <h1>AI-Powered Analytics,<br><span>On Your Terms</span></h1>
+        <p class="lead">
+          Hyperset combines Apache Superset dashboards with an intelligent AI chat interface — all running on your own infrastructure. No cloud lock-in, no telemetry, no external dependencies.
+        </p>
+        <div class="hero-cta">
+          <a href="#features" class="btn btn-primary">Explore Features</a>
+          <a href="#how-it-works" class="btn btn-outline">How it works</a>
+        </div>
+      </div>
+
+      <!-- Mock UI -->
+      <div class="hero-visual">
+        <div class="mock-topbar">
+          <span class="mock-dot r"></span>
+          <span class="mock-dot y"></span>
+          <span class="mock-dot g"></span>
+          <span class="mock-url">analytics.your-domain.com</span>
+        </div>
+        <div class="mock-body">
+          <div class="mock-sidebar">
+            <div class="mock-icon active"></div>
+            <div class="mock-icon"></div>
+            <div class="mock-icon"></div>
+          </div>
+          <div class="mock-main">
+            <div class="mock-stats">
+              <div class="mock-stat"><div class="mock-stat-val"></div><div class="mock-stat-lbl"></div></div>
+              <div class="mock-stat"><div class="mock-stat-val"></div><div class="mock-stat-lbl"></div></div>
+              <div class="mock-stat"><div class="mock-stat-val"></div><div class="mock-stat-lbl"></div></div>
+            </div>
+            <div class="mock-chart-row">
+              <div class="mock-chart">
+                <div class="mock-bar" style="height:40%"></div>
+                <div class="mock-bar" style="height:65%"></div>
+                <div class="mock-bar" style="height:50%"></div>
+                <div class="mock-bar" style="height:85%"></div>
+                <div class="mock-bar" style="height:55%"></div>
+                <div class="mock-bar" style="height:70%"></div>
+                <div class="mock-bar" style="height:90%"></div>
+              </div>
+              <div class="mock-chat">
+                <div class="mock-msg ai"></div>
+                <div class="mock-msg ai2"></div>
+                <div class="mock-msg user"></div>
+                <div class="mock-msg ai"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════ STATS -->
+<div class="stats-strip">
+  <div class="container">
+    <div class="stats-grid">
+      <div class="stat-item">
+        <div class="stat-num">100%</div>
+        <div class="stat-lbl">Self-hosted</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num">0</div>
+        <div class="stat-lbl">External data calls</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num">AI</div>
+        <div class="stat-lbl">Natural language queries</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num">MCP</div>
+        <div class="stat-lbl">Tool-calling protocol</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ FEATURES -->
+<section class="section" id="features">
+  <div class="container">
+    <div class="features-intro">
+      <span class="eyebrow">Features</span>
+      <h2>Everything your data team needs</h2>
+      <p>A unified portal that brings analytics, AI, and custom pages together — all under your control.</p>
+    </div>
+
+    <div class="feat-grid">
+
+      <div class="feat-card">
+        <div class="feat-icon">💬</div>
+        <h3>AI Chat Interface</h3>
+        <p>Ask questions in plain English. The AI understands your data context, executes queries, and returns insights — no SQL knowledge required.</p>
+        <span class="tag">Streaming responses</span>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon">📊</div>
+        <h3>Superset Integration</h3>
+        <p>Full Apache Superset embedded directly in the portal. Browse dashboards, explore charts, and interact with your data visually side-by-side with the AI.</p>
+        <span class="tag">Iframe embedding</span>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon">🔧</div>
+        <h3>AI Chart Generation</h3>
+        <p>Ask the AI to create charts on demand. It automatically generates temporary visualizations in Superset that can be promoted to permanent charts in one click.</p>
+        <span class="tag">Auto-cleanup</span>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon">🛠️</div>
+        <h3>MCP Tool Calling</h3>
+        <p>Built on the Model Context Protocol. The AI can execute SQL queries, list dashboards, inspect chart configurations, and create new visualizations autonomously.</p>
+        <span class="tag">Multi-turn agentic</span>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon">📚</div>
+        <h3>Knowledge Base (RAG)</h3>
+        <p>Upload documents, reports, or data dictionaries to give the AI contextual awareness. Semantic search retrieves relevant chunks at query time.</p>
+        <span class="tag">pgvector</span>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon">🗂️</div>
+        <h3>Custom Pages</h3>
+        <p>Drop-in extensible page framework with per-page role-based access control, custom icons, and optional backend proxying. Extend Hyperset without touching core code.</p>
+        <span class="tag">Role gating</span>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon">⚙️</div>
+        <h3>Runtime LLM Config</h3>
+        <p>Change API endpoints, models, system prompts, temperature, and agentic parameters at runtime via the admin panel — no restart required.</p>
+        <span class="tag">Admin panel</span>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon">🎨</div>
+        <h3>Responsive Split Layout</h3>
+        <p>Draggable resizable panels for Superset and the AI chat. Supports portrait and landscape orientations, touch and mouse input, and light/dark themes.</p>
+        <span class="tag">Material Design 3</span>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon">💡</div>
+        <h3>Follow-up Suggestions</h3>
+        <p>After each AI response, contextual follow-up question chips are suggested to guide exploration. Results are shown as rich reference cards with SQL previews.</p>
+        <span class="tag">Context-aware</span>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════ HOW IT WORKS -->
+<section class="section section--alt" id="how-it-works">
+  <div class="container">
+    <div class="section-head center">
+      <span class="eyebrow">How it works</span>
+      <h2>From question to insight in seconds</h2>
+      <p>Hyperset connects your data, your LLM, and your team through a secure, self-hosted pipeline.</p>
+    </div>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-left">
+          <div class="step-num">1</div>
+          <div class="step-line"></div>
+        </div>
+        <div class="step-content">
+          <h3>User authenticates via Caddy</h3>
+          <p>Your team logs in at <code>auth.your-domain.com</code>. Caddy issues a JWT and injects identity headers (<code>X-Webauth-*</code>) into every request. No passwords are ever sent to Superset directly.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-left">
+          <div class="step-num">2</div>
+          <div class="step-line"></div>
+        </div>
+        <div class="step-content">
+          <h3>Portal loads with Superset embedded</h3>
+          <p>The Next.js portal renders the split-pane UI. Superset opens in an iframe using header-based SSO. The service column gives access to chat, custom pages, and settings.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-left">
+          <div class="step-num">3</div>
+          <div class="step-line"></div>
+        </div>
+        <div class="step-content">
+          <h3>User asks a question in natural language</h3>
+          <p>The chat API sends the message to your configured LLM (OpenAI-compatible). The system prompt includes Superset context, knowledge base chunks, and tool definitions.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-left">
+          <div class="step-num">4</div>
+          <div class="step-line"></div>
+        </div>
+        <div class="step-content">
+          <h3>AI calls tools via MCP</h3>
+          <p>The LLM invokes tools over the Model Context Protocol: execute SQL, list charts, inspect datasets, create visualizations. HMAC-signed tokens secure portal-to-MCP communication.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-left">
+          <div class="step-num">5</div>
+          <div class="step-line"></div>
+        </div>
+        <div class="step-content">
+          <h3>Results stream back to the user</h3>
+          <p>The AI response streams in real-time. Tool results appear as rich reference cards. New charts open in Superset automatically. Follow-up suggestions help guide the next question.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════ ARCHITECTURE -->
+<section class="section" id="architecture">
+  <div class="container">
+    <div class="section-head">
+      <span class="eyebrow">Architecture</span>
+      <h2>Built on proven open-source components</h2>
+      <p>Every service is containerized and runs on your own infrastructure. Only Caddy exposes ports to the outside world.</p>
+    </div>
+
+    <div class="arch-grid">
+
+      <div class="arch-card">
+        <div class="arch-card-header">
+          <div class="feat-icon" style="margin-bottom:0; width:36px; height:36px; font-size:1.1rem;">🌐</div>
+          <div>
+            <h3 style="font-size:.95rem;">Portal App</h3>
+            <span class="arch-badge">Frontend + API</span>
+          </div>
+        </div>
+        <p style="font-size:.85rem;">The main user interface. Handles authentication sessions, the split-pane layout, chat streaming, admin settings, knowledge base management, and chart lifecycle.</p>
+        <div class="arch-stack">
+          <span class="chip">Next.js 16</span><span class="chip">React 19</span><span class="chip">TypeScript</span><span class="chip">iron-session</span><span class="chip">OpenAI SDK</span>
+        </div>
+      </div>
+
+      <div class="arch-card">
+        <div class="arch-card-header">
+          <div class="feat-icon" style="margin-bottom:0; width:36px; height:36px; font-size:1.1rem;">📈</div>
+          <div>
+            <h3 style="font-size:.95rem;">Apache Superset</h3>
+            <span class="arch-badge">Analytics Engine</span>
+          </div>
+        </div>
+        <p style="font-size:.85rem;">The core analytics platform. Handles chart rendering, dashboard management, datasets, SQL Lab, and all visualization logic. Accessed via header-based SSO only.</p>
+        <div class="arch-stack">
+          <span class="chip">Apache Superset</span><span class="chip">Python</span><span class="chip">AUTH_REMOTE_USER</span>
+        </div>
+      </div>
+
+      <div class="arch-card">
+        <div class="arch-card-header">
+          <div class="feat-icon" style="margin-bottom:0; width:36px; height:36px; font-size:1.1rem;">🤖</div>
+          <div>
+            <h3 style="font-size:.95rem;">Superset MCP Server</h3>
+            <span class="arch-badge">AI Tool Layer</span>
+          </div>
+        </div>
+        <p style="font-size:.85rem;">Exposes Superset capabilities as MCP tools for the AI to call: execute SQL, list charts/datasets, create temporary charts, inspect current view context.</p>
+        <div class="arch-stack">
+          <span class="chip">Python</span><span class="chip">MCP SDK</span><span class="chip">Superset API</span><span class="chip">HMAC auth</span>
+        </div>
+      </div>
+
+      <div class="arch-card">
+        <div class="arch-card-header">
+          <div class="feat-icon" style="margin-bottom:0; width:36px; height:36px; font-size:1.1rem;">🔒</div>
+          <div>
+            <h3 style="font-size:.95rem;">Caddy Reverse Proxy</h3>
+            <span class="arch-badge">Gateway + Auth</span>
+          </div>
+        </div>
+        <p style="font-size:.85rem;">The only container that exposes ports 80/443 to the internet. Handles TLS termination, user registration/login (caddy-security), and injects auth headers for downstream services.</p>
+        <div class="arch-stack">
+          <span class="chip">Caddy v2</span><span class="chip">caddy-security</span><span class="chip">JWT</span><span class="chip">TLS auto</span>
+        </div>
+      </div>
+
+      <div class="arch-card">
+        <div class="arch-card-header">
+          <div class="feat-icon" style="margin-bottom:0; width:36px; height:36px; font-size:1.1rem;">🗄️</div>
+          <div>
+            <h3 style="font-size:.95rem;">PostgreSQL</h3>
+            <span class="arch-badge">Shared Database</span>
+          </div>
+        </div>
+        <p style="font-size:.85rem;">Hosts both the Superset metadata database and the portal schema (admin settings, pages config, knowledge base vectors). pgvector enables semantic search for RAG.</p>
+        <div class="arch-stack">
+          <span class="chip">PostgreSQL</span><span class="chip">pgvector</span><span class="chip">portal schema</span>
+        </div>
+      </div>
+
+      <div class="arch-card">
+        <div class="arch-card-header">
+          <div class="feat-icon" style="margin-bottom:0; width:36px; height:36px; font-size:1.1rem;">⚡</div>
+          <div>
+            <h3 style="font-size:.95rem;">Redis + Celery</h3>
+            <span class="arch-badge">Cache + Workers</span>
+          </div>
+        </div>
+        <p style="font-size:.85rem;">Redis powers Superset's caching and Celery task queue for async chart rendering and background jobs. The portal uses Celery for periodic temp-chart cleanup (every 5 min).</p>
+        <div class="arch-stack">
+          <span class="chip">Redis</span><span class="chip">Celery</span><span class="chip">Celery Beat</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════ SECURITY -->
+<section class="section section--alt" id="security">
+  <div class="container">
+    <div class="section-head center">
+      <span class="eyebrow">Security</span>
+      <h2>Designed for sensitive data environments</h2>
+      <p>Every layer is built with a zero-trust mindset. Your data never leaves your infrastructure.</p>
+    </div>
+
+    <div class="security-grid">
+
+      <div class="sec-item">
+        <div class="sec-icon">🔐</div>
+        <div>
+          <h3>Header-based SSO</h3>
+          <p>Superset never sees user passwords. Caddy injects identity headers after JWT verification. All inter-service traffic stays on the internal <code>hyperset-net</code> network.</p>
+        </div>
+      </div>
+
+      <div class="sec-item">
+        <div class="sec-icon">🔑</div>
+        <div>
+          <h3>HMAC-signed Tokens</h3>
+          <p>Portal-to-MCP communication is secured with HMAC signatures. Per-session tokens expire and cannot be replayed, preventing unauthorized tool invocations.</p>
+        </div>
+      </div>
+
+      <div class="sec-item">
+        <div class="sec-icon">🛡️</div>
+        <div>
+          <h3>Role-based Access Control</h3>
+          <p>Groups and roles flow from your auth provider through JWT claims. Custom pages, admin settings, and knowledge base management all enforce role checks independently.</p>
+        </div>
+      </div>
+
+      <div class="sec-item">
+        <div class="sec-icon">⏱️</div>
+        <div>
+          <h3>Rate Limiting</h3>
+          <p>Each session is limited to 20 chat messages per 60 seconds. Agentic tool-call loops are bounded by a configurable max-turns parameter to prevent runaway API usage.</p>
+        </div>
+      </div>
+
+      <div class="sec-item">
+        <div class="sec-icon">🔒</div>
+        <div>
+          <h3>Encrypted Sessions</h3>
+          <p>User sessions use iron-session with encrypted, HMAC-verified cookies. No sensitive data is stored client-side in plaintext.</p>
+        </div>
+      </div>
+
+      <div class="sec-item">
+        <div class="sec-icon">📦</div>
+        <div>
+          <h3>Zero External Dependencies</h3>
+          <p>No telemetry, no analytics beacons, no external API calls are made by the platform itself. The only outbound traffic is to your own configured LLM endpoint.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════ PRIVACY CTA -->
+<section class="section">
+  <div class="container">
+    <div class="privacy-banner">
+      <div>
+        <h2>Your data stays yours</h2>
+        <p>Deploy on your own servers, your own cloud account, or your own on-premise hardware. Hyperset is built for teams who need AI-powered analytics without compromising on privacy or control.</p>
+      </div>
+      <div style="flex-shrink:0;">
+        <a href="https://github.com/CheezeLover/Hyperset" class="btn btn-white">
+          View on GitHub &rarr;
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════ FOOTER -->
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <div>
+        <div class="footer-logo">
+          <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="14" cy="20" r="9" fill="#FF6B35"/>
+            <circle cx="26" cy="20" r="9" fill="#FF8A5C" opacity=".75"/>
+            <line x1="14" y1="20" x2="26" y2="20" stroke="#FF6B35" stroke-width="2.5"/>
+          </svg>
+          Hyperset
+        </div>
+        <p class="footer-tagline" style="margin-top:4px;">Built for data teams who value privacy and control.</p>
+      </div>
+      <div class="footer-links">
+        <a href="#features">Features</a>
+        <a href="#architecture">Architecture</a>
+        <a href="#security">Security</a>
+        <a href="https://github.com/CheezeLover/Hyperset">GitHub</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
