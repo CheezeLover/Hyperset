@@ -20,7 +20,10 @@ declare global {
 
 export const sql: SqlClient =
   globalThis.__pgSql ??
-  postgres(process.env.PORTAL_DATABASE_URL ?? "", {
+  postgres(
+    process.env.PORTAL_DATABASE_URL ??
+      "postgresql://portal:portal@hyperset-portal-db:5432/portal",
+    {
       max: 10,
       // Include public in the search_path so that objects installed there by the
       // superuser (e.g. the pgvector `vector` type) are visible to the portal role,
@@ -36,9 +39,6 @@ if (process.env.NODE_ENV !== "production") globalThis.__pgSql = sql;
 let _schemaInit: Promise<void> | null = null;
 
 export function ensureSchema(): Promise<void> {
-  if (!process.env.PORTAL_DATABASE_URL) {
-    return Promise.reject(new Error("PORTAL_DATABASE_URL environment variable is required"));
-  }
   if (_schemaInit) return _schemaInit;
   _schemaInit = _runMigrations().catch((err) => {
     _schemaInit = null; // allow retry on transient failures

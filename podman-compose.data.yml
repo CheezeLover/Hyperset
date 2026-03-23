@@ -78,10 +78,6 @@ services:
       - ./Pages:/source/pages:ro,Z
     command: >
       sh -c "
-        if [ -f /hyperset/.initialized ]; then
-          echo 'Volume already initialized, skipping';
-          exit 0;
-        fi &&
         echo 'Creating hyperset_data subfolders...' &&
         mkdir -p /hyperset/pages /hyperset/superset-home /hyperset/caddy-data /hyperset/caddy-config &&
         chmod 777 /hyperset/pages /hyperset/superset-home /hyperset/caddy-data /hyperset/caddy-config &&
@@ -93,7 +89,6 @@ services:
         else
           echo 'No existing pages found in ./Pages';
         fi &&
-        touch /hyperset/.initialized &&
         echo 'Volume initialized'"
     restart: "no"
 
