@@ -396,7 +396,11 @@ REDIS_HOST     = os.getenv("REDIS_HOST", "redis")
 REDIS_PORT     = int(os.getenv("REDIS_PORT", "6379"))
 REDIS_CELERY_DB = int(os.getenv("REDIS_CELERY_DB", "0"))
 REDIS_RESULTS_DB = int(os.getenv("REDIS_RESULTS_DB", "1"))
-REDIS_CACHE_DB   = int(os.getenv("REDIS_CACHE_DB", "2"))
+REDIS_CACHE_DB      = int(os.getenv("REDIS_CACHE_DB", "2"))
+REDIS_RATELIMIT_DB  = int(os.getenv("REDIS_RATELIMIT_DB", "3"))
+
+# Flask-Limiter — use Redis so rate limits are shared across workers/replicas
+RATELIMIT_STORAGE_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_RATELIMIT_DB}"
 
 CACHE_CONFIG = {
     "CACHE_TYPE": "RedisCache",
