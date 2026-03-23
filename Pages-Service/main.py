@@ -169,15 +169,11 @@ class _PagesEventHandler(FileSystemEventHandler):
 
 
 def _start_watcher() -> None:
-    # PAGES_POLL_INTERVAL controls how often PollingObserver checks for changes.
-    # Default 5s is a good balance — 1s (the watchdog default) floods logs during
-    # the init container's bulk copy phase.
-    poll_interval = float(os.environ.get("PAGES_POLL_INTERVAL", "5"))
-    observer = Observer(timeout=poll_interval)
+    observer = Observer()
     observer.schedule(_PagesEventHandler(), str(PAGES_DIR), recursive=True)
     observer.daemon = True
     observer.start()
-    log.info("Watching %s for changes (poll interval: %ss)", PAGES_DIR, poll_interval)
+    log.info("Watching %s for changes", PAGES_DIR)
 
 
 # ── API endpoints ──────────────────────────────────────────────────────────────
