@@ -46,7 +46,8 @@ Copy the root `.env` and ensure these are available to the Next.js process. In p
 | `LLM_MAX_TOOL_RESULT_CHARS` | `3000` | Max characters per MCP tool result. Range: 500–50000. |
 | `LLM_MAX_HISTORY_MESSAGES` | `20` | Max history messages sent to the LLM. Range: 4–200. |
 | `HYPERSET_CLEANUP_DELAY_MINUTES` | `120` | Default AI chart cleanup delay in minutes. Range: 1–10080. |
-| `ADMIN_SETTINGS_PATH` | _(in-memory)_ | Optional file path to persist admin runtime settings across restarts. |
+| `PORTAL_DATABASE_URL` | `postgresql://portal:…@hyperset-superset-db:5432/superset` | Connection string for the portal role. Admin settings, pages config, and knowledge base are stored here. |
+| `PORTAL_SETUP_DATABASE_URL` | _(set in compose)_ | Admin connection string used once on first boot to provision the `vector` extension, `portal` role, and `portal` schema. Omit on cloud providers where provisioning is done externally. |
 
 All LLM settings can be overridden at runtime by admins via the gear icon in the chat UI without restarting the server. Runtime values take priority over environment variables.
 

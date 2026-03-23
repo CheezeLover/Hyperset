@@ -89,27 +89,28 @@
 <text x="42" y="360" font-size="10" font-weight="700" fill="white" letter-spacing="1.5">STATEFUL</text>
 <text x="440" y="360" text-anchor="middle" font-size="10" fill="#FEF3C7">podman-compose.data.yml  ·  single source of truth  ·  survives any container restart</text>
 
-<!-- Data boxes: same x as services above -->
-<!-- portal-db -->
-<rect x="40" y="378" width="200" height="70" rx="6" fill="white" stroke="#FCD34D" stroke-width="1.5"/>
-<text x="140" y="397" text-anchor="middle" font-size="11" font-weight="700" fill="#92400E">portal-db</text>
-<text x="140" y="411" text-anchor="middle" font-size="10" fill="#475569">PostgreSQL 15 + pgvector</text>
-<text x="140" y="425" text-anchor="middle" font-size="9" fill="#D97706" font-style="italic">portal_db_data</text>
-<text x="140" y="440" text-anchor="middle" font-size="9" font-weight="600" fill="#16A34A">→ Managed DB</text>
+<!-- Data boxes -->
 
-<!-- superset-db -->
-<rect x="250" y="378" width="200" height="70" rx="6" fill="white" stroke="#FCD34D" stroke-width="1.5"/>
-<text x="350" y="397" text-anchor="middle" font-size="11" font-weight="700" fill="#92400E">superset-db + redis</text>
-<text x="350" y="411" text-anchor="middle" font-size="10" fill="#475569">PostgreSQL 15 · Redis 7</text>
-<text x="350" y="425" text-anchor="middle" font-size="9" fill="#D97706" font-style="italic">superset_db_data · superset_redis_data</text>
-<text x="350" y="440" text-anchor="middle" font-size="9" font-weight="600" fill="#16A34A">→ Managed DB + Redis</text>
+<!-- superset-db — single PostgreSQL instance, hosts both superset and portal schemas -->
+<rect x="40" y="378" width="375" height="70" rx="6" fill="white" stroke="#FCD34D" stroke-width="1.5"/>
+<text x="227" y="397" text-anchor="middle" font-size="11" font-weight="700" fill="#92400E">superset-db</text>
+<text x="227" y="411" text-anchor="middle" font-size="10" fill="#475569">PostgreSQL 15 + pgvector</text>
+<text x="227" y="425" text-anchor="middle" font-size="9" fill="#D97706" font-style="italic">superset schema · portal schema · superset_db_data</text>
+<text x="227" y="440" text-anchor="middle" font-size="9" font-weight="600" fill="#16A34A">→ Managed DB (RDS, Cloud SQL…)</text>
+
+<!-- superset-redis -->
+<rect x="425" y="378" width="105" height="70" rx="6" fill="white" stroke="#FCD34D" stroke-width="1.5"/>
+<text x="477" y="397" text-anchor="middle" font-size="10" font-weight="700" fill="#92400E">superset-redis</text>
+<text x="477" y="411" text-anchor="middle" font-size="9" fill="#475569">Redis 7</text>
+<text x="477" y="425" text-anchor="middle" font-size="8" fill="#D97706" font-style="italic">superset_redis_data</text>
+<text x="477" y="440" text-anchor="middle" font-size="8" font-weight="600" fill="#16A34A">→ Managed Redis</text>
 
 <!-- hyperset_data -->
-<rect x="460" y="378" width="380" height="70" rx="6" fill="white" stroke="#FCD34D" stroke-width="1.5"/>
-<text x="650" y="397" text-anchor="middle" font-size="11" font-weight="700" fill="#92400E">hyperset_data</text>
-<text x="650" y="411" text-anchor="middle" font-size="10" fill="#475569">/pages · /superset-home · /caddy-data · /caddy-config</text>
-<text x="650" y="425" text-anchor="middle" font-size="9" fill="#D97706" font-style="italic">single shared volume — all stateless services mount /hyperset</text>
-<text x="650" y="440" text-anchor="middle" font-size="9" font-weight="600" fill="#16A34A">→ S3 / Object Storage</text>
+<rect x="540" y="378" width="320" height="70" rx="6" fill="white" stroke="#FCD34D" stroke-width="1.5"/>
+<text x="700" y="397" text-anchor="middle" font-size="11" font-weight="700" fill="#92400E">hyperset_data</text>
+<text x="700" y="411" text-anchor="middle" font-size="10" fill="#475569">/pages · /superset-home · /caddy-data · /caddy-config</text>
+<text x="700" y="425" text-anchor="middle" font-size="9" fill="#D97706" font-style="italic">single shared volume — all stateless services mount /hyperset</text>
+<text x="700" y="440" text-anchor="middle" font-size="9" font-weight="600" fill="#16A34A">→ S3 / Object Storage</text>
 
 <!-- Caption -->
 <text x="440" y="472" text-anchor="middle" font-size="10" fill="#94A3B8" font-style="italic">Rebuild or restart any service in the stateless layer — no data is lost</text>

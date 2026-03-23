@@ -21,12 +21,14 @@ Hyperset always deploys with an integrated Superset stack.
 2. Run `./setup_podman.sh`
 
 The integrated stack will start:
-- `hyperset-superset-db` (PostgreSQL 15)
+- `hyperset-superset-db` (PostgreSQL 15 + pgvector — hosts both Superset metadata and the portal schema)
 - `hyperset-superset-redis` (Redis 7)
 - `hyperset-superset` (Superset 6.0.0 app) - **internal only, no external port**
 - `hyperset-superset-worker` (Celery worker)
 - `hyperset-superset-beat` (Celery scheduler)
 - `hyperset-superset-init` (one-time initialization)
+
+> **No init script required.** The portal role, schema, and pgvector extension are provisioned automatically by the portal app on first boot using the DB admin credentials (`PORTAL_SETUP_DATABASE_URL`). No shell script or manual psql step is needed.
 
 **Important:** Superset is NOT accessible on port 8088 directly. You must access it through Caddy at `https://superset.your-domain.com`. This ensures SSO headers are always present and users cannot bypass authentication.
 
