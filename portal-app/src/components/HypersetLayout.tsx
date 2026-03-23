@@ -43,8 +43,6 @@ export function HypersetLayout({
   const [pages, setPages] = useState<Page[]>([]);
   // Map key → last used flex (persists across open/close)
   const lastFlex = useRef<Record<string, number>>({});
-  // Chat input to pre-fill when Superset sends "inspect_chart" message
-  const [chatInjection, setChatInjection] = useState<string | null>(null);
   // Ref to Superset iframe for postMessage
   const supersetIframeRef = useRef<HTMLIFrameElement>(null);
   // Current Superset URL — tracked in browser state, sent with each chat request.
@@ -156,35 +154,7 @@ export function HypersetLayout({
 
     const handler = (event: MessageEvent) => {
       const msg = event.data;
-      if (msg?.type === "inspect_chart") {
-        const context = [
-          `Chart: ${msg.chartTitle}`,
-          msg.datasource ? `Datasource: ${msg.datasource}` : "",
-          msg.query ? `SQL: ${msg.query}` : "",
-        ]
-          .filter(Boolean)
-          .join("\n");
-        setChatInjection(context);
-        // Auto-open chat panel if not open
-        setPanels((prev) => {
-          if (prev.some((p) => p.key === "chat")) return prev;
-          const flex =
-            lastFlex.current["chat"] ?? DEFAULT_CHAT_FLEX;
-          const actualFlex = Math.min(flex, mainFlex - MIN_FLEX);
-          if (actualFlex <= 0) return prev;
-          setMainFlex((mf) => mf - actualFlex);
-          return [
-            ...prev,
-            {
-              key: "chat",
-              flex: actualFlex,
-              url: "",
-              title: "Chat",
-              resizerColor: "primary",
-            },
-          ];
-        });
-      } else if (msg?.type === "superset_location" && typeof msg.url === "string") {
+      if (msg?.type === "superset_location" && typeof msg.url === "string") {
         setCurrentSupersetUrl(msg.url);
       } else if (msg?.type === "ready") {
         requestOpenedPage();
@@ -416,8 +386,6 @@ export function HypersetLayout({
                   supersetIframeRef={supersetIframeRef}
                   supersetUrl={supersetUrl}
                   currentSupersetUrl={currentSupersetUrl}
-                  injectedMessage={chatInjection}
-                  onInjectionConsumed={() => setChatInjection(null)}
                   messages={chatMessages}
                   onMessagesChange={setChatMessages}
                 />
