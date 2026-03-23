@@ -8,7 +8,7 @@ import {
 } from "@/lib/admin-settings";
 import { DEFAULT_SYSTEM_PROMPT } from "@/lib/default-system-prompt";
 
-import { checkRateLimit } from "@/lib/utils";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 // ── Rate limiters ──────────────────────────────────────────────────────────────
 // General admin endpoint limit: 20 req / 60 s per user (config reads/saves).

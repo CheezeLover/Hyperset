@@ -11,7 +11,8 @@ import {
   semanticSearch,
 } from "@/lib/knowledge-base";
 
-import { formatBytes, checkRateLimit } from "@/lib/utils";
+import { formatBytes } from "@/lib/utils";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 const RATE_LIMIT     = 20;
 const RATE_WINDOW_MS = 60_000;
