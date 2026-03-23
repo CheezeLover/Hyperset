@@ -1,4 +1,3 @@
-import "server-only";
 import { Redis } from "ioredis";
 
 declare global {
