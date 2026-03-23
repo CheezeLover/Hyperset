@@ -73,7 +73,7 @@ export const GET = async (req: NextRequest) => {
   // Non-blocking MCP probe
   let mcpWarning: string | undefined;
   try {
-    const mcpUrl = process.env.SUPERSET_MCP_URL ?? "";
+    const mcpUrl = process.env.SUPERSET_MCP_URL;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 2000);
     try {
