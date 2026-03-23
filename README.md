@@ -253,8 +253,8 @@ podman-compose up --build -d superset-mcp
 
 **Superset:**
 ```bash
-cd Superset-Instance
-./standalone-setup.sh  # Uses pinned version 6.0.0
+podman rm -f hyperset-superset hyperset-superset-worker hyperset-superset-beat
+podman-compose -f podman-compose.data.yml -f podman-compose.yml up --build -d superset-app superset-worker superset-beat
 ```
 
 ### Backup & Restore

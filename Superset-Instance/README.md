@@ -49,20 +49,9 @@ The integrated stack will start:
 **Used by:** Integrated deployment (mounted in compose file)
 
 ### superset_config.py
-**Purpose:** Additional base configuration (optional).
+**Purpose:** Additional base configuration (optional overrides).
 
-**Used by:** Standalone deployment via `standalone-setup.sh`
-
-### standalone-setup.sh
-**Purpose:** Standalone Superset deployment script.
-
-**What it does:**
-1. Clones Apache Superset 6.0.0
-2. Copies configuration files
-3. Creates local environment
-4. Starts with docker-compose or podman-compose
-
-**Use case:** Deploy Superset separately from Hyperset main stack
+**Used by:** Integrated deployment alongside `superset_config_docker.py`.
 
 ## Required Superset Configuration
 
