@@ -153,7 +153,7 @@ superset.{$HYPERSET_DOMAIN} {
         header Access-Control-Allow-Origin "*"
     }
 
-    # Proxy everything else to Superset, injecting bridge.js into HTML responses
+    # Proxy everything else to Superset
     handle {
         reverse_proxy {$SUPERSET_UPSTREAM} {
             header_up X-Webauth-User  {http.request.header.X-Token-User-Email}
@@ -162,15 +162,9 @@ superset.{$HYPERSET_DOMAIN} {
             header_up X-Forwarded-For {http.request.remote.host}
             header_up X-Forwarded-Proto {http.request.scheme}
             header_up X-Forwarded-Host {http.request.host}
-            # Force uncompressed HTML so the replace directive can inject bridge.js.
-            # If upstream sends gzip/br, body replacement may not happen.
-            header_up Accept-Encoding identity
             header_down -X-Frame-Options
             header_down -Content-Security-Policy
         }
-
-        replace </body> "<script src=\"/bridge.js\"></script></body>"
-        replace </BODY> "<script src=\"/bridge.js\"></script></BODY>"
     }
 
     header Content-Security-Policy "default-src 'self'; frame-ancestors 'self' https://{$HYPERSET_DOMAIN}; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://{$HYPERSET_DOMAIN}; media-src 'self'; object-src 'none'; frame-src 'self' https://{$HYPERSET_DOMAIN}; base-uri 'self'; form-action 'self';"
