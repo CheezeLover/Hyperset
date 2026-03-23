@@ -129,10 +129,6 @@ def _scan_pages() -> None:
 class _PagesEventHandler(FileSystemEventHandler):
     """React to changes inside PAGES_DIR."""
 
-    def _should_ignore(self, path: str) -> bool:
-        p = Path(path)
-        return "__pycache__" in p.parts or p.suffix == ".pyc"
-
     def _page_name_from_path(self, path: str) -> str | None:
         p = Path(path)
         try:
@@ -143,8 +139,6 @@ class _PagesEventHandler(FileSystemEventHandler):
         return parts[0] if parts else None
 
     def on_created(self, event):
-        if self._should_ignore(event.src_path):
-            return
         name = self._page_name_from_path(event.src_path)
         if not name:
             return
@@ -154,8 +148,6 @@ class _PagesEventHandler(FileSystemEventHandler):
             _load_page(page_dir)
 
     def on_modified(self, event):
-        if self._should_ignore(event.src_path):
-            return
         name = self._page_name_from_path(event.src_path)
         if not name:
             return
@@ -166,8 +158,6 @@ class _PagesEventHandler(FileSystemEventHandler):
             _load_page(page_dir)
 
     def on_deleted(self, event):
-        if self._should_ignore(event.src_path):
-            return
         name = self._page_name_from_path(event.src_path)
         if not name:
             return
