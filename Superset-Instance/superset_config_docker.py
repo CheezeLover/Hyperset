@@ -354,12 +354,11 @@ WTF_CSRF_ENABLED = True
 
 # ---------------------------------------------------------------------------
 # Session Security - Prevent session hijacking and enforce secure cookies
-# TLS is terminated at the Ingress/Caddy layer; ENABLE_PROXY_FIX=True handles
-# the forwarded-proto header so Flask sees HTTPS even behind the proxy.
+# Note: These require HTTPS to be fully functional
 # ---------------------------------------------------------------------------
-SESSION_COOKIE_SECURE = True
-SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SAMESITE = "Lax"
+# SESSION_COOKIE_SECURE = True  # Uncomment when using HTTPS
+# SESSION_COOKIE_HTTPONLY = True  # Uncomment when using HTTPS
+# SESSION_COOKIE_SAMESITE = "Lax"  # Uncomment when using HTTPS
 
 # ---------------------------------------------------------------------------
 # Embedded / guest token support
@@ -412,11 +411,8 @@ DATA_CACHE_CONFIG["CACHE_KEY_PREFIX"] = "superset_data_"
 DATA_CACHE_CONFIG["CACHE_REDIS_DB"] = REDIS_RESULTS_DB
 
 class CeleryConfig:
-    broker_url        = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_CELERY_DB}"
-    result_backend    = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_RESULTS_DB}"
-    # Redis-backed scheduler — safe for NFS volumes and rolling updates
-    beat_scheduler    = "redbeat.RedBeatScheduler"
-    redbeat_redis_url = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_CELERY_DB}"
+    broker_url     = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_CELERY_DB}"
+    result_backend = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_RESULTS_DB}"
 
 CELERY_CONFIG = CeleryConfig
 

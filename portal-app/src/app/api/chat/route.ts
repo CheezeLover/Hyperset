@@ -13,6 +13,7 @@ import {
 
 import { formatBytes, checkRateLimit } from "@/lib/utils";
 
+const _rateLimitMap = new Map<string, number[]>();
 const RATE_LIMIT     = 20;
 const RATE_WINDOW_MS = 60_000;
 // Max rows sent in a sql_data stream event — matches SQL_CARD_MAX_ROWS in ChatPanel
@@ -180,7 +181,7 @@ export const POST = async (req: NextRequest) => {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!await checkRateLimit("chat", RATE_LIMIT, RATE_WINDOW_MS, requestUser.email)) {
+  if (!checkRateLimit(_rateLimitMap, RATE_LIMIT, RATE_WINDOW_MS, requestUser.email)) {
     return NextResponse.json({ error: "Rate limit exceeded. Please wait before sending more messages." }, { status: 429 });
   }
 

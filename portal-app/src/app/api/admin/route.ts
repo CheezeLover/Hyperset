@@ -12,10 +12,12 @@ import { checkRateLimit } from "@/lib/utils";
 
 // ── Rate limiters ──────────────────────────────────────────────────────────────
 // General admin endpoint limit: 20 req / 60 s per user (config reads/saves).
+const _adminRateLimitMap = new Map<string, number[]>();
 const ADMIN_RATE_LIMIT   = 20;
 const ADMIN_RATE_WINDOW  = 60_000;
 
 // Stricter limit for PATCH (makes a live outbound LLM call): 5 req / 60 s.
+const _patchRateLimitMap = new Map<string, number[]>();
 const PATCH_RATE_LIMIT   = 5;
 const PATCH_RATE_WINDOW  = 60_000;
 
@@ -106,7 +108,7 @@ export async function GET(request: NextRequest) {
   if (denied) return denied;
 
   const { email } = getUserFromRequest(request);
-  if (!await checkRateLimit("admin", ADMIN_RATE_LIMIT, ADMIN_RATE_WINDOW, email)) {
+  if (!checkRateLimit(_adminRateLimitMap, ADMIN_RATE_LIMIT, ADMIN_RATE_WINDOW, email)) {
     return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
 
@@ -146,7 +148,7 @@ export async function POST(request: NextRequest) {
 
   const { email } = getUserFromRequest(request);
   console.log("[admin/api] User:", email);
-  if (!await checkRateLimit("admin", ADMIN_RATE_LIMIT, ADMIN_RATE_WINDOW, email)) {
+  if (!checkRateLimit(_adminRateLimitMap, ADMIN_RATE_LIMIT, ADMIN_RATE_WINDOW, email)) {
     return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
 
@@ -199,7 +201,7 @@ export async function DELETE(request: NextRequest) {
   if (denied) return denied;
 
   const { email } = getUserFromRequest(request);
-  if (!await checkRateLimit("admin", ADMIN_RATE_LIMIT, ADMIN_RATE_WINDOW, email)) {
+  if (!checkRateLimit(_adminRateLimitMap, ADMIN_RATE_LIMIT, ADMIN_RATE_WINDOW, email)) {
     return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
 
@@ -213,7 +215,7 @@ export async function PATCH(request: NextRequest) {
   if (denied) return denied;
 
   const { email } = getUserFromRequest(request);
-  if (!await checkRateLimit("admin-patch", PATCH_RATE_LIMIT, PATCH_RATE_WINDOW, email)) {
+  if (!checkRateLimit(_patchRateLimitMap, PATCH_RATE_LIMIT, PATCH_RATE_WINDOW, email)) {
     return NextResponse.json({ error: "Rate limit exceeded. Please wait before validating again." }, { status: 429 });
   }
 

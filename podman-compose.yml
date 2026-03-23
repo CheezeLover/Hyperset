@@ -157,7 +157,7 @@ services:
       dockerfile: Dockerfile
     image: localhost/hyperset-superset:latest
     container_name: hyperset-superset-beat
-    command: ["celery", "--app=superset.tasks.celery_app:app", "beat", "-l", "WARNING"]
+    command: ["celery", "--app=superset.tasks.celery_app:app", "beat", "-l", "WARNING", "--schedule", "/hyperset/superset-home/celerybeat-schedule"]
     environment:
       - DATABASE_DIALECT=postgresql
       - DATABASE_USER=superset
@@ -358,7 +358,6 @@ services:
       - SESSION_SECRET=${SESSION_SECRET}
       # Portal application database — portal schema inside the superset PG instance
       - PORTAL_DATABASE_URL=postgresql://portal:${PORTAL_DATABASE_PASSWORD:?PORTAL_DATABASE_PASSWORD must be set in .env}@hyperset-superset-db:5432/superset
-      - REDIS_URL=redis://hyperset-superset-redis:6379
       - NODE_ENV=production
     volumes:
       - ./theme.json:/app/theme.json:Z

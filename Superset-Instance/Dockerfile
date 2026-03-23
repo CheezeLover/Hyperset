@@ -12,11 +12,10 @@ RUN apt-get update && \
 # Install psycopg2-binary in the system site-packages
 # First find where site-packages is located
 RUN SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])") && \
-    pip install --no-cache-dir --target="$SITE_PACKAGES" psycopg2-binary celery-redbeat && \
+    pip install --no-cache-dir --target="$SITE_PACKAGES" psycopg2-binary && \
     echo "Installed to: $SITE_PACKAGES"
 
 # Verify installation
 RUN python -c "import psycopg2; print('psycopg2 OK:', psycopg2.__version__)"
-RUN python -c "import redbeat; print('redbeat OK:', redbeat.__version__)"
 
 USER superset
