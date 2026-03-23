@@ -9,8 +9,6 @@ interface ChatPanelProps {
   supersetUrl: string;
   /** Current Superset URL tracked in the browser; sent with each chat request. */
   currentSupersetUrl?: string;
-  injectedMessage: string | null;
-  onInjectionConsumed: () => void;
   /** Lifted state — persists across panel collapse/expand */
   messages: Message[];
   onMessagesChange: (updater: (prev: Message[]) => Message[]) => void;
@@ -1732,14 +1730,6 @@ export function ChatPanel({
       }); }
     }).catch(() => {});
   }, []);
-
-  // Inject message from Superset bridge
-  useEffect(() => {
-    if (!injectedMessage) return;
-    setInput(injectedMessage);
-    textareaRef.current?.focus();
-    onInjectionConsumed();
-  }, [injectedMessage, onInjectionConsumed]);
 
   // Auto-scroll
   useEffect(() => {

@@ -7,14 +7,6 @@ export type PortalToSuperset =
   | { type: "ping" };
 
 export type SupersetToPortal =
-  | {
-      type: "inspect_chart";
-      chartId: number | string;
-      chartTitle: string;
-      datasource: string;
-      query?: string;
-      filters?: Record<string, unknown>;
-    }
   | { type: "pong" }
   | { type: "ready" };
 
