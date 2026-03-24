@@ -1695,8 +1695,6 @@ export function ChatPanel({
   supersetIframeRef,
   supersetUrl,
   currentSupersetUrl,
-  injectedMessage,
-  onInjectionConsumed,
   messages,
   onMessagesChange,
 }: ChatPanelProps) {
