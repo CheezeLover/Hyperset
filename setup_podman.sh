@@ -198,10 +198,15 @@ podman --version
 podman-compose --version
 
 echo "==> Configuring kernel parameters for Redis..."
-if ! grep -q "^vm.overcommit_memory" /etc/sysctl.conf; then
-  echo "vm.overcommit_memory = 1" | sudo tee -a /etc/sysctl.conf > /dev/null
+if sudo sysctl -w vm.overcommit_memory=1 2>/dev/null; then
+  # Persist it across reboots
+  echo "vm.overcommit_memory = 1" | sudo tee /etc/sysctl.d/99-hyperset.conf > /dev/null
+  echo "    vm.overcommit_memory=1 applied."
+else
+  echo "    ⚠️  Could not set vm.overcommit_memory=1 (likely running inside an LXC container)."
+  echo "    To silence the Redis warning, run this on the Proxmox HOST:"
+  echo "      echo 'vm.overcommit_memory = 1' >> /etc/sysctl.conf && sysctl -p"
 fi
-sudo sysctl -w vm.overcommit_memory=1
 
 echo "==> Creating internal network (hyperset-net)..."
 podman network exists hyperset-net || podman network create hyperset-net
