@@ -197,6 +197,12 @@ echo "==> Checking versions..."
 podman --version
 podman-compose --version
 
+echo "==> Configuring kernel parameters for Redis..."
+if ! grep -q "^vm.overcommit_memory" /etc/sysctl.conf; then
+  echo "vm.overcommit_memory = 1" | sudo tee -a /etc/sysctl.conf > /dev/null
+fi
+sudo sysctl -w vm.overcommit_memory=1
+
 echo "==> Creating internal network (hyperset-net)..."
 podman network exists hyperset-net || podman network create hyperset-net
 
