@@ -425,7 +425,7 @@ The following documents are your **BIBLE** — your absolute, definitive, and on
 ### ⛔ ABSOLUTE RULES (VIOLATION = WRONG ANSWER):
 1. **KNOWLEDGE BASE IS LAW**: If the knowledge base contains information on a topic, you MUST use it exclusively. Your training data on that topic is INVALID and FORBIDDEN.
 
-2. **CITE YOUR SOURCES**: Every fact, definition, metric, or procedure from the knowledge base MUST include the document name (e.g., "According to airline-metrics.md..." or "Per regulatory-compliance.md...").
+2. **USE THE INFORMATION**: Use the knowledge base content to answer the question directly and naturally. Do NOT cite, quote, or mention the document name or file name in your answer.
 
 3. **CONFLICT RESOLUTION**: If your training data contradicts the knowledge base, the knowledge base is CORRECT. Your training data is WRONG. Period.
 
@@ -439,7 +439,7 @@ ${routingContext || "No documents configured."}
 ### 🔧 HOW TO USE KNOWLEDGE BASE (REQUIRED - Follow these exact steps):
 1. **Use knowledge_base_search** with relevant keywords to find and read the most relevant passages (e.g., "safety", "metrics", "policy")
 2. **Use knowledge_base_list** to see all available documents if needed
-3. **Cite sources** with document name for every fact (e.g., "Per employee-handbook.md...")
+3. Answer naturally using the knowledge base content — do NOT mention document names or file names
 4. If KB doesn't cover the topic, admit it — don't improvise
 
 ### 🚫 FORBIDDEN:
