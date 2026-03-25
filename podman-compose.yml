@@ -23,26 +23,26 @@ services:
     environment:
       # Database configuration
       - DATABASE_DIALECT=postgresql
-      - DATABASE_USER=superset
+      - DATABASE_USER=${SUPERSET_DB_USER:-superset}
       - DATABASE_PASSWORD=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
-      - DATABASE_HOST=hyperset-superset-db
-      - DATABASE_PORT=5432
-      - DATABASE_DB=superset
+      - DATABASE_HOST=${SUPERSET_DB_HOST:-hyperset-superset-db}
+      - DATABASE_PORT=${SUPERSET_DB_PORT:-5432}
+      - DATABASE_DB=${SUPERSET_DB_NAME:-superset}
       # Also set DB_* vars for compatibility
-      - DB_HOST=hyperset-superset-db
-      - DB_PORT=5432
-      - DB_NAME=superset
-      - DB_USER=superset
+      - DB_HOST=${SUPERSET_DB_HOST:-hyperset-superset-db}
+      - DB_PORT=${SUPERSET_DB_PORT:-5432}
+      - DB_NAME=${SUPERSET_DB_NAME:-superset}
+      - DB_USER=${SUPERSET_DB_USER:-superset}
       - DB_PASS=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
       # Examples database (same as main for integrated deployment)
-      - EXAMPLES_USER=superset
+      - EXAMPLES_USER=${SUPERSET_DB_USER:-superset}
       - EXAMPLES_PASSWORD=superset
-      - EXAMPLES_HOST=hyperset-superset-db
-      - EXAMPLES_PORT=5432
-      - EXAMPLES_DB=superset
+      - EXAMPLES_HOST=${SUPERSET_DB_HOST:-hyperset-superset-db}
+      - EXAMPLES_PORT=${SUPERSET_DB_PORT:-5432}
+      - EXAMPLES_DB=${SUPERSET_DB_NAME:-superset}
       # Redis configuration
-      - REDIS_HOST=hyperset-superset-redis
-      - REDIS_PORT=6379
+      - REDIS_HOST=${SUPERSET_REDIS_HOST:-hyperset-superset-redis}
+      - REDIS_PORT=${SUPERSET_REDIS_PORT:-6379}
       - REDIS_CELERY_DB=0
       - REDIS_RESULTS_DB=1
       # Superset security
@@ -103,18 +103,18 @@ services:
     command: ["celery", "--app=superset.tasks.celery_app:app", "worker", "--concurrency=2", "-l", "WARNING"]
     environment:
       - DATABASE_DIALECT=postgresql
-      - DATABASE_USER=superset
+      - DATABASE_USER=${SUPERSET_DB_USER:-superset}
       - DATABASE_PASSWORD=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
-      - DATABASE_HOST=hyperset-superset-db
-      - DATABASE_PORT=5432
-      - DATABASE_DB=superset
-      - DB_HOST=hyperset-superset-db
-      - DB_PORT=5432
-      - DB_NAME=superset
-      - DB_USER=superset
+      - DATABASE_HOST=${SUPERSET_DB_HOST:-hyperset-superset-db}
+      - DATABASE_PORT=${SUPERSET_DB_PORT:-5432}
+      - DATABASE_DB=${SUPERSET_DB_NAME:-superset}
+      - DB_HOST=${SUPERSET_DB_HOST:-hyperset-superset-db}
+      - DB_PORT=${SUPERSET_DB_PORT:-5432}
+      - DB_NAME=${SUPERSET_DB_NAME:-superset}
+      - DB_USER=${SUPERSET_DB_USER:-superset}
       - DB_PASS=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
-      - REDIS_HOST=hyperset-superset-redis
-      - REDIS_PORT=6379
+      - REDIS_HOST=${SUPERSET_REDIS_HOST:-hyperset-superset-redis}
+      - REDIS_PORT=${SUPERSET_REDIS_PORT:-6379}
       - REDIS_CELERY_DB=0
       - REDIS_RESULTS_DB=1
       - SECRET_KEY=${SUPERSET_SECRET_KEY:-CHANGE_ME_RUN_openssl_rand_base64_42}
@@ -160,18 +160,18 @@ services:
     command: ["celery", "--app=superset.tasks.celery_app:app", "beat", "-l", "WARNING", "--schedule", "/hyperset/superset-home/celerybeat-schedule"]
     environment:
       - DATABASE_DIALECT=postgresql
-      - DATABASE_USER=superset
+      - DATABASE_USER=${SUPERSET_DB_USER:-superset}
       - DATABASE_PASSWORD=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
-      - DATABASE_HOST=hyperset-superset-db
-      - DATABASE_PORT=5432
-      - DATABASE_DB=superset
-      - DB_HOST=hyperset-superset-db
-      - DB_PORT=5432
-      - DB_NAME=superset
-      - DB_USER=superset
+      - DATABASE_HOST=${SUPERSET_DB_HOST:-hyperset-superset-db}
+      - DATABASE_PORT=${SUPERSET_DB_PORT:-5432}
+      - DATABASE_DB=${SUPERSET_DB_NAME:-superset}
+      - DB_HOST=${SUPERSET_DB_HOST:-hyperset-superset-db}
+      - DB_PORT=${SUPERSET_DB_PORT:-5432}
+      - DB_NAME=${SUPERSET_DB_NAME:-superset}
+      - DB_USER=${SUPERSET_DB_USER:-superset}
       - DB_PASS=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
-      - REDIS_HOST=hyperset-superset-redis
-      - REDIS_PORT=6379
+      - REDIS_HOST=${SUPERSET_REDIS_HOST:-hyperset-superset-redis}
+      - REDIS_PORT=${SUPERSET_REDIS_PORT:-6379}
       - REDIS_CELERY_DB=0
       - REDIS_RESULTS_DB=1
       - SECRET_KEY=${SUPERSET_SECRET_KEY:-CHANGE_ME_RUN_openssl_rand_base64_42}
@@ -228,18 +228,18 @@ services:
       "
     environment:
       - DATABASE_DIALECT=postgresql
-      - DATABASE_USER=superset
+      - DATABASE_USER=${SUPERSET_DB_USER:-superset}
       - DATABASE_PASSWORD=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
-      - DATABASE_HOST=hyperset-superset-db
-      - DATABASE_PORT=5432
-      - DATABASE_DB=superset
-      - DB_HOST=hyperset-superset-db
-      - DB_PORT=5432
-      - DB_NAME=superset
-      - DB_USER=superset
+      - DATABASE_HOST=${SUPERSET_DB_HOST:-hyperset-superset-db}
+      - DATABASE_PORT=${SUPERSET_DB_PORT:-5432}
+      - DATABASE_DB=${SUPERSET_DB_NAME:-superset}
+      - DB_HOST=${SUPERSET_DB_HOST:-hyperset-superset-db}
+      - DB_PORT=${SUPERSET_DB_PORT:-5432}
+      - DB_NAME=${SUPERSET_DB_NAME:-superset}
+      - DB_USER=${SUPERSET_DB_USER:-superset}
       - DB_PASS=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
-      - REDIS_HOST=hyperset-superset-redis
-      - REDIS_PORT=6379
+      - REDIS_HOST=${SUPERSET_REDIS_HOST:-hyperset-superset-redis}
+      - REDIS_PORT=${SUPERSET_REDIS_PORT:-6379}
       - REDIS_CELERY_DB=0
       - REDIS_RESULTS_DB=1
       - SECRET_KEY=${SUPERSET_SECRET_KEY:-CHANGE_ME_RUN_openssl_rand_base64_42}
@@ -275,7 +275,10 @@ services:
     environment:
       - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
       - AUTH_CRYPTO_KEY=${AUTH_CRYPTO_KEY}
-      - SUPERSET_UPSTREAM=http://hyperset-superset:8088
+      - SUPERSET_UPSTREAM=${SUPERSET_UPSTREAM:-http://hyperset-superset:8088}
+      - PORTAL_UPSTREAM=${PORTAL_UPSTREAM:-hyperset-portal:3000}
+      - PAGES_UPSTREAM=${PAGES_UPSTREAM:-hyperset-pages:8000}
+      - USERS_JSON_PATH=${USERS_JSON_PATH:-/data/users.json}
       # Redirect Caddy's XDG dirs into the shared file volume subfolders
       - XDG_DATA_HOME=/hyperset/caddy-data
       - XDG_CONFIG_HOME=/hyperset/caddy-config
@@ -330,11 +333,11 @@ services:
     environment:
       - MCP_SERVICE_SECRET=${MCP_SERVICE_SECRET}
       - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
-      - SUPERSET_UPSTREAM=http://hyperset-superset:8088
+      - SUPERSET_UPSTREAM=${SUPERSET_UPSTREAM:-http://hyperset-superset:8088}
       - SUPERSET_MCP_USER=${SUPERSET_MCP_USER}
       - SUPERSET_MCP_PASSWORD=${SUPERSET_MCP_PASSWORD}
-      - REDIS_URL=redis://hyperset-superset-redis:6379/3
-      - HYPERSET_PORTAL_URL=http://hyperset-portal:3000
+      - REDIS_URL=redis://${SUPERSET_REDIS_HOST:-hyperset-superset-redis}:${SUPERSET_REDIS_PORT:-6379}/3
+      - HYPERSET_PORTAL_URL=${HYPERSET_PORTAL_URL:-http://hyperset-portal:3000}
     env_file:
       - ./.env
     depends_on:
@@ -368,7 +371,7 @@ services:
       - MCP_SERVICE_SECRET=${MCP_SERVICE_SECRET}
       - HYPERSET_DOMAIN=${HYPERSET_DOMAIN}
       - PAGES_DIR=/hyperset/pages
-      - SUPERSET_MCP_URL=http://hyperset-superset-mcp:8000/mcp
+      - SUPERSET_MCP_URL=${SUPERSET_MCP_URL:-http://hyperset-superset-mcp:8000/mcp}
       # LLM API (any OpenAI-compatible endpoint; overridable at runtime via the settings UI)
       - LLM_API_URL=${LLM_API_URL:-https://api.openai.com/v1}
       - LLM_API_KEY=${LLM_API_KEY}
@@ -376,7 +379,7 @@ services:
       # Session encryption key for admin settings storage
       - SESSION_SECRET=${SESSION_SECRET}
       # Portal application database — portal schema inside the superset PG instance
-      - PORTAL_DATABASE_URL=postgresql://portal:${PORTAL_DATABASE_PASSWORD:?PORTAL_DATABASE_PASSWORD must be set in .env}@hyperset-superset-db:5432/superset
+      - PORTAL_DATABASE_URL=postgresql://portal:${PORTAL_DATABASE_PASSWORD:?PORTAL_DATABASE_PASSWORD must be set in .env}@${PORTAL_DB_HOST:-hyperset-superset-db}:${PORTAL_DB_PORT:-5432}/${PORTAL_DB_NAME:-superset}
       - NODE_ENV=production
     volumes:
       - ./theme.json:/app/theme.json:Z
