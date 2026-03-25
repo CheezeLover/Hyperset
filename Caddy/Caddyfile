@@ -6,7 +6,7 @@
     security {
         local identity store localdb {
             realm local
-            path {$USERS_JSON_PATH:-/data/users.json}
+            path {$USERS_JSON_PATH}
         }
 
         authentication portal myportal {
@@ -80,7 +80,7 @@ auth.{$HYPERSET_DOMAIN} {
         header Access-Control-Allow-Origin "*"
     }
 
-    reverse_proxy {$PORTAL_UPSTREAM:-hyperset-portal:3000} {
+    reverse_proxy {$PORTAL_UPSTREAM} {
         header_up X-Token-User-Id    {http.request.header.X-Token-User-Id}
         header_up X-Token-User-Email {http.request.header.X-Token-User-Email}
         header_up X-Token-User-Roles {http.request.header.X-Token-User-Roles}
@@ -113,7 +113,7 @@ pages.{$HYPERSET_DOMAIN} {
         header Access-Control-Allow-Origin "*"
     }
 
-    reverse_proxy {$PAGES_UPSTREAM:-hyperset-pages:8000} {
+    reverse_proxy {$PAGES_UPSTREAM} {
         header_down -X-Frame-Options
         header_down -Content-Security-Policy
     }
