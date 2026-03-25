@@ -14,6 +14,7 @@ import os
 import re
 import sys
 import threading
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import uvicorn
@@ -27,7 +28,15 @@ PAGES_DIR = Path(os.environ.get("PAGES_DIR", "/pages"))
 log = logging.getLogger("hyperset-pages")
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(name)s  %(message)s")
 
-app = FastAPI(title="Hyperset Pages", docs_url=None, redoc_url=None)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    _scan_pages()
+    _start_watcher()
+    yield
+
+
+app = FastAPI(title="Hyperset Pages", docs_url=None, redoc_url=None, lifespan=lifespan)
 
 # Build a CORS origin regex scoped to the domain set in HYPERSET_DOMAIN.
 # Allows the root domain and any subdomain of HYPERSET_DOMAIN, blocking all
@@ -209,14 +218,6 @@ async def serve_page(page_name: str):
         return JSONResponse({"detail": "Page not found"}, status_code=404)
     index = PAGES_DIR / page_name / "index.html"
     return FileResponse(index, media_type="text/html")
-
-
-# ── Startup ────────────────────────────────────────────────────────────────────
-
-@app.on_event("startup")
-async def startup():
-    _scan_pages()
-    _start_watcher()
 
 
 if __name__ == "__main__":

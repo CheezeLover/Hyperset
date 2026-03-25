@@ -346,10 +346,8 @@ mcp = FastMCP(
     ),
 )
 
-# Mount MCP on the FastAPI app and add the health endpoint.
-# app (FastAPI) is the ASGI entrypoint; MCP tools are served at /mcp.
-app.mount("/mcp", mcp.streamable_http_app())
-
+# Health endpoint — must be registered BEFORE the root mount so Starlette
+# matches this route first and the catch-all mount never sees /health.
 @app.get("/health")
 async def health() -> JSONResponse:
     """Liveness and readiness probe endpoint for K8s / orchestrators."""
@@ -366,6 +364,11 @@ async def health() -> JSONResponse:
         },
         status_code=200 if redis_ok else 503,
     )
+
+# Mount MCP at root so the sub-app receives the full path (POST /mcp).
+# Mounting at "/mcp" would strip the prefix — the sub-app's internal /mcp
+# handler would receive "/" and return 404.
+app.mount("/", mcp.streamable_http_app())
 
 # Type variables
 T = TypeVar("T")
