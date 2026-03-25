@@ -25,8 +25,10 @@ import re
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from functools import wraps
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi import HTTPException
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+from starlette.routing import Route
 from mcp.server.fastmcp import FastMCP, Context
 from mcp.server.transport_security import TransportSecuritySettings
 from dotenv import load_dotenv
@@ -278,8 +280,22 @@ async def extract_identity(request) -> VerifiedIdentity:
         request.state._verified_identity = await verify_mcp_token(auth[7:])
     return request.state._verified_identity
 
-# Initialize FastAPI app
-app = FastAPI(title="Superset MCP Server")
+# ── Health endpoint (Starlette-native, injected into the MCP app's router) ───
+async def _health_endpoint(request: Request) -> JSONResponse:
+    """Liveness and readiness probe for K8s / orchestrators."""
+    try:
+        await _redis.ping()
+        redis_ok = True
+    except Exception:
+        redis_ok = False
+    return JSONResponse(
+        {
+            "status": "ok" if redis_ok else "degraded",
+            "service": "superset-mcp",
+            "redis": "ok" if redis_ok else "error",
+        },
+        status_code=200 if redis_ok else 503,
+    )
 
 # Shared HTTP client and context
 _shared_client: Optional[httpx.AsyncClient] = None
@@ -345,30 +361,6 @@ mcp = FastMCP(
         ],
     ),
 )
-
-# Health endpoint — must be registered BEFORE the root mount so Starlette
-# matches this route first and the catch-all mount never sees /health.
-@app.get("/health")
-async def health() -> JSONResponse:
-    """Liveness and readiness probe endpoint for K8s / orchestrators."""
-    try:
-        await _redis.ping()
-        redis_ok = True
-    except Exception:
-        redis_ok = False
-    return JSONResponse(
-        {
-            "status": "ok" if redis_ok else "degraded",
-            "service": "superset-mcp",
-            "redis": "ok" if redis_ok else "error",
-        },
-        status_code=200 if redis_ok else 503,
-    )
-
-# Mount MCP at root so the sub-app receives the full path (POST /mcp).
-# Mounting at "/mcp" would strip the prefix — the sub-app's internal /mcp
-# handler would receive "/" and return 404.
-app.mount("/", mcp.streamable_http_app())
 
 # Type variables
 T = TypeVar("T")
@@ -1788,8 +1780,11 @@ if __name__ == "__main__":
         host = os.getenv("MCP_HOST", "0.0.0.0")
         port = int(os.getenv("MCP_PORT", "8000"))
         logger.info(f"Starting Superset MCP server on {host}:{port} (streamable-http)...")
-        # Run via uvicorn on `app` so the /health route is served alongside /mcp
-        uvicorn.run(app, host=host, port=port)
+        # Get the MCP's own Starlette app (preserves its lifespan / httpx client init)
+        # and inject the /health route at position 0 so it is matched before /mcp.
+        _mcp_app = mcp.streamable_http_app()
+        _mcp_app.router.routes.insert(0, Route("/health", _health_endpoint, methods=["GET"]))
+        uvicorn.run(_mcp_app, host=host, port=port)
     else:
         logger.info("Starting Superset MCP server (stdio)...")
         mcp.run()
