@@ -74,6 +74,11 @@ export function ensureSchema(): Promise<void> {
 }
 
 async function _runMigrations(): Promise<void> {
+  // Validate env config before attempting any SQL — gives a clear error message
+  // to all callers of ensureSchema() (admin-settings, knowledge-base, page-settings)
+  // rather than a raw postgres connection failure.
+  checkDbConfig();
+
   // pgvector is installed by the superset-db init script (init-portal-schema.sh)
   // running as superuser. The portal role has no CREATE EXTENSION privilege, so
   // this is a best-effort call that succeeds on fresh DBs where the portal user

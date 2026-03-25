@@ -226,12 +226,13 @@ class VerifiedIdentity:
 # ── JTI replay cache — prevents token reuse within the token's lifetime ──────
 # Uses Redis SET NX (set-if-not-exists) for atomic check-and-set that is safe
 # across multiple replicas. Key format: mcp:jti:<jti>  TTL = token remaining lifetime.
+_REDIS_JTI_PREFIX = "mcp:jti:"
 
 async def _claim_jti(jti: str, exp_ms: float) -> None:
     """Mark a JTI as consumed; raises ValueError if already seen (replay)."""
     now_ms = time.time() * 1000
     ttl_seconds = max(1, int((exp_ms - now_ms) / 1000) + 1)
-    was_set = await _redis.set(f"mcp:jti:{jti}", "1", nx=True, ex=ttl_seconds)
+    was_set = await _redis.set(f"{_REDIS_JTI_PREFIX}{jti}", "1", nx=True, ex=ttl_seconds)
     if not was_set:
         raise ValueError("Token replay detected")
 
