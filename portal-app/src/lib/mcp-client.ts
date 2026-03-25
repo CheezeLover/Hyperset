@@ -10,16 +10,10 @@
  * tools/list and one POST per tool call.
  */
 
-const MCP_URL = (() => {
-  const url = process.env.SUPERSET_MCP_URL;
-  if (!url) {
-    throw new Error(
-      "[mcp-client] SUPERSET_MCP_URL is not set. " +
-        "Example: http://hyperset-superset-mcp:8000/mcp",
-    );
-  }
-  return url;
-})();
+// No module-level throw: `next build` imports every route without production
+// env vars. Throwing here crashes the build. Instead we check at request time
+// inside mcpPost() so misconfiguration is caught within the first tool call.
+const MCP_URL = process.env.SUPERSET_MCP_URL ?? "";
 
 // Required by the MCP Streamable HTTP spec
 const MCP_HEADERS = {
@@ -55,6 +49,12 @@ function nextId() {
 }
 
 async function mcpPost(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
+  if (!MCP_URL) {
+    throw new Error(
+      "[mcp-client] SUPERSET_MCP_URL is not set. " +
+        "Example: http://hyperset-superset-mcp:8000/mcp",
+    );
+  }
   const body = JSON.stringify({
     jsonrpc: "2.0",
     id: nextId(),
