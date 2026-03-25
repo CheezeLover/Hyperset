@@ -189,6 +189,17 @@ async def list_pages():
     return JSONResponse({"pages": pages})
 
 
+@app.get("/health")
+async def health_check():
+    """Liveness and readiness probe endpoint."""
+    with _registry_lock:
+        page_count = len(_registry)
+    return JSONResponse(
+        {"status": "ok", "service": "pages", "page_count": page_count},
+        status_code=200,
+    )
+
+
 @app.get("/{page_name}", include_in_schema=False)
 async def serve_page(page_name: str):
     """Serve the index.html for a registered page."""

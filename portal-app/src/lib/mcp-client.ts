@@ -10,8 +10,16 @@
  * tools/list and one POST per tool call.
  */
 
-const MCP_URL =
-  process.env.SUPERSET_MCP_URL ?? "http://hyperset-superset-mcp:8000/mcp";
+const MCP_URL = (() => {
+  const url = process.env.SUPERSET_MCP_URL;
+  if (!url) {
+    throw new Error(
+      "[mcp-client] SUPERSET_MCP_URL is not set. " +
+        "Example: http://hyperset-superset-mcp:8000/mcp",
+    );
+  }
+  return url;
+})();
 
 // Required by the MCP Streamable HTTP spec
 const MCP_HEADERS = {

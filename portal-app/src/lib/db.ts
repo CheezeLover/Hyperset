@@ -18,19 +18,29 @@ declare global {
   var __pgSql: SqlClient | undefined;
 }
 
+const _dbUrl = process.env.PORTAL_DATABASE_URL;
+if (!_dbUrl) {
+  throw new Error(
+    "[db] PORTAL_DATABASE_URL is not set. " +
+      "Set it to the full PostgreSQL connection string.",
+  );
+}
+if (_dbUrl.includes("portal:portal@")) {
+  throw new Error(
+    "[db] PORTAL_DATABASE_URL uses the default weak credentials (portal:portal). " +
+      "Set PORTAL_DATABASE_PASSWORD in your .env file.",
+  );
+}
+
 export const sql: SqlClient =
   globalThis.__pgSql ??
-  postgres(
-    process.env.PORTAL_DATABASE_URL ??
-      "postgresql://portal:portal@hyperset-portal-db:5432/portal",
-    {
-      max: 10,
-      // Include public in the search_path so that objects installed there by the
-      // superuser (e.g. the pgvector `vector` type) are visible to the portal role,
-      // which only owns the `portal` schema.
-      connection: { search_path: '"$user", public' },
-    },
-  );
+  postgres(_dbUrl, {
+    max: 10,
+    // Include public in the search_path so that objects installed there by the
+    // superuser (e.g. the pgvector `vector` type) are visible to the portal role,
+    // which only owns the `portal` schema.
+    connection: { search_path: '"$user", public' },
+  });
 
 if (process.env.NODE_ENV !== "production") globalThis.__pgSql = sql;
 
