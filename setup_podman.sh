@@ -218,15 +218,10 @@ COMPOSE_FILES="-f podman-compose.data.yml -f podman-compose.yml"
 
 echo "==> Deploying with integrated Superset stack"
 
-# Use Docker image format so HEALTHCHECK instructions are preserved in all images.
-# OCI format (Podman's default) silently drops HEALTHCHECK, which breaks
-# depends_on: condition: service_healthy in podman-compose.
-export BUILDAH_FORMAT=docker
-
 # Build custom Superset image with PostgreSQL support
 echo "==> Building custom Superset image..."
 cd Superset-Instance
-podman build --format docker -t localhost/hyperset-superset:latest -f Dockerfile .
+podman build -t localhost/hyperset-superset:latest -f Dockerfile .
 cd ..
 
 echo "==> Building images and starting all services..."
