@@ -18,19 +18,46 @@ declare global {
   var __pgSql: SqlClient | undefined;
 }
 
+// No module-level throw: `next build` imports every route without production
+// env vars. Throwing here crashes the build. Instead we export checkDbConfig()
+// which is called at request time (health probe, ensureSchema). The pod health
+// probe runs immediately on startup so misconfiguration is caught within seconds.
+
+/**
+ * Validate the DB config at request/startup time.
+ * Call this in any route or startup function that needs a clear error message
+ * rather than a raw postgres connection failure.
+ */
+export function checkDbConfig(): void {
+  const url = process.env.PORTAL_DATABASE_URL;
+  if (!url) {
+    throw new Error(
+      "[db] PORTAL_DATABASE_URL is not set. " +
+        "Set it to the full PostgreSQL connection string.",
+    );
+  }
+  if (url.includes("portal:portal@")) {
+    throw new Error(
+      "[db] PORTAL_DATABASE_URL uses the default weak credentials (portal:portal). " +
+        "Set PORTAL_DATABASE_PASSWORD in your .env file.",
+    );
+  }
+}
+
+// The client is created eagerly so the connection pool is ready on first query.
+// If PORTAL_DATABASE_URL is unset the pool creation succeeds but the first
+// query will fail — checkDbConfig() (called from /api/health) gives the clear
+// error message before that happens.
+const _dbPoolMax = parseInt(process.env.DB_POOL_MAX ?? "10", 10);
 export const sql: SqlClient =
   globalThis.__pgSql ??
-  postgres(
-    process.env.PORTAL_DATABASE_URL ??
-      "postgresql://portal:portal@hyperset-portal-db:5432/portal",
-    {
-      max: 10,
-      // Include public in the search_path so that objects installed there by the
-      // superuser (e.g. the pgvector `vector` type) are visible to the portal role,
-      // which only owns the `portal` schema.
-      connection: { search_path: '"$user", public' },
-    },
-  );
+  postgres(process.env.PORTAL_DATABASE_URL ?? "", {
+    max: Number.isFinite(_dbPoolMax) && _dbPoolMax > 0 ? _dbPoolMax : 10,
+    // Include public in the search_path so that objects installed there by the
+    // superuser (e.g. the pgvector `vector` type) are visible to the portal role,
+    // which only owns the `portal` schema.
+    connection: { search_path: '"$user", public' },
+  });
 
 if (process.env.NODE_ENV !== "production") globalThis.__pgSql = sql;
 
@@ -48,6 +75,11 @@ export function ensureSchema(): Promise<void> {
 }
 
 async function _runMigrations(): Promise<void> {
+  // Validate env config before attempting any SQL — gives a clear error message
+  // to all callers of ensureSchema() (admin-settings, knowledge-base, page-settings)
+  // rather than a raw postgres connection failure.
+  checkDbConfig();
+
   // pgvector is installed by the superset-db init script (init-portal-schema.sh)
   // running as superuser. The portal role has no CREATE EXTENSION privilege, so
   // this is a best-effort call that succeeds on fresh DBs where the portal user

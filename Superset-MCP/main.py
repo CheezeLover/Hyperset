@@ -22,17 +22,20 @@ import sys
 import datetime
 import asyncio
 import re
-import threading
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from functools import wraps
-from fastapi import FastAPI, HTTPException
+from fastapi import HTTPException
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+from starlette.routing import Route
 from mcp.server.fastmcp import FastMCP, Context
 from mcp.server.transport_security import TransportSecuritySettings
 from dotenv import load_dotenv
 import json
 import logging
 from pathlib import Path
+import redis.asyncio as aioredis
 
 logging.basicConfig(
     level=logging.INFO,
@@ -51,6 +54,20 @@ enabling AI assistants to interact with and control a Superset instance programm
 
 # Load environment variables from .env file
 load_dotenv()
+
+# ── Redis client (JTI replay cache — shared across replicas) ─────────────────
+_REDIS_URL = os.getenv("REDIS_URL")
+if not _REDIS_URL:
+    raise RuntimeError(
+        "REDIS_URL must be set for the JTI replay cache. "
+        "Example: redis://hyperset-superset-redis:6379/3"
+    )
+_redis: aioredis.Redis = aioredis.Redis.from_url(
+    _REDIS_URL,
+    decode_responses=True,
+    socket_connect_timeout=2,
+    socket_timeout=2,
+)
 
 # ===== Security: SQL Validation =====
 # Block ALL write operations (INSERT, UPDATE, DELETE) and DDL (DROP, ALTER, etc.)
@@ -105,11 +122,13 @@ except Exception as _e:
     logger.warning("Could not load chart_type.json: %s", _e)
 
 # Constants
-SUPERSET_BASE_URL = (
-    os.getenv("SUPERSET_UPSTREAM")
-    or os.getenv("SUPERSET_BASE_URL")
-    or "http://localhost:8088"
-)
+_superset_upstream = os.getenv("SUPERSET_UPSTREAM") or os.getenv("SUPERSET_BASE_URL")
+if not _superset_upstream:
+    raise RuntimeError(
+        "SUPERSET_UPSTREAM (or SUPERSET_BASE_URL) must be set. "
+        "Example: http://hyperset-superset:8088"
+    )
+SUPERSET_BASE_URL = _superset_upstream
 
 # Public URL used to build browser-accessible embed links.
 # Must be reachable by the end-user's browser (not an internal upstream address).
@@ -171,9 +190,12 @@ def _portal_url_candidates() -> list[str]:
     if _hyperset_domain:
         candidates.append(_normalize_url_with_default_https(f"https://{_hyperset_domain}"))
 
-    # In-container fallbacks on the podman network
-    candidates.append("http://hyperset-portal:3000")
-    candidates.append("http://portal:3000")
+    if not candidates:
+        logger.warning(
+            "Neither HYPERSET_PORTAL_URL nor HYPERSET_DOMAIN is set. "
+            "The cleanup job will fall back to HYPERSET_CLEANUP_DELAY_MINUTES. "
+            "Set HYPERSET_PORTAL_URL to enable runtime configuration."
+        )
 
     # De-duplicate while preserving order
     seen: set[str] = set()
@@ -202,26 +224,23 @@ class VerifiedIdentity:
     roles: list[str]
 
 # ── JTI replay cache — prevents token reuse within the token's lifetime ──────
-_used_jtis: dict = {}   # jti (str) → expiry epoch-ms (float)
-_jti_lock = threading.Lock()
+# Uses Redis SET NX (set-if-not-exists) for atomic check-and-set that is safe
+# across multiple replicas. Key format: mcp:jti:<jti>  TTL = token remaining lifetime.
+_REDIS_JTI_PREFIX = "mcp:jti:"
 
-def _claim_jti(jti: str, exp_ms: float) -> None:
+async def _claim_jti(jti: str, exp_ms: float) -> None:
     """Mark a JTI as consumed; raises ValueError if already seen (replay)."""
     now_ms = time.time() * 1000
-    with _jti_lock:
-        # Prune expired entries to prevent unbounded growth
-        expired = [k for k, v in _used_jtis.items() if v < now_ms]
-        for k in expired:
-            del _used_jtis[k]
-        if jti in _used_jtis:
-            raise ValueError("Token replay detected")
-        _used_jtis[jti] = exp_ms
+    ttl_seconds = max(1, int((exp_ms - now_ms) / 1000) + 1)
+    was_set = await _redis.set(f"{_REDIS_JTI_PREFIX}{jti}", "1", nx=True, ex=ttl_seconds)
+    if not was_set:
+        raise ValueError("Token replay detected")
 
 def _b64url_decode(s: str) -> bytes:
     padding = 4 - len(s) % 4
     return base64.urlsafe_b64decode(s + "=" * (padding % 4))
 
-def verify_mcp_token(token: str) -> VerifiedIdentity:
+async def verify_mcp_token(token: str) -> VerifiedIdentity:
     parts = token.split(".")
     if len(parts) != 2:
         raise ValueError("Malformed token")
@@ -239,7 +258,7 @@ def verify_mcp_token(token: str) -> VerifiedIdentity:
     jti = payload.get("jti")
     if not jti:
         raise ValueError("Missing 'jti' claim")
-    _claim_jti(jti, payload.get("exp", 0))
+    await _claim_jti(jti, payload.get("exp", 0))
     username = payload.get("sub")
     if not username:
         raise ValueError("Missing 'sub' claim")
@@ -249,7 +268,7 @@ def verify_mcp_token(token: str) -> VerifiedIdentity:
         roles=payload.get("roles", []),
     )
 
-def extract_identity(request) -> VerifiedIdentity:
+async def extract_identity(request) -> VerifiedIdentity:
     # Cache the verified identity on request.state so verify_mcp_token (and
     # therefore _claim_jti) is only called ONCE per HTTP request.  Without this
     # cache, tools like superset_analyze_data that call superset_request()
@@ -259,11 +278,25 @@ def extract_identity(request) -> VerifiedIdentity:
         auth = request.headers.get("authorization", "")
         if not auth.startswith("Bearer "):
             raise ValueError("Missing Authorization header")
-        request.state._verified_identity = verify_mcp_token(auth[7:])
+        request.state._verified_identity = await verify_mcp_token(auth[7:])
     return request.state._verified_identity
 
-# Initialize FastAPI app
-app = FastAPI(title="Superset MCP Server")
+# ── Health endpoint (Starlette-native, injected into the MCP app's router) ───
+async def _health_endpoint(request: Request) -> JSONResponse:
+    """Liveness and readiness probe for K8s / orchestrators."""
+    try:
+        await _redis.ping()
+        redis_ok = True
+    except Exception:
+        redis_ok = False
+    return JSONResponse(
+        {
+            "status": "ok" if redis_ok else "degraded",
+            "service": "superset-mcp",
+            "redis": "ok" if redis_ok else "error",
+        },
+        status_code=200 if redis_ok else 503,
+    )
 
 # Shared HTTP client and context
 _shared_client: Optional[httpx.AsyncClient] = None
@@ -360,7 +393,7 @@ async def superset_request(
 ) -> dict:
     sc: SupersetContext = ctx.request_context.lifespan_context
     try:
-        identity = extract_identity(ctx.request_context.request)
+        identity = await extract_identity(ctx.request_context.request)
     except ValueError as e:
         return {"error": f"Authentication failed: {e}"}
     logger.info("MCP call: %s %s (user=%s)", method.upper(), endpoint, identity.username)
@@ -1223,7 +1256,7 @@ async def superset_chart_create(
     # to find and clean up.  Format: [HYPERSET-AI-TEMPORARY] {ISO-datetime} | {user}
     stamp_ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     try:
-        _identity = extract_identity(ctx.request_context.request)
+        _identity = await extract_identity(ctx.request_context.request)
         stamp_user = _identity.username
     except Exception:
         stamp_user = "unknown"
@@ -1744,12 +1777,15 @@ if __name__ == "__main__":
     # Support both stdio (default, for Claude Desktop etc.) and streamable-http (for portal integration)
     transport = os.getenv("MCP_TRANSPORT", "streamable-http")
     if transport == "streamable-http":
+        import uvicorn
         host = os.getenv("MCP_HOST", "0.0.0.0")
         port = int(os.getenv("MCP_PORT", "8000"))
         logger.info(f"Starting Superset MCP server on {host}:{port} (streamable-http)...")
-        mcp.settings.host = host
-        mcp.settings.port = port
-        mcp.run(transport="streamable-http")
+        # Get the MCP's own Starlette app (preserves its lifespan / httpx client init)
+        # and inject the /health route at position 0 so it is matched before /mcp.
+        _mcp_app = mcp.streamable_http_app()
+        _mcp_app.router.routes.insert(0, Route("/health", _health_endpoint, methods=["GET"]))
+        uvicorn.run(_mcp_app, host=host, port=port)
     else:
         logger.info("Starting Superset MCP server (stdio)...")
         mcp.run()

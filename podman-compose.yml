@@ -91,8 +91,11 @@ services:
 
   # ---------------------------------------------------------------------------
   # Superset Celery worker
-  # --concurrency=2  → 2 child processes (each loads full Superset stack ~300-500 MB)
-  # -l WARNING       → suppress INFO-level task chatter; use INFO only when debugging
+  # --concurrency 2   → child processes (each loads full Superset stack ~300-500 MB)
+  #                     To tune: change the --concurrency value in the command array below.
+  #                     Array form is required — bash -c with $$ escaping is not expanded
+  #                     by the container runtime in podman-compose 1.3.0.
+  # -l WARNING        → suppress INFO-level task chatter; use INFO only when debugging
   # ---------------------------------------------------------------------------
   superset-worker:
     build:
@@ -313,6 +316,12 @@ services:
       pages-volume-init:
         condition: service_completed_successfully
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   # ---------------------------------------------------------------------------
   # Superset MCP server — LLM tool bridge to Superset API
@@ -327,11 +336,22 @@ services:
       - SUPERSET_UPSTREAM=http://hyperset-superset:8088
       - SUPERSET_MCP_USER=${SUPERSET_MCP_USER}
       - SUPERSET_MCP_PASSWORD=${SUPERSET_MCP_PASSWORD}
+      - REDIS_URL=redis://hyperset-superset-redis:6379/3
+      - HYPERSET_PORTAL_URL=http://hyperset-portal:3000
     env_file:
       - ./.env
+    depends_on:
+      superset-redis:
+        condition: service_healthy
     networks:
       - hyperset-net
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   # ---------------------------------------------------------------------------
   # Portal — Next.js app (chat UI, admin, knowledge base)
@@ -370,7 +390,7 @@ services:
       pages-volume-init:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/config"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
       interval: 10s
       timeout: 5s
       retries: 5

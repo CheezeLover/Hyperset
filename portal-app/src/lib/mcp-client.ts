@@ -10,8 +10,12 @@
  * tools/list and one POST per tool call.
  */
 
-const MCP_URL =
-  process.env.SUPERSET_MCP_URL ?? "http://hyperset-superset-mcp:8000/mcp";
+import { randomUUID } from "crypto";
+
+// No module-level throw: `next build` imports every route without production
+// env vars. Throwing here crashes the build. Instead we check at request time
+// inside mcpPost() so misconfiguration is caught within the first tool call.
+const MCP_URL = process.env.SUPERSET_MCP_URL ?? "";
 
 // Required by the MCP Streamable HTTP spec
 const MCP_HEADERS = {
@@ -41,15 +45,16 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
   }
 }
 
-let _requestId = 1;
-function nextId() {
-  return _requestId++;
-}
-
 async function mcpPost(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
+  if (!MCP_URL) {
+    throw new Error(
+      "[mcp-client] SUPERSET_MCP_URL is not set. " +
+        "Set SUPERSET_MCP_URL to the full URL of the MCP server.",
+    );
+  }
   const body = JSON.stringify({
     jsonrpc: "2.0",
-    id: nextId(),
+    id: randomUUID(),
     method,
     params,
   });

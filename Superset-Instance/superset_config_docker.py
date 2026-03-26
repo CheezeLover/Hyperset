@@ -391,7 +391,9 @@ EXTRA_CSS = """
 # ---------------------------------------------------------------------------
 # Cache (Redis)
 # ---------------------------------------------------------------------------
-REDIS_HOST     = os.getenv("REDIS_HOST", "redis")
+REDIS_HOST     = os.getenv("REDIS_HOST")
+if not REDIS_HOST:
+    raise RuntimeError("REDIS_HOST must be set (e.g. the Redis service hostname).")
 REDIS_PORT     = int(os.getenv("REDIS_PORT", "6379"))
 REDIS_CELERY_DB = int(os.getenv("REDIS_CELERY_DB", "0"))
 REDIS_RESULTS_DB = int(os.getenv("REDIS_RESULTS_DB", "1"))
@@ -420,7 +422,9 @@ CELERY_CONFIG = CeleryConfig
 # Database
 # ---------------------------------------------------------------------------
 # Use DATABASE_* env vars (set in podman-compose.yml)
-DB_HOST     = os.getenv("DATABASE_HOST", "hyperset-superset-db")
+DB_HOST     = os.getenv("DATABASE_HOST")
+if not DB_HOST:
+    raise RuntimeError("DATABASE_HOST must be set (e.g. the PostgreSQL service hostname).")
 DB_PORT     = os.getenv("DATABASE_PORT", "5432")
 DB_NAME     = os.getenv("DATABASE_DB", "superset")
 DB_USER     = os.getenv("DATABASE_USER", "superset")
