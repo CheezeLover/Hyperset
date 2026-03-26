@@ -160,8 +160,10 @@ services:
       dockerfile: Dockerfile
     image: localhost/hyperset-superset:latest
     container_name: hyperset-superset-beat
-    command: ["celery", "--app=superset.tasks.celery_app:app", "beat", "-l", "WARNING", "--schedule", "/hyperset/superset-home/celerybeat-schedule"]
+    command: >
+      sh -c "celery --app=superset.tasks.celery_app:app beat -l WARNING --schedule $$CELERY_BEAT_SCHEDULE_FILE"
     environment:
+      - CELERY_BEAT_SCHEDULE_FILE=/hyperset/superset-home/celerybeat-schedule
       - DATABASE_DIALECT=postgresql
       - DATABASE_USER=superset
       - DATABASE_PASSWORD=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
