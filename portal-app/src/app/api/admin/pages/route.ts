@@ -4,10 +4,7 @@ import { getAllPageSettings, setPageSettings, deletePageSettings, type PageSetti
 import fs from "fs";
 import path from "path";
 
-// PAGES_DIR is set explicitly in podman-compose.yml (PAGES_DIR=/hyperset/pages).
-// Avoid process.cwd() at module scope — it causes Turbopack to trace the entire
-// project directory via Next.js file-system tracing (NFT), bloating the build.
-const PAGES_DIR = process.env.PAGES_DIR ?? "pages";
+const PAGES_DIR = process.env.PAGES_DIR ?? path.join(process.cwd(), "pages");
 
 import { checkRateLimit } from "@/lib/utils";
 

@@ -91,9 +91,9 @@ services:
 
   # ---------------------------------------------------------------------------
   # Superset Celery worker
-  # CELERYD_CONCURRENCY → child processes (each loads full Superset stack ~300-500 MB)
-  #                       set via CELERY_WORKER_CONCURRENCY in .env (default: 2)
-  # -l WARNING          → suppress INFO-level task chatter; use INFO only when debugging
+  # --concurrency     → child processes (each loads full Superset stack ~300-500 MB)
+  #                     controlled by CELERY_WORKER_CONCURRENCY (default: 2)
+  # -l WARNING        → suppress INFO-level task chatter; use INFO only when debugging
   # ---------------------------------------------------------------------------
   superset-worker:
     build:
@@ -101,10 +101,11 @@ services:
       dockerfile: Dockerfile
     image: localhost/hyperset-superset:latest
     container_name: hyperset-superset-worker
-    command: ["celery", "--app=superset.tasks.celery_app:app", "worker", "-l", "WARNING"]
+    command: >
+      bash -c "celery --app=superset.tasks.celery_app:app worker
+      --concurrency=$${CELERY_WORKER_CONCURRENCY:-2} -l WARNING"
     environment:
-      # Celery reads CELERYD_CONCURRENCY natively — no bash -c wrapper needed.
-      - CELERYD_CONCURRENCY=${CELERY_WORKER_CONCURRENCY:-2}
+      - CELERY_WORKER_CONCURRENCY=${CELERY_WORKER_CONCURRENCY:-2}
       - DATABASE_DIALECT=postgresql
       - DATABASE_USER=superset
       - DATABASE_PASSWORD=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
