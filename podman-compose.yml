@@ -91,8 +91,10 @@ services:
 
   # ---------------------------------------------------------------------------
   # Superset Celery worker
-  # --concurrency     → child processes (each loads full Superset stack ~300-500 MB)
-  #                     controlled by CELERY_WORKER_CONCURRENCY (default: 2)
+  # --concurrency 2   → child processes (each loads full Superset stack ~300-500 MB)
+  #                     To tune: change the --concurrency value in the command array below.
+  #                     Array form is required — bash -c with $$ escaping is not expanded
+  #                     by the container runtime in podman-compose 1.3.0.
   # -l WARNING        → suppress INFO-level task chatter; use INFO only when debugging
   # ---------------------------------------------------------------------------
   superset-worker:
@@ -101,11 +103,8 @@ services:
       dockerfile: Dockerfile
     image: localhost/hyperset-superset:latest
     container_name: hyperset-superset-worker
-    command: >
-      bash -c "celery --app=superset.tasks.celery_app:app worker
-      --concurrency=$${CELERY_WORKER_CONCURRENCY:-2} -l WARNING"
+    command: ["celery", "--app=superset.tasks.celery_app:app", "worker", "--concurrency=2", "-l", "WARNING"]
     environment:
-      - CELERY_WORKER_CONCURRENCY=${CELERY_WORKER_CONCURRENCY:-2}
       - DATABASE_DIALECT=postgresql
       - DATABASE_USER=superset
       - DATABASE_PASSWORD=${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set in .env}
