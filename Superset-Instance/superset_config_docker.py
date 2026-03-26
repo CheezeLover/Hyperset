@@ -418,6 +418,9 @@ class CeleryConfig:
 
 CELERY_CONFIG = CeleryConfig
 
+REDIS_RATELIMIT_DB = int(os.getenv("REDIS_RATELIMIT_DB", "4"))
+RATELIMIT_STORAGE_URI = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_RATELIMIT_DB}"
+
 # ---------------------------------------------------------------------------
 # Database
 # ---------------------------------------------------------------------------
