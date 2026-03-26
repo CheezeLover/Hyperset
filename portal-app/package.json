@@ -11,7 +11,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",
     "iron-session": "^8.0.4",
-    "next": "16.1.6",
+    "next": "^16.2.1",
     "openai": "^4.104.0",
     "postgres": "^3.4.5",
     "react": "19.2.3",
