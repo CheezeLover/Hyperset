@@ -73,7 +73,11 @@ export const GET = async (req: NextRequest) => {
   // Non-blocking MCP probe
   let mcpWarning: string | undefined;
   try {
-    const mcpUrl = process.env.SUPERSET_MCP_URL ?? "http://hyperset-superset-mcp:8000/mcp";
+    const mcpUrl = process.env.SUPERSET_MCP_URL ?? "";
+    if (!mcpUrl) {
+      mcpWarning = "SUPERSET_MCP_URL is not set — data tools disabled.";
+      return NextResponse.json({ ok: true, mcpWarning });
+    }
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 2000);
     try {

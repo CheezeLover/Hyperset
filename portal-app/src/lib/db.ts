@@ -48,10 +48,11 @@ export function checkDbConfig(): void {
 // If PORTAL_DATABASE_URL is unset the pool creation succeeds but the first
 // query will fail — checkDbConfig() (called from /api/health) gives the clear
 // error message before that happens.
+const _dbPoolMax = parseInt(process.env.DB_POOL_MAX ?? "10", 10);
 export const sql: SqlClient =
   globalThis.__pgSql ??
   postgres(process.env.PORTAL_DATABASE_URL ?? "", {
-    max: 10,
+    max: Number.isFinite(_dbPoolMax) && _dbPoolMax > 0 ? _dbPoolMax : 10,
     // Include public in the search_path so that objects installed there by the
     // superuser (e.g. the pgvector `vector` type) are visible to the portal role,
     // which only owns the `portal` schema.
